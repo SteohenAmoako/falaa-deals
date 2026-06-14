@@ -48,14 +48,14 @@ export const PLANS = [
     id: '6a282f0167c07f8445745e7b',
     name: 'Plan A',
     size: '3.4GB',
-    price: 11,
+    price: 8,
     description: 'MTN High-Speed Data'
   },
   {
     id: '6a282eb267c07f8445745dcc',
     name: 'Plan B',
     size: '5.1GB',
-    price: 15,
+    price: 14,
     description: 'MTN High-Speed Data'
   }
 ];
