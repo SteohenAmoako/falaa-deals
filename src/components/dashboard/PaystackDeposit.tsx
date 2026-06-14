@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { CreditCard, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
@@ -15,8 +16,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { usePaystackPayment } from 'react-paystack';
-import { supabase } from '@/lib/supabase';
 
 interface PaystackDepositProps {
   userEmail: string;
@@ -28,79 +27,46 @@ export default function PaystackDeposit({ userEmail, userId }: PaystackDepositPr
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const config = {
-    reference: `PAY-${new Date().getTime()}-${Math.floor(Math.random() * 1000000)}`,
-    email: userEmail || 'customer@example.com',
-    amount: parseFloat(amount) * 100, // Paystack works in pesewas
-    publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-    currency: 'GHS',
-  };
+  const handleFundWallet = async () => {
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount < 5) {
+      toast({ title: "Invalid Amount", description: "Minimum deposit is GHS 5.", variant: "destructive" });
+      return;
+    }
+    if (parsedAmount > 500) {
+      toast({ title: "Limit Exceeded", description: "Maximum single deposit is GHS 500.", variant: "destructive" });
+      return;
+    }
 
-  const initializePayment = usePaystackPayment(config);
-
-  const onSuccess = async (reference: any) => {
     setLoading(true);
     try {
-      const depositAmount = parseFloat(amount);
-      
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, wallet_balance')
-        .eq('user_id', userId)
-        .single();
-
-      if (profileError) throw profileError;
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ wallet_balance: (profile.wallet_balance || 0) + depositAmount })
-        .eq('id', profile.id);
-
-      if (updateError) throw updateError;
-
-      await supabase.from('wallet_transactions').insert({
-        user_id: userId,
-        amount: depositAmount,
-        type: 'credit',
-        reference: reference.reference,
-        description: `Paystack Deposit (Ref: ${reference.reference})`,
+      const response = await fetch('/api/paystack/initialize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: parsedAmount,
+          email: userEmail,
+          userId: userId
+        }),
       });
 
-      toast({ 
-        title: "Deposit Successful", 
-        description: `GHS ${depositAmount} has been added to your wallet.` 
-      });
-      
-      setIsDialogOpen(false);
-      setAmount('');
-      window.location.reload(); 
+      const data = await response.json();
+
+      if (data.authorization_url) {
+        // Redirect to Paystack Checkout
+        window.location.href = data.authorization_url;
+      } else {
+        throw new Error(data.error || 'Failed to initialize payment');
+      }
     } catch (err: any) {
       console.error(err);
       toast({ 
-        title: "Update Failed", 
-        description: "Payment successful but balance update failed. Contact support.", 
+        title: "Payment Error", 
+        description: err.message || "Could not start payment process.", 
         variant: "destructive" 
       });
-    } finally {
       setLoading(false);
     }
-  };
-
-  const onClose = () => {
-    toast({ 
-      title: "Payment Cancelled", 
-      description: "You closed the payment window.",
-      variant: "destructive"
-    });
-  };
-
-  const handlePaystackClick = () => {
-    const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      toast({ title: "Invalid Amount", description: "Please enter a valid amount.", variant: "destructive" });
-      return;
-    }
-    initializePayment(onSuccess, onClose);
   };
 
   return (
@@ -114,7 +80,7 @@ export default function PaystackDeposit({ userEmail, userId }: PaystackDepositPr
         <DialogHeader>
           <DialogTitle>Fund Your Wallet</DialogTitle>
           <DialogDescription>
-            Enter the amount you wish to deposit.
+            Enter the amount to deposit (GHS 5 - 500).
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -124,6 +90,8 @@ export default function PaystackDeposit({ userEmail, userId }: PaystackDepositPr
               id="amount"
               type="number"
               placeholder="20.00"
+              min="5"
+              max="500"
               className="bg-background/50 border-white/5 h-12 text-lg font-bold"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
@@ -132,12 +100,12 @@ export default function PaystackDeposit({ userEmail, userId }: PaystackDepositPr
         </div>
         <DialogFooter>
           <Button 
-            onClick={handlePaystackClick} 
+            onClick={handleFundWallet} 
             className="w-full h-12 font-bold text-lg"
             disabled={loading}
           >
             {loading ? <Loader2 className="animate-spin mr-2" /> : <CreditCard className="w-5 h-5 mr-2" />}
-            PAY WITH PAYSTACK
+            {loading ? 'INITIALIZING...' : 'PROCEED TO PAY'}
           </Button>
         </DialogFooter>
       </DialogContent>

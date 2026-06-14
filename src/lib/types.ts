@@ -1,3 +1,4 @@
+
 export type Profile = {
   id: string;
   user_id: string;
@@ -15,6 +16,7 @@ export type WalletTransaction = {
   amount: number;
   type: 'credit' | 'debit';
   reference: string;
+  status: 'pending' | 'success' | 'failed';
   description: string;
   created_at: string;
 };
