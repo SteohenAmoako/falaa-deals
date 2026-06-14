@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from "react";
@@ -101,6 +100,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0f1e] text-foreground flex items-center justify-center p-6 relative overflow-hidden">
+      {/* Abstract Background Orbs */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/20 rounded-full blur-[140px]" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent/20 rounded-full blur-[120px]" />
 
