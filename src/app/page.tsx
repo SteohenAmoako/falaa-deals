@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Smartphone, Zap, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signIn, signUp } from "@/app/actions/auth";
+import { supabase } from "@/lib/supabase";
+import { generateReferenceCode } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -18,8 +19,22 @@ export default function LandingPage() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
   const [setupError, setSetupError] = useState<string | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
+
+  // Check if user is already logged in
+  useEffect(() => {
+    async function checkSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        router.push('/dashboard');
+      } else {
+        setCheckingSession(false);
+      }
+    }
+    checkSession();
+  }, [router]);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -30,15 +45,21 @@ export default function LandingPage() {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
 
-    const result = await signIn({ email, password });
-    if (result.success) {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
       toast({ title: "Welcome Back", description: "Login successful!" });
       router.push('/dashboard');
-    } else {
-      setSetupError(result.message);
+    } catch (error: any) {
+      setSetupError(error.message);
       toast({ 
         title: "Login Failed", 
-        description: result.message, 
+        description: error.message, 
         variant: "destructive" 
       });
       setLoading(false);
@@ -56,28 +77,56 @@ export default function LandingPage() {
     const fullName = formData.get('fullName') as string;
     const phone = formData.get('phone') as string;
 
-    const result = await signUp({ email, password, fullName, phone });
-    if (result.success) {
+    try {
+      // 1. Auth Signup
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error("Signup failed");
+
+      // 2. Create Profile
+      const { error: profileError } = await supabase.from('profiles').insert({
+        user_id: authData.user.id,
+        full_name: fullName,
+        phone: phone,
+        reference_code: generateReferenceCode(),
+        wallet_balance: 0.00,
+        is_admin: false
+      });
+
+      if (profileError) throw profileError;
+
       toast({ 
         title: "Account Created!", 
-        description: "Your account is ready. Please log in now." 
+        description: "Welcome to SB Bundles! Redirecting..." 
       });
-      setLoading(false);
-      setActiveTab("login");
-    } else {
-      setSetupError(result.message);
+      
+      // Navigate to dashboard immediately
+      router.push('/dashboard');
+    } catch (error: any) {
+      setSetupError(error.message);
       toast({ 
         title: "Signup Failed", 
-        description: result.message, 
+        description: error.message, 
         variant: "destructive" 
       });
       setLoading(false);
     }
   };
 
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-[#0a0f1e] flex items-center justify-center">
+        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0a0f1e] text-foreground selection:bg-primary selection:text-white flex flex-col">
-      {/* Background Glow */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary rounded-full blur-[140px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent rounded-full blur-[120px]"></div>
@@ -85,8 +134,8 @@ export default function LandingPage() {
 
       <header className="relative z-10 p-6 lg:px-12 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center font-black italic shadow-lg shadow-primary/20 text-white">FD</div>
-          <span className="text-2xl font-black tracking-tighter">FalaaData</span>
+          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center font-black italic shadow-lg shadow-primary/20 text-white">SB</div>
+          <span className="text-2xl font-black tracking-tighter">SB Bundles</span>
         </div>
         <div className="flex items-center gap-6">
           <Link href="/admin" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hidden md:block">Admin Portal</Link>
@@ -108,7 +157,7 @@ export default function LandingPage() {
                 Connect your MoMo wallet via a simple reference code and get your data bundles delivered in under 5 seconds.
              </p>
              
-             {setupError && (setupError.includes('limit reached') || setupError.includes('Confirm email')) && (
+             {setupError && (setupError.includes('rate limit exceeded') || setupError.includes('Confirm email')) && (
                <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 text-white max-w-md">
                  <AlertCircle className="h-4 w-4" />
                  <AlertTitle className="font-bold">Configuration Required</AlertTitle>
@@ -192,8 +241,8 @@ export default function LandingPage() {
       <footer className="relative z-10 border-t border-white/5 p-8 bg-black/20 mt-auto">
          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-               <div className="w-6 h-6 bg-primary rounded flex items-center justify-center text-[10px] font-black text-white">FD</div>
-               <span className="font-bold text-sm tracking-tight uppercase">FalaaData Automations © 2024</span>
+               <div className="w-6 h-6 bg-primary rounded flex items-center justify-center text-[10px] font-black text-white">SB</div>
+               <span className="font-bold text-sm tracking-tight uppercase">SB Bundles Automations © 2024</span>
             </div>
             
             <div className="flex items-center gap-6">
