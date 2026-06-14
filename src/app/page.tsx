@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from "react";
@@ -9,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { generateReferenceCode } from "@/lib/supabase";
+import { signIn, signUp } from "@/app/actions/auth";
 import { useToast } from "@/hooks/use-toast";
 
 export default function LandingPage() {
@@ -42,12 +43,16 @@ export default function LandingPage() {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
 
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+    const result = await signIn({ email, password });
+    
+    if (result.success) {
       router.push('/dashboard');
-    } catch (error: any) {
-      toast({ title: "Login Failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({ 
+        title: "Login Failed", 
+        description: result.message, 
+        variant: "destructive" 
+      });
       setLoading(false);
     }
   };
@@ -61,24 +66,24 @@ export default function LandingPage() {
     const fullName = formData.get('fullName') as string;
     const phone = formData.get('phone') as string;
 
-    try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
-      if (authError) throw authError;
-      if (!authData.user) throw new Error("Signup failed");
+    const result = await signUp({ email, password, fullName, phone });
 
-      const { error: profileError } = await supabase.from('profiles').insert({
-        user_id: authData.user.id,
-        full_name: fullName,
-        phone: phone,
-        reference_code: generateReferenceCode(),
-        wallet_balance: 0.00,
-        is_admin: false
+    if (result.success) {
+      // Sign up successful, sign the user in
+      const loginResult = await signIn({ email, password });
+      if (loginResult.success) {
+        router.push('/dashboard');
+      } else {
+        setActiveTab("login");
+        setLoading(false);
+        toast({ title: "Account Created", description: "Please log in with your new credentials." });
+      }
+    } else {
+      toast({ 
+        title: "Signup Failed", 
+        description: result.message, 
+        variant: "destructive" 
       });
-      if (profileError) throw profileError;
-
-      router.push('/dashboard');
-    } catch (error: any) {
-      toast({ title: "Signup Failed", description: error.message, variant: "destructive" });
       setLoading(false);
     }
   };

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -48,33 +49,41 @@ export default function DashboardPage() {
           return; 
         }
 
-        // Only show full loading state on initial load
-        if (!profile) setLoading(true);
-
         // Sync statuses with Rahitalu silently in background
         syncUserOrders(session.user.id).catch(err => console.error('Silent Sync Error:', err));
 
         const [profileRes, ordersRes, txRes] = await Promise.all([
-          supabase.from('profiles').select('*').eq('user_id', session.user.id).single(),
+          supabase.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle(),
           supabase.from('rahitalu_orders').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false }),
           supabase.from('wallet_transactions').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false })
         ]);
 
         if (profileRes.error) {
-          throw new Error(profileRes.error.message || 'Failed to load profile');
+          throw new Error(profileRes.error.message);
         }
         
-        setProfile(profileRes.data);
+        if (!profileRes.data) {
+          // If profile missing, wait a bit and retry once (handles eventual consistency)
+          await new Promise(r => setTimeout(r, 2000));
+          const retryRes = await supabase.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle();
+          if (retryRes.data) {
+            setProfile(retryRes.data);
+          } else {
+            throw new Error('Profile not found. Please contact support.');
+          }
+        } else {
+          setProfile(profileRes.data);
+        }
+
         setOrders(ordersRes.data || []);
         setTransactions(txRes.data || []);
 
       } catch (error: any) {
         console.error('Dashboard Load Error:', error);
-        // Don't toast for expected auth issues during transitions
-        if (error.message && !error.message.includes('Auth session missing')) {
+        if (error.message) {
           toast({
             title: "Data Sync Issue",
-            description: "We couldn't refresh your latest data. Please try reloading.",
+            description: error.message,
             variant: "destructive"
           });
         }
@@ -83,7 +92,7 @@ export default function DashboardPage() {
       }
     }
     loadDashboardData();
-  }, [router, activeTab, profile === null]); // Fetch if profile missing or tab changes
+  }, [router, toast]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
