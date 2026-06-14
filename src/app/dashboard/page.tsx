@@ -42,15 +42,17 @@ export default function DashboardPage() {
     async function loadDashboardData() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        
         if (!session) { 
           router.push('/'); 
           return; 
         }
 
-        setLoading(true);
+        // Only show full loading state on initial load
+        if (!profile) setLoading(true);
 
-        // Sync statuses with Rahitalu
-        await syncUserOrders(session.user.id);
+        // Sync statuses with Rahitalu silently in background
+        syncUserOrders(session.user.id).catch(err => console.error('Silent Sync Error:', err));
 
         const [profileRes, ordersRes, txRes] = await Promise.all([
           supabase.from('profiles').select('*').eq('user_id', session.user.id).single(),
@@ -58,23 +60,30 @@ export default function DashboardPage() {
           supabase.from('wallet_transactions').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false })
         ]);
 
-        if (profileRes.error) throw profileRes.error;
+        if (profileRes.error) {
+          throw new Error(profileRes.error.message || 'Failed to load profile');
+        }
         
         setProfile(profileRes.data);
         setOrders(ordersRes.data || []);
         setTransactions(txRes.data || []);
 
       } catch (error: any) {
-        // Only toast if it's an actual error, not just a missing session
-        if (error.message !== 'Auth session missing') {
-          console.error('Dashboard Load Error:', error);
+        console.error('Dashboard Load Error:', error);
+        // Don't toast for expected auth issues during transitions
+        if (error.message && !error.message.includes('Auth session missing')) {
+          toast({
+            title: "Data Sync Issue",
+            description: "We couldn't refresh your latest data. Please try reloading.",
+            variant: "destructive"
+          });
         }
       } finally {
         setLoading(false);
       }
     }
     loadDashboardData();
-  }, [router, activeTab]);
+  }, [router, activeTab, profile === null]); // Fetch if profile missing or tab changes
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -86,7 +95,7 @@ export default function DashboardPage() {
     setSidebarOpen(false);
   };
 
-  if (loading) {
+  if (loading && !profile) {
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -103,10 +112,15 @@ export default function DashboardPage() {
 
   const firstName = profile.full_name.split(' ')[0];
   const totalOrders = orders.length;
-  const deliveredOrders = orders.filter(o => (o.upstream_status || o.status)?.toLowerCase() === 'delivered').length;
+  const deliveredOrders = orders.filter(o => {
+    const s = (o.upstream_status || o.status)?.toLowerCase();
+    return s === 'delivered' || s === 'success';
+  }).length;
+  
   const totalDeposits = transactions
     .filter(t => t.type === 'credit' && (t.status === 'success' || !t.status))
     .reduce((sum, t) => sum + Number(t.amount), 0);
+    
   const totalSalesVolume = orders.reduce((sum, o) => sum + Number(o.sell_price_ghs), 0);
 
   return (
@@ -275,6 +289,7 @@ export default function DashboardPage() {
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     delivered:  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    success:    'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     processing: 'bg-violet-500/10  text-violet-400  border-violet-500/20',
     pending:    'bg-amber-500/10   text-amber-400   border-amber-500/20',
     failed:     'bg-red-500/10     text-red-400     border-red-500/20',
