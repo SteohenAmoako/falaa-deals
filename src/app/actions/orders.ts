@@ -2,7 +2,7 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
-import { placeDataOrder } from '@/lib/rahitalu';
+import { placeDataOrder, getUpstreamOrderHistory } from '@/lib/rahitalu';
 import { PLANS } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 
@@ -10,6 +10,46 @@ const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+/**
+ * Synchronizes local order statuses with the upstream Rahitalu API.
+ */
+export async function syncUserOrders(userId: string) {
+  try {
+    // 1. Fetch recent upstream orders
+    const upstreamOrders = await getUpstreamOrderHistory(50);
+    
+    // 2. Fetch local orders that are still in a non-final state
+    const { data: localOrders } = await supabaseAdmin
+      .from('rahitalu_orders')
+      .select('id, reference, status')
+      .eq('user_id', userId)
+      .in('status', ['pending', 'processing']);
+
+    if (!localOrders || localOrders.length === 0) return;
+
+    // 3. Compare and update
+    for (const local of localOrders) {
+      const match = upstreamOrders.find((u: any) => 
+        u.reference === local.reference || 
+        u._id === local.reference || 
+        u.id === local.reference
+      );
+
+      if (match && match.status !== local.status) {
+        await supabaseAdmin
+          .from('rahitalu_orders')
+          .update({ 
+            status: match.status, 
+            upstream_status: match.status 
+          })
+          .eq('id', local.id);
+      }
+    }
+  } catch (error) {
+    console.error('Order Sync Error:', error);
+  }
+}
 
 /**
  * Handles the logic for purchasing a data bundle.
@@ -27,7 +67,6 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
       .single();
 
     if (profileError || !profile) {
-      console.error('Profile Fetch Error:', profileError);
       throw new Error('User profile not found');
     }
 
@@ -39,20 +78,17 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
     // 2. Initiate Rahitalu purchase
     const rahitaluResponse = await placeDataOrder(plan.id, phone, plan.price);
     
-    // Use the reference returned from Rahitalu as the primary reference
-    const orderRef = rahitaluResponse.reference || `FD-${Math.random().toString(36).substring(7).toUpperCase()}`;
+    // Use the reference returned from Rahitalu
+    const orderRef = rahitaluResponse.reference || rahitaluResponse._id || `FD-${Math.random().toString(36).substring(7).toUpperCase()}`;
 
-    // 3. If Rahitalu succeeds, debit the wallet
+    // 3. Debit the wallet
     const newBalance = currentBalance - plan.price;
-    const { error: debitError } = await supabaseAdmin
+    await supabaseAdmin
       .from('profiles')
       .update({ wallet_balance: newBalance })
       .eq('id', profile.id);
 
-    if (debitError) throw new Error('Failed to update wallet balance');
-
     // 4. Record the wallet debit transaction
-    // 'status' column is removed as per user schema instruction
     await supabaseAdmin.from('wallet_transactions').insert({
       user_id: userId,
       amount: plan.price,
@@ -75,7 +111,7 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
     });
 
     revalidatePath('/dashboard');
-    return { success: true, message: 'Bundle activated successfully! Your data is on the way.' };
+    return { success: true, message: 'Bundle activated! Status: ' + (rahitaluResponse.status || 'processing') };
   } catch (error: any) {
     console.error('Buy Bundle Error:', error);
     return { success: false, message: error.message || 'An unexpected error occurred.' };

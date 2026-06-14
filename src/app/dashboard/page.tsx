@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -16,6 +17,7 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { syncUserOrders } from '@/app/actions/orders';
 
 type DashboardTab = 'dashboard' | 'orders' | 'transactions' | 'usage';
 
@@ -42,6 +44,9 @@ export default function DashboardPage() {
         setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) { router.push('/'); return; }
+
+        // Sync statuses with Rahitalu first
+        await syncUserOrders(session.user.id);
 
         const { data: profileData, error: profileError } = await supabase
           .from('profiles').select('*').eq('user_id', session.user.id).single();
@@ -87,7 +92,7 @@ export default function DashboardPage() {
           <div className="w-12 h-12 rounded-2xl bg-violet-600 flex items-center justify-center">
             <Loader2 className="w-6 h-6 text-white animate-spin" />
           </div>
-          <p className="text-sm text-zinc-500 font-medium">Loading your dashboard…</p>
+          <p className="text-sm text-zinc-500 font-medium">Syncing your connectivity…</p>
         </div>
       </div>
     );
@@ -209,7 +214,6 @@ export default function DashboardPage() {
                   <ShoppingBag className="w-3.5 h-3.5 text-violet-400" />
                   <h2 className="text-[10px] sm:text-sm font-bold uppercase tracking-widest text-zinc-400">Choose a Bundle</h2>
                 </div>
-                {/* FORCED 2 COLUMNS ON ALL SCREENS */}
                 <div className="grid grid-cols-2 gap-2 sm:gap-6">
                   {PLANS.map(plan => (
                     <PlanCard key={plan.id} plan={plan} userId={profile.user_id} />
@@ -245,7 +249,7 @@ export default function DashboardPage() {
                           <TableCell className="font-bold text-white">{order.gig}</TableCell>
                           <TableCell className="font-mono text-xs text-zinc-400">{order.phone}</TableCell>
                           <TableCell>
-                            <StatusBadge status={order.status} />
+                            <StatusBadge status={order.upstream_status || order.status} />
                           </TableCell>
                           <TableCell className="font-bold text-white">GHS {order.sell_price_ghs}</TableCell>
                         </TableRow>
