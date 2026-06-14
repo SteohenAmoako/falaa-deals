@@ -11,12 +11,12 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Normalize the base URL
+// Normalize the base URL - ensure no trailing slash
 const RAW_BASE_URL = process.env.RAHITALU_BASE_URL || 'https://data-api.rahitalu.com/v2';
 const BASE_URL = RAW_BASE_URL.replace(/\/+$/, '');
 
 const LOGIN_URL = `${BASE_URL}/auth/login`;
-const PURCHASE_URL = `${BASE_URL}/purchases`; // Corrected from /orders
+const PURCHASE_URL = `${BASE_URL}/purchases`;
 const TWO_MINUTES = 2 * 60 * 1000;
 
 /**
@@ -30,13 +30,14 @@ async function safeParseJson(response: Response) {
   }
   
   // Handle non-JSON responses (like 404 or 500 HTML pages)
+  const text = await response.text();
+  console.error(`Rahitalu Non-JSON Response (Status ${response.status}):`, text.substring(0, 200));
+  
   if (response.status === 404) {
-    throw new Error(`API Endpoint Not Found (404). Please verify RAHITALU_BASE_URL and endpoint paths.`);
+    throw new Error(`API Endpoint Not Found (404). Please check RAHITALU_BASE_URL: ${BASE_URL}`);
   }
   
-  const text = await response.text();
-  console.error(`Rahitalu Non-JSON Response (${response.status}):`, text.substring(0, 200));
-  throw new Error(`The server returned an unexpected response (Status ${response.status}).`);
+  throw new Error(`Unexpected response from data provider (Status ${response.status}).`);
 }
 
 async function fetchNewToken(): Promise<string> {
@@ -105,15 +106,11 @@ export async function getValidToken(): Promise<string> {
 
 /**
  * Places a data order using the /purchases endpoint.
- * @param planId The Rahitalu plan ID
- * @param phone The recipient's phone number
- * @param amount The price in GHS
  */
 export async function placeDataOrder(planId: string, phone: string, amount: number) {
   try {
     const token = await getValidToken();
 
-    // Body structure updated to match documentation: customerPhone, sellPriceGHS, productType
     const response = await fetch(PURCHASE_URL, {
       method: 'POST',
       headers: {

@@ -13,14 +13,13 @@ const supabaseAdmin = createClient(
 
 /**
  * Handles the logic for purchasing a data bundle.
- * Credits Rahitalu API, debits user wallet, and records transactions.
  */
 export async function buyBundle(userId: string, planId: string, phone: string) {
   try {
     const plan = PLANS.find(p => p.id === planId);
     if (!plan) throw new Error('Invalid plan selected');
 
-    // 1. Get current profile and verify balance using Admin client
+    // 1. Get current profile and verify balance
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('*')
@@ -38,9 +37,10 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
     }
 
     // 2. Initiate Rahitalu purchase
-    // Note: The API might return "Plan not found" if the planId is stale or incorrect
-    const orderRef = `FD-${Math.random().toString(36).substring(7).toUpperCase()}`;
     const rahitaluResponse = await placeDataOrder(plan.id, phone, plan.price);
+    
+    // Use the reference returned from Rahitalu
+    const orderRef = rahitaluResponse.reference || `FD-${Math.random().toString(36).substring(7).toUpperCase()}`;
 
     // 3. If Rahitalu succeeds, debit the wallet
     const newBalance = currentBalance - plan.price;
@@ -52,12 +52,12 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
     if (debitError) throw new Error('Failed to update wallet balance');
 
     // 4. Record the wallet debit transaction
+    // Removed 'status' column as per user instruction
     await supabaseAdmin.from('wallet_transactions').insert({
       user_id: userId,
       amount: plan.price,
       type: 'debit',
       reference: orderRef,
-      status: 'success',
       description: `Bought ${plan.size} Bundle for ${phone}`,
     });
 
@@ -69,7 +69,7 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
       gig: plan.size,
       sell_price_ghs: plan.price,
       reference: orderRef,
-      status: 'processing',
+      status: rahitaluResponse.status || 'processing',
       upstream_status: rahitaluResponse.status || 'pending',
       delivered_gb: 0,
     });
@@ -78,7 +78,6 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
     return { success: true, message: 'Bundle activated successfully! Your data is on the way.' };
   } catch (error: any) {
     console.error('Buy Bundle Error:', error);
-    // Ensure we pass the clean error message (e.g., "Plan not found") back to the UI
     return { success: false, message: error.message || 'An unexpected error occurred.' };
   }
 }
