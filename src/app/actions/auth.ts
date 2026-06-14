@@ -6,19 +6,29 @@ import { generateReferenceCode } from '@/lib/supabase';
 
 /**
  * Handles user registration.
- * Note: To avoid verification limits, go to Supabase Dashboard > Auth > Settings and disable "Confirm email".
+ * IMPORTANT: To avoid "email rate limit exceeded", go to your Supabase Dashboard:
+ * Authentication -> Settings -> Email -> Toggle "Confirm email" to OFF.
  */
 export async function signUp(formData: { email: string; password: string; fullName: string; phone: string }) {
   try {
+    // 1. Sign up the user in Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
     });
 
-    if (authError) throw authError;
-    if (!authData.user) throw new Error('Signup failed. Check if email confirmation is required in Supabase settings.');
+    if (authError) {
+      // Specifically handle the rate limit error with a helpful message
+      if (authError.message.includes('rate limit exceeded')) {
+        throw new Error('Supabase email limit reached. Please disable "Confirm email" in your Supabase Auth settings to allow instant signups.');
+      }
+      throw authError;
+    }
 
-    // Create profile record in public.profiles using your provided schema
+    if (!authData.user) throw new Error('Signup failed. Check your Supabase configuration.');
+
+    // 2. Create the profile record in your public.profiles table
+    // Note: We use the user_id from auth to link the profile
     const { error: profileError } = await supabase.from('profiles').insert({
       user_id: authData.user.id,
       full_name: formData.fullName,
@@ -30,8 +40,9 @@ export async function signUp(formData: { email: string; password: string; fullNa
 
     if (profileError) {
       console.error('Profile Creation Error:', profileError);
-      // If profile fails, we might want to clean up auth user, but for now we throw
-      throw new Error('User created but profile setup failed.');
+      // Even if profile fails, the auth user is created. 
+      // In a production app, you might want to rollback or retry.
+      throw new Error('User created but profile setup failed: ' + profileError.message);
     }
 
     return { success: true };
@@ -51,7 +62,12 @@ export async function signIn(formData: { email: string; password: string }) {
       password: formData.password,
     });
 
-    if (error) throw error;
+    if (error) {
+      if (error.message.includes('Email not confirmed')) {
+        throw new Error('Please disable "Confirm email" in your Supabase Auth settings to allow instant login without verification.');
+      }
+      throw error;
+    }
 
     return { success: true };
   } catch (error: any) {

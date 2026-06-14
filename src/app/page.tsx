@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Smartphone, Zap, ShieldCheck, ArrowRight, Loader2, Info } from "lucide-react";
+import { Smartphone, Zap, ShieldCheck, ArrowRight, Loader2, Info, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn, signUp } from "@/app/actions/auth";
@@ -17,12 +17,15 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 export default function LandingPage() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
+  const [setupError, setSetupError] = useState<string | null>(null);
   const router = useRouter();
   const { toast } = useToast();
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
+    setSetupError(null);
+    
     const formData = new FormData(e.currentTarget);
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
@@ -32,11 +35,10 @@ export default function LandingPage() {
       toast({ title: "Welcome Back", description: "Login successful!" });
       router.push('/dashboard');
     } else {
+      setSetupError(result.message);
       toast({ 
         title: "Login Failed", 
-        description: result.message === "Email not confirmed" 
-          ? "Please disable 'Confirm email' in Supabase Auth settings to allow instant login." 
-          : result.message, 
+        description: result.message, 
         variant: "destructive" 
       });
       setLoading(false);
@@ -46,6 +48,8 @@ export default function LandingPage() {
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
+    setSetupError(null);
+
     const formData = new FormData(e.currentTarget);
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
@@ -56,12 +60,17 @@ export default function LandingPage() {
     if (result.success) {
       toast({ 
         title: "Account Created!", 
-        description: "You can now log in. Ensure email verification is disabled in Supabase." 
+        description: "Your account is ready. Please log in now." 
       });
       setLoading(false);
       setActiveTab("login");
     } else {
-      toast({ title: "Signup Failed", description: result.message, variant: "destructive" });
+      setSetupError(result.message);
+      toast({ 
+        title: "Signup Failed", 
+        description: result.message, 
+        variant: "destructive" 
+      });
       setLoading(false);
     }
   };
@@ -99,16 +108,15 @@ export default function LandingPage() {
                 Connect your MoMo wallet via a simple reference code and get your data bundles delivered in under 5 seconds.
              </p>
              
-             <div className="grid grid-cols-2 gap-8 pt-10 border-t border-white/5">
-                <div>
-                   <div className="text-3xl font-black text-foreground">24/7</div>
-                   <div className="text-sm text-muted-foreground uppercase font-bold tracking-widest">Automation</div>
-                </div>
-                <div>
-                   <div className="text-3xl font-black text-foreground">GHS 0</div>
-                   <div className="text-sm text-muted-foreground uppercase font-bold tracking-widest">Setup Fee</div>
-                </div>
-             </div>
+             {setupError && (setupError.includes('rate limit exceeded') || setupError.includes('Confirm email')) && (
+               <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 text-foreground">
+                 <AlertCircle className="h-4 w-4" />
+                 <AlertTitle className="font-bold">Configuration Required</AlertTitle>
+                 <AlertDescription className="text-sm opacity-90">
+                   Supabase is requiring email confirmation. To fix this: Go to your Supabase Auth Settings and toggle "Confirm email" to OFF.
+                 </AlertDescription>
+               </Alert>
+             )}
           </div>
 
           <div className="relative">
@@ -127,7 +135,7 @@ export default function LandingPage() {
                      </CardHeader>
                      <CardContent className="space-y-4">
                        <div className="space-y-2">
-                         <Label>Email</Label>
+                         <Label>Email Address</Label>
                          <Input name="email" type="email" required placeholder="user@example.com" className="h-12 bg-background/50 border-white/5" />
                        </div>
                        <div className="space-y-2">
@@ -155,11 +163,11 @@ export default function LandingPage() {
                          <Input name="fullName" required placeholder="Kojo Antwi" className="h-11 bg-background/50 border-white/5" />
                        </div>
                        <div className="space-y-2">
-                         <Label>Email</Label>
+                         <Label>Email Address</Label>
                          <Input name="email" type="email" required placeholder="kojo@example.com" className="h-11 bg-background/50 border-white/5" />
                        </div>
                        <div className="space-y-2">
-                         <Label>Phone (MTN)</Label>
+                         <Label>MTN Phone Number</Label>
                          <Input name="phone" required placeholder="024XXXXXXX" className="h-11 bg-background/50 border-white/5" />
                        </div>
                        <div className="space-y-2">
@@ -175,7 +183,6 @@ export default function LandingPage() {
                </Tabs>
             </Card>
 
-            {/* Visual Decoration */}
             <div className="absolute top-8 left-8 w-full h-full bg-primary/5 rounded-[var(--radius)] -z-10 border border-white/5 rotate-3 scale-105"></div>
             <div className="absolute top-4 left-4 w-full h-full bg-secondary rounded-[var(--radius)] -z-10 border border-white/5 rotate-1 scale-102"></div>
           </div>
@@ -189,7 +196,7 @@ export default function LandingPage() {
                <span className="font-bold text-sm tracking-tight uppercase">FalaaData Automations © 2024</span>
             </div>
             <p className="text-xs text-muted-foreground max-w-md">
-               Secure instant deposits via MoMo. Reference-based wallet funding powered by Rahitalu Engine.
+               Powered by Rahitalu Engine. Deposits processed via automated reference tracking.
             </p>
          </div>
       </footer>
