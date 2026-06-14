@@ -1,92 +1,111 @@
-import { createClient } from '@supabase/supabase-js';
-
-// Use Service Role to ensure token management always works server-side
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-const RAHITALU_BASE_URL = process.env.RAHITALU_BASE_URL || 'https://data-api.rahitalu.com/v2';
-const RAHITALU_CODE = process.env.RAHITALU_CODE || 'sboa230';
-const RAHITALU_BASENAME = process.env.RAHITALU_BASENAME || 'bravo';
+import { createClient } from '@supabase/supabase-js'
 
 /**
- * Retrieves a valid Rahitalu access token, either from the database or by logging in.
+ * @fileOverview Rahitalu API Integration
+ * Handles token management (OAuth2-style) and data bundle order placement.
+ * Uses a single-row Supabase table to persist tokens across serverless function calls.
  */
-export async function getRahitaluToken() {
-  try {
-    // 1. Try to get token from our internal storage
-    const { data: tokenRecord } = await supabaseAdmin
-      .from('rahitalu_token')
-      .select('*')
-      .eq('id', 1)
-      .single();
 
-    // Check if token exists and is not expired (we subtract 1 minute for safety)
-    if (tokenRecord && new Date(tokenRecord.expires_at).getTime() > Date.now() + 60000) {
-      return tokenRecord.access_token;
-    }
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
-    // 2. Otherwise, refresh it by logging in
-    const response = await fetch(`${RAHITALU_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: RAHITALU_CODE, basename: RAHITALU_BASENAME }),
-    });
+const BASE_URL = process.env.RAHITALU_BASE_URL || 'https://data-api.rahitalu.com/v2'
+const LOGIN_URL = `${BASE_URL}/auth/login`
+const ORDER_URL = `${BASE_URL}/orders`
+const TWO_MINUTES = 2 * 60 * 1000
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.message || 'Failed to login to Rahitalu');
-    }
-    
-    const data = await response.json();
-    const accessToken = data.token;
-    // Tokens usually last 15 mins, we set expiration to 14 mins from now
-    const expiresAt = new Date(Date.now() + 14 * 60 * 1000).toISOString();
+/**
+ * Fetches a fresh access token from Rahitalu and saves it to Supabase.
+ */
+async function fetchNewToken(): Promise<string> {
+  const res = await fetch(LOGIN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      code: process.env.RAHITALU_CODE,
+      basename: process.env.RAHITALU_BASENAME,
+    }),
+  })
 
-    // 3. Update in DB for future requests
-    await supabaseAdmin.from('rahitalu_token').upsert({
+  const data = await res.json()
+
+  if (!data.success) {
+    throw new Error('Rahitalu login failed: ' + (data.message || 'Unknown error'))
+  }
+
+  const accessToken = data.data.accessToken
+  // Rahitalu tokens usually last 15 mins, we set expiration for 13 mins to be safe
+  const expiresAt = new Date(Date.now() + 13 * 60 * 1000).toISOString()
+
+  // Upsert the single row (id = 1)
+  const { error } = await supabase
+    .from('rahitalu_token')
+    .upsert({
       id: 1,
       access_token: accessToken,
       expires_at: expiresAt,
       updated_at: new Date().toISOString(),
-    });
+    })
 
-    return accessToken;
-  } catch (error: any) {
-    console.error('Rahitalu Token Error:', error);
-    throw new Error('Authentication with provider failed: ' + error.message);
-  }
+  if (error) throw new Error('Failed to save token to database: ' + error.message)
+
+  return accessToken
 }
 
 /**
- * Places a data order with Rahitalu.
+ * Retrieves a valid access token. Checks local DB first, refreshes if expired.
  */
-export async function placeDataOrder(planId: string, phone: string, price: number) {
-  const token = await getRahitaluToken();
+export async function getValidToken(): Promise<string> {
+  const { data, error } = await supabase
+    .from('rahitalu_token')
+    .select('access_token, expires_at')
+    .eq('id', 1)
+    .single()
 
-  const response = await fetch(`${RAHITALU_BASE_URL}/purchases`, {
+  if (error || !data) {
+    return await fetchNewToken()
+  }
+
+  const expiresAt = new Date(data.expires_at).getTime()
+  const now = Date.now()
+
+  // If token expires within 2 minutes — refresh it
+  if (expiresAt - now < TWO_MINUTES) {
+    return await fetchNewToken()
+  }
+
+  return data.access_token
+}
+
+/**
+ * Places a data bundle order via Rahitalu API.
+ * @param planId The Rahitalu specific plan ID
+ * @param phone The recipient MTN number
+ * @param amount The sell price for our records
+ */
+export async function placeDataOrder(planId: string, phone: string, amount: number) {
+  const token = await getValidToken()
+
+  const response = await fetch(ORDER_URL, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({
       planId,
-      customerPhone: phone,
-      sellPriceGHS: price,
-      productType: 'instant'
-    }),
-  });
+      recipient: phone,
+      amount: amount
+    })
+  })
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    // If we get an unauthorized error, it might mean our cached token was revoked
-    if (response.status === 401) {
-      throw new Error('Invalid token');
-    }
-    throw new Error(errorData.message || 'Data provider rejected the request');
+  const data = await response.json()
+  
+  if (!data.success) {
+    throw new Error(data.message || 'Rahitalu API error: Failed to place order')
   }
 
-  return response.json();
+  return data.data // Contains upstream status and reference
 }

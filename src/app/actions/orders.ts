@@ -5,12 +5,16 @@ import { placeDataOrder } from '@/lib/rahitalu';
 import { PLANS } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 
+/**
+ * Handles the logic for purchasing a data bundle.
+ * Credits Rahitalu API, debits user wallet, and records transactions.
+ */
 export async function buyBundle(userId: string, planId: string, phone: string) {
   try {
     const plan = PLANS.find(p => p.id === planId);
-    if (!plan) throw new Error('Invalid plan');
+    if (!plan) throw new Error('Invalid plan selected');
 
-    // 1. Get current profile and lock for update (ideally)
+    // 1. Get current profile and verify balance
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
@@ -33,18 +37,19 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
       .update({ wallet_balance: profile.wallet_balance - plan.price })
       .eq('id', profile.id);
 
-    if (debitError) throw new Error('Failed to debit wallet');
+    if (debitError) throw new Error('Failed to update wallet balance');
 
-    // 4. Record transaction
+    // 4. Record the wallet debit transaction
     await supabase.from('wallet_transactions').insert({
       user_id: userId,
       amount: plan.price,
       type: 'debit',
       reference: orderRef,
+      status: 'success',
       description: `Bought ${plan.size} Bundle for ${phone}`,
     });
 
-    // 5. Record order
+    // 5. Record the data order details
     await supabase.from('rahitalu_orders').insert({
       user_id: userId,
       phone,
@@ -58,7 +63,7 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
     });
 
     revalidatePath('/dashboard');
-    return { success: true, message: 'Order placed successfully!' };
+    return { success: true, message: 'Bundle activated successfully! Your data is on the way.' };
   } catch (error: any) {
     console.error('Buy Bundle Error:', error);
     return { success: false, message: error.message || 'An unexpected error occurred.' };
