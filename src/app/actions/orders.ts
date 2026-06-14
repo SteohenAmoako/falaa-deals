@@ -1,9 +1,15 @@
 'use server';
 
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { placeDataOrder } from '@/lib/rahitalu';
 import { PLANS } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
+
+// Use Service Role Key to bypass RLS for administrative actions like debiting/ordering
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 /**
  * Handles the logic for purchasing a data bundle.
@@ -14,16 +20,20 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
     const plan = PLANS.find(p => p.id === planId);
     if (!plan) throw new Error('Invalid plan selected');
 
-    // 1. Get current profile and verify balance
-    const { data: profile, error: profileError } = await supabase
+    // 1. Get current profile and verify balance using Admin client
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('*')
       .eq('user_id', userId)
       .single();
 
-    if (profileError || !profile) throw new Error('User profile not found');
+    if (profileError || !profile) {
+      console.error('Profile Fetch Error:', profileError);
+      throw new Error('User profile not found');
+    }
 
-    if (profile.wallet_balance < plan.price) {
+    const currentBalance = parseFloat(profile.wallet_balance.toString());
+    if (currentBalance < plan.price) {
       return { success: false, message: 'Insufficient balance. Please top up your wallet.' };
     }
 
@@ -32,15 +42,16 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
     const rahitaluResponse = await placeDataOrder(plan.id, phone, plan.price);
 
     // 3. If Rahitalu succeeds, debit the wallet
-    const { error: debitError } = await supabase
+    const newBalance = currentBalance - plan.price;
+    const { error: debitError } = await supabaseAdmin
       .from('profiles')
-      .update({ wallet_balance: profile.wallet_balance - plan.price })
+      .update({ wallet_balance: newBalance })
       .eq('id', profile.id);
 
     if (debitError) throw new Error('Failed to update wallet balance');
 
     // 4. Record the wallet debit transaction
-    await supabase.from('wallet_transactions').insert({
+    await supabaseAdmin.from('wallet_transactions').insert({
       user_id: userId,
       amount: plan.price,
       type: 'debit',
@@ -50,7 +61,7 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
     });
 
     // 5. Record the data order details
-    await supabase.from('rahitalu_orders').insert({
+    await supabaseAdmin.from('rahitalu_orders').insert({
       user_id: userId,
       phone,
       plan_id: plan.id,

@@ -1,13 +1,17 @@
-
 'use server';
 
 import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { generateReferenceCode } from '@/lib/supabase';
+
+// Use Service Role Key for profile creation to ensure it always succeeds
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 /**
  * Handles user registration.
- * IMPORTANT: To avoid "email rate limit exceeded", go to your Supabase Dashboard:
- * Authentication -> Settings -> Email -> Toggle "Confirm email" to OFF.
  */
 export async function signUp(formData: { email: string; password: string; fullName: string; phone: string }) {
   try {
@@ -18,17 +22,16 @@ export async function signUp(formData: { email: string; password: string; fullNa
     });
 
     if (authError) {
-      // Specifically handle the rate limit error with a helpful message as seen in the UI
       if (authError.message.includes('rate limit exceeded')) {
-        throw new Error('Supabase email limit reached. Please disable "Confirm email" in your Supabase Auth settings to allow instant signups.');
+        throw new Error('Supabase email limit reached. Please disable "Confirm email" in your Supabase Auth settings.');
       }
       throw authError;
     }
 
     if (!authData.user) throw new Error('Signup failed. Check your Supabase configuration.');
 
-    // 2. Create the profile record in your public.profiles table
-    const { error: profileError } = await supabase.from('profiles').insert({
+    // 2. Create the profile record using the Admin client
+    const { error: profileError } = await supabaseAdmin.from('profiles').insert({
       user_id: authData.user.id,
       full_name: formData.fullName,
       phone: formData.phone,
@@ -61,7 +64,7 @@ export async function signIn(formData: { email: string; password: string }) {
 
     if (error) {
       if (error.message.includes('Email not confirmed')) {
-        throw new Error('Please disable "Confirm email" in your Supabase Auth settings to allow instant login without verification.');
+        throw new Error('Please disable "Confirm email" in your Supabase Auth settings.');
       }
       throw error;
     }
