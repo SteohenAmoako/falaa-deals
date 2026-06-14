@@ -45,7 +45,7 @@ export type RahitaluToken = {
 
 export const PLANS = [
   {
-    id: '6a282f0167c07f8445745e7a',
+    id: '6a282f0167c07f8445745e7b',
     name: 'Plan A',
     size: '3.4GB',
     price: 11,
