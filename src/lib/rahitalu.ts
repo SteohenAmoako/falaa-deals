@@ -17,6 +17,7 @@ const BASE_URL = RAW_BASE_URL.replace(/\/+$/, '');
 
 const LOGIN_URL = `${BASE_URL}/auth/login`;
 const PURCHASE_URL = `${BASE_URL}/purchases`;
+const DASHBOARD_URL = `${BASE_URL}/dashboard`;
 const TWO_MINUTES = 2 * 60 * 1000;
 
 /**
@@ -58,11 +59,9 @@ async function fetchNewToken(): Promise<string> {
     }
 
     const accessToken = data.data.accessToken;
-    // Set expiry slightly earlier than 15 mins to be safe
     const expiresAt = new Date(Date.now() + 13 * 60 * 1000).toISOString();
 
-    // Update the single row (id = 1)
-    const { error } = await supabaseAdmin
+    await supabaseAdmin
       .from('rahitalu_token')
       .update({
         access_token: accessToken,
@@ -70,10 +69,6 @@ async function fetchNewToken(): Promise<string> {
         updated_at: new Date().toISOString(),
       })
       .eq('id', 1);
-
-    if (error) {
-      console.error('Failed to save token to database:', error);
-    }
 
     return accessToken;
   } catch (error: any) {
@@ -96,7 +91,6 @@ export async function getValidToken(): Promise<string> {
   const expiresAt = new Date(data.expires_at).getTime();
   const now = Date.now();
 
-  // If token expires within 2 minutes — refresh it
   if (expiresAt - now < TWO_MINUTES) {
     return await fetchNewToken();
   }
@@ -135,5 +129,39 @@ export async function placeDataOrder(planId: string, phone: string, amount: numb
   } catch (error: any) {
     console.error('placeDataOrder Error:', error);
     throw error;
+  }
+}
+
+/**
+ * Fetches the upstream dashboard stats (e.g., wallet balance).
+ */
+export async function getUpstreamDashboard() {
+  try {
+    const token = await getValidToken();
+    const response = await fetch(DASHBOARD_URL, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await safeParseJson(response);
+    return data.data;
+  } catch (error) {
+    console.error('getUpstreamDashboard Error:', error);
+    return { wallet: { balance: 0 } };
+  }
+}
+
+/**
+ * Fetches recent order history from Rahitalu.
+ */
+export async function getUpstreamOrderHistory(limit = 50) {
+  try {
+    const token = await getValidToken();
+    const response = await fetch(`${PURCHASE_URL}?limit=${limit}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await safeParseJson(response);
+    return data.data || [];
+  } catch (error) {
+    console.error('getUpstreamOrderHistory Error:', error);
+    return [];
   }
 }
