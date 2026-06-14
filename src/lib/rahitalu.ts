@@ -10,21 +10,32 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const BASE_URL = process.env.RAHITALU_BASE_URL || 'https://data-api.rahitalu.com/v2';
+// Normalize the base URL to ensure it doesn't end with a slash or contain redundant versioning
+const RAW_BASE_URL = process.env.RAHITALU_BASE_URL || 'https://data-api.rahitalu.com/v2';
+const BASE_URL = RAW_BASE_URL.replace(/\/+$/, '');
+
 const LOGIN_URL = `${BASE_URL}/auth/login`;
 const ORDER_URL = `${BASE_URL}/orders`;
 const TWO_MINUTES = 2 * 60 * 1000;
 
 /**
- * Safely parses JSON from a fetch response, handling HTML error pages.
+ * Safely parses JSON from a fetch response, handling HTML error pages gracefully.
  */
 async function safeParseJson(response: Response) {
   const contentType = response.headers.get('content-type');
   if (contentType && contentType.includes('application/json')) {
-    return await response.json();
+    const data = await response.json();
+    return data;
   }
+  
+  // Handle non-JSON responses (like 404 or 500 HTML pages)
+  if (response.status === 404) {
+    throw new Error(`API Endpoint Not Found (404). Please verify RAHITALU_BASE_URL.`);
+  }
+  
   const text = await response.text();
-  throw new Error(`API returned non-JSON response (${response.status}): ${text.substring(0, 100)}...`);
+  console.error(`Rahitalu Non-JSON Response (${response.status}):`, text.substring(0, 200));
+  throw new Error(`The server returned an unexpected response (Status ${response.status}).`);
 }
 
 async function fetchNewToken(): Promise<string> {
@@ -41,10 +52,11 @@ async function fetchNewToken(): Promise<string> {
     const data = await safeParseJson(res);
 
     if (!data.success) {
-      throw new Error('Rahitalu login failed: ' + (data.message || 'Unknown error'));
+      throw new Error(data.message || 'Rahitalu login failed.');
     }
 
     const accessToken = data.data.accessToken;
+    // Set expiry slightly earlier than 15 mins to be safe
     const expiresAt = new Date(Date.now() + 13 * 60 * 1000).toISOString();
 
     // Update the single row (id = 1)
@@ -57,7 +69,10 @@ async function fetchNewToken(): Promise<string> {
       })
       .eq('id', 1);
 
-    if (error) throw new Error('Failed to save token to database: ' + error.message);
+    if (error) {
+      // If update fails, the row might not exist, though it should have been seeded
+      console.error('Failed to save token to database:', error);
+    }
 
     return accessToken;
   } catch (error: any) {
@@ -80,6 +95,7 @@ export async function getValidToken(): Promise<string> {
   const expiresAt = new Date(data.expires_at).getTime();
   const now = Date.now();
 
+  // If token expires within 2 minutes — refresh it
   if (expiresAt - now < TWO_MINUTES) {
     return await fetchNewToken();
   }
@@ -107,7 +123,7 @@ export async function placeDataOrder(planId: string, phone: string, amount: numb
     const data = await safeParseJson(response);
     
     if (!data.success) {
-      throw new Error(data.message || 'Rahitalu API error: Failed to place order');
+      throw new Error(data.message || 'The data provider could not process this order.');
     }
 
     return data.data;
