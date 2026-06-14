@@ -7,10 +7,11 @@ import PlanCard from '@/components/dashboard/PlanCard';
 import ForecastTool from '@/components/dashboard/ForecastTool';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { PLANS, type Profile, type RahitaluOrder, type WalletTransaction } from '@/lib/types';
 import {
   LayoutDashboard, History, ShoppingBag, LogOut,
-  BarChart3, User, Loader2, ArrowUpRight, ArrowDownLeft, Menu, X
+  BarChart3, User, Loader2, ArrowUpRight, ArrowDownLeft, Menu, X, CheckCircle2, CreditCard, TrendingUp
 } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -101,6 +102,14 @@ export default function DashboardPage() {
   if (!profile) return null;
 
   const firstName = profile.full_name.split(' ')[0];
+
+  // Stats Calculations
+  const totalOrders = orders.length;
+  const deliveredOrders = orders.filter(o => (o.upstream_status || o.status) === 'delivered').length;
+  const totalDeposits = transactions
+    .filter(t => t.type === 'credit' && t.status === 'success')
+    .reduce((sum, t) => sum + Number(t.amount), 0);
+  const totalSalesVolume = orders.reduce((sum, o) => sum + Number(o.sell_price_ghs), 0);
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white flex">
@@ -316,8 +325,53 @@ export default function DashboardPage() {
 
           {/* ── USAGE TAB ── */}
           {activeTab === 'usage' && (
-            <div className="animate-in fade-in duration-300 max-w-2xl">
-              <ForecastTool currentBalance={5} orders={orders} />
+            <div className="animate-in fade-in duration-300 space-y-8">
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card className="bg-[#111118] border-white/5 shadow-xl">
+                  <CardContent className="p-4 pt-6 text-center space-y-1">
+                    <div className="w-8 h-8 rounded-full bg-violet-600/10 flex items-center justify-center mx-auto mb-2">
+                       <ShoppingBag className="w-4 h-4 text-violet-400" />
+                    </div>
+                    <div className="text-xl font-black">{totalOrders}</div>
+                    <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Total Orders</div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-[#111118] border-white/5 shadow-xl">
+                  <CardContent className="p-4 pt-6 text-center space-y-1">
+                    <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-2">
+                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <div className="text-xl font-black">{deliveredOrders}</div>
+                    <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Delivered</div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-[#111118] border-white/5 shadow-xl">
+                  <CardContent className="p-4 pt-6 text-center space-y-1">
+                    <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-2">
+                       <CreditCard className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <div className="text-xl font-black">GHS {totalDeposits.toFixed(2)}</div>
+                    <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Deposits</div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-violet-600 border-none shadow-xl shadow-violet-600/20">
+                  <CardContent className="p-4 pt-6 text-center space-y-1">
+                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-2">
+                       <TrendingUp className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="text-xl font-black text-white">GHS {totalSalesVolume.toFixed(2)}</div>
+                    <div className="text-[10px] text-white/60 font-bold uppercase tracking-widest">Sales Vol</div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="max-w-2xl">
+                <ForecastTool currentBalance={5} orders={orders} />
+              </div>
             </div>
           )}
         </main>
