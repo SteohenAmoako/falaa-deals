@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,10 +7,11 @@ import PlanCard from '@/components/dashboard/PlanCard';
 import ForecastTool from '@/components/dashboard/ForecastTool';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { PLANS, type Profile, type RahitaluOrder, type WalletTransaction } from '@/lib/types';
 import {
   LayoutDashboard, History, ShoppingBag, LogOut,
-  BarChart3, User, Loader2, ArrowUpRight, ArrowDownLeft, Menu, X, CheckCircle2, CreditCard, TrendingUp
+  BarChart3, User, Loader2, ArrowUpRight, ArrowDownLeft, Menu, X, CheckCircle2, CreditCard, TrendingUp, AlertTriangle
 } from "lucide-react";
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -30,6 +32,7 @@ export default function DashboardPage() {
   const [profile, setProfile]           = useState<Profile | null>(null);
   const [orders, setOrders]             = useState<RahitaluOrder[]>([]);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
+  const [systemStatus, setSystemStatus] = useState<{ enabled: boolean, message: string }>({ enabled: true, message: '' });
   const [loading, setLoading]           = useState(true);
   const [activeTab, setActiveTab]       = useState<DashboardTab>('dashboard');
   const [sidebarOpen, setSidebarOpen]   = useState(false);
@@ -47,34 +50,19 @@ export default function DashboardPage() {
           return;
         }
 
-        let profileData = null;
-        let retryCount = 0;
-        while (retryCount < 3 && !profileData) {
-          const { data } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-          
-          if (data) {
-            profileData = data;
-          } else {
-            retryCount++;
-            if (retryCount < 3) await new Promise(r => setTimeout(r, 1000));
-          }
+        // Fetch profile and system config
+        const [profileRes, configRes] = await Promise.all([
+          supabase.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle(),
+          supabase.from('system_configs').select('*').eq('key', 'maintenance_mode').maybeSingle()
+        ]);
+
+        if (profileRes.data) {
+          setProfile(profileRes.data);
         }
 
-        if (!profileData) {
-          toast({
-            title: "Access Denied",
-            description: "Profile setup incomplete. Please contact support.",
-            variant: "destructive",
-          });
-          router.push('/');
-          return;
+        if (configRes.data) {
+          setSystemStatus(configRes.data.value);
         }
-
-        setProfile(profileData);
 
         const [ordersRes, txRes] = await Promise.all([
           supabase
@@ -100,13 +88,13 @@ export default function DashboardPage() {
         }
 
       } catch (error: any) {
-        // Suppress detailed console errors for client-side security
+        // Silently handle errors
       } finally {
         setLoading(false);
       }
     }
     loadDashboardData();
-  }, [router, toast]);
+  }, [router]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -135,16 +123,8 @@ export default function DashboardPage() {
 
   const firstName = profile.full_name.split(' ')[0];
   const totalOrders = orders.length;
-  
-  const deliveredOrders = orders.filter(o => {
-    const s = (o.upstream_status || o.status)?.toLowerCase();
-    return s === 'delivered' || s === 'success';
-  }).length;
-  
-  const totalDeposits = transactions
-    .filter(t => t.type === 'credit' && t.status === 'success')
-    .reduce((sum, t) => sum + Number(t.amount), 0);
-    
+  const deliveredOrders = orders.filter(o => ['delivered', 'success'].includes((o.upstream_status || o.status)?.toLowerCase())).length;
+  const totalDeposits = transactions.filter(t => t.type === 'credit' && t.status === 'success').reduce((sum, t) => sum + Number(t.amount), 0);
   const totalSalesVolume = orders.reduce((sum, o) => sum + Number(o.sell_price_ghs), 0);
 
   return (
@@ -206,6 +186,16 @@ export default function DashboardPage() {
         </header>
 
         <main className="flex-1 p-3 sm:p-6 lg:p-10 max-w-5xl w-full mx-auto space-y-6 sm:space-y-8">
+          {!systemStatus.enabled && (
+            <Alert className="bg-red-500/10 border-red-500/20 text-red-400 animate-in fade-in slide-in-from-top-4 duration-500">
+              <AlertTriangle className="h-4 w-4 text-red-400" />
+              <AlertTitle className="font-black uppercase tracking-widest text-[10px]">System Restricted</AlertTitle>
+              <AlertDescription className="text-xs font-medium">
+                {systemStatus.message || "We are currently undergoing maintenance. Deposits and purchases are temporarily disabled."}
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="space-y-0.5 pt-2 lg:pt-0">
             <h1 className="text-xl sm:text-3xl font-black tracking-tight">
               {activeTab === 'dashboard'    && `Hey, ${firstName} 👋`}
@@ -223,7 +213,7 @@ export default function DashboardPage() {
 
           {activeTab === 'dashboard' && (
             <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
-              <WalletCard balance={profile.wallet_balance} referenceCode={profile.reference_code} />
+              <WalletCard balance={profile.wallet_balance} referenceCode={profile.reference_code} disabled={!systemStatus.enabled} />
               <section className="space-y-4">
                 <div className="flex items-center gap-2">
                   <ShoppingBag className="w-3.5 h-3.5 text-violet-400" />
@@ -231,7 +221,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:gap-6">
                   {PLANS.map(plan => (
-                    <PlanCard key={plan.id} plan={plan} userId={profile.user_id} />
+                    <PlanCard key={plan.id} plan={plan} userId={profile.user_id} walletBalance={profile.wallet_balance} disabled={!systemStatus.enabled} />
                   ))}
                 </div>
               </section>

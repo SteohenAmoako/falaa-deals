@@ -1,3 +1,4 @@
+
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
@@ -42,6 +43,13 @@ export async function getAdminDashboardData() {
       .order('created_at', { ascending: false })
       .limit(100);
 
+    // 4. Fetch system status
+    const { data: config } = await supabaseAdmin
+      .from('system_configs')
+      .select('*')
+      .eq('key', 'maintenance_mode')
+      .maybeSingle();
+
     return {
       stats: {
         totalUsers: totalUsers || 0,
@@ -49,19 +57,44 @@ export async function getAdminDashboardData() {
         todayOrders: todayOrders || 0,
         rahitaluBalance: upstreamDash?.wallet?.balance || 0
       },
+      systemStatus: config ? config.value : { enabled: true, message: '' },
       users: users || [],
       liveStream: (upstreamOrders || []).map((order: any) => ({
         id: order._id || order.id || Math.random().toString(),
         reference: order.reference || 'N/A',
-        phone: order.customerPhone || order.phone || 'Unknown',
-        plan: order.gig ? (order.gig.toString().includes('GB') ? order.gig : `${order.gig}GB`) : 'Data Bundle',
-        status: order.upstreamStatus || order.status || 'processing',
-        timestamp: order.upstreamUpdatedAt || order.createdAt || order.created_at || new Date().toISOString()
+        phone: order.phone || order.customerPhone || 'Unknown',
+        plan: order.gig
+          ? `${order.gig}GB MTN`
+          : 'Data Bundle',
+        price: order.amount
+          ? Number(order.amount).toFixed(2)
+          : order.sellPriceGHS
+          ? Number(order.sellPriceGHS).toFixed(2)
+          : null,
+        status: (order.upstreamStatus || order.status || 'pending').toLowerCase(),
+        timestamp: order.upstreamUpdatedAt || order.createdAt || order.created_at || new Date().toISOString(),
       }))
     };
   } catch (error: any) {
-    // Log generic error internally, don't expose sensitive details to caller
     console.error('Admin Data Fetch Failed');
     throw new Error('Could not retrieve administrative data');
+  }
+}
+
+export async function updateSystemStatus(enabled: boolean, message: string) {
+  try {
+    const { error } = await supabaseAdmin
+      .from('system_configs')
+      .upsert({ 
+        key: 'maintenance_mode', 
+        value: { enabled, message },
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'key' });
+
+    if (error) throw error;
+    return { success: true };
+  } catch (error: any) {
+    console.error('Update System Status Failed', error);
+    return { success: false, message: error.message };
   }
 }

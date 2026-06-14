@@ -21,9 +21,10 @@ import { useRouter } from 'next/navigation';
 interface PaystackDepositProps {
   userEmail: string;
   userId: string;
+  disabled?: boolean;
 }
 
-export default function PaystackDeposit({ userEmail, userId }: PaystackDepositProps) {
+export default function PaystackDeposit({ userEmail, userId, disabled }: PaystackDepositProps) {
   const [amount, setAmount] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -98,7 +99,7 @@ export default function PaystackDeposit({ userEmail, userId }: PaystackDepositPr
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Button className="w-full gap-2 font-semibold shadow-lg shadow-primary/20">
+        <Button className="w-full gap-2 font-semibold shadow-lg shadow-primary/20" disabled={disabled}>
           <RefreshCw className="w-4 h-4" /> Fund Wallet
         </Button>
       </DialogTrigger>
