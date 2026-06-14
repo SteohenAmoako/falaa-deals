@@ -1,10 +1,8 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 /**
  * @fileOverview Rahitalu API Integration
  * Handles token management and order placement with robust error handling.
- * Documentation used: https://data-api.rahitalu.com/v2
  */
 
 const supabaseAdmin = createClient(
@@ -19,23 +17,12 @@ const PURCHASE_URL = `${BASE_URL}/purchases`;
 const DASHBOARD_URL = `${BASE_URL}/dashboard`;
 const TWO_MINUTES = 2 * 60 * 1000;
 
-/**
- * Safely parses JSON from a fetch response, handling HTML error pages gracefully.
- */
 async function safeParseJson(response: Response) {
   const contentType = response.headers.get('content-type');
   if (contentType && contentType.includes('application/json')) {
     return await response.json();
   }
-  
-  const text = await response.text();
-  console.error(`Rahitalu Non-JSON Response (Status ${response.status}):`, text.substring(0, 200));
-  
-  if (response.status === 404) {
-    throw new Error('API Endpoint Not Found (404). Please check configuration.');
-  }
-  
-  throw new Error(`Unexpected response from data provider (Status ${response.status}).`);
+  throw new Error(`Upstream service error: ${response.status}`);
 }
 
 async function fetchNewToken(): Promise<string> {
@@ -52,7 +39,7 @@ async function fetchNewToken(): Promise<string> {
     const data = await safeParseJson(res);
 
     if (!data.success) {
-      throw new Error(data.message || 'Rahitalu login failed.');
+      throw new Error('Auth failed with provider');
     }
 
     const accessToken = data.data.accessToken;
@@ -69,8 +56,7 @@ async function fetchNewToken(): Promise<string> {
 
     return accessToken;
   } catch (error: any) {
-    console.error('fetchNewToken Error:', error);
-    throw error;
+    throw new Error('Provider connectivity issue');
   }
 }
 
@@ -116,12 +102,11 @@ export async function placeDataOrder(planId: string, phone: string, amount: numb
     const data = await safeParseJson(response);
     
     if (!data.success) {
-      throw new Error(data.message || 'The data provider could not process this order.');
+      throw new Error(data.message || 'Provider could not process order');
     }
 
     return data.data;
   } catch (error: any) {
-    console.error('placeDataOrder Error:', error);
     throw error;
   }
 }
@@ -135,7 +120,6 @@ export async function getUpstreamDashboard() {
     const data = await safeParseJson(response);
     return data.data;
   } catch (error) {
-    console.error('getUpstreamDashboard Error:', error);
     return { wallet: { balance: 0 } };
   }
 }
@@ -149,7 +133,6 @@ export async function getUpstreamOrderHistory(limit = 50) {
     const data = await safeParseJson(response);
     return data.data || [];
   } catch (error) {
-    console.error('getUpstreamOrderHistory Error:', error);
     return [];
   }
 }

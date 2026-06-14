@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,14 +5,12 @@ import WalletCard from '@/components/dashboard/WalletCard';
 import PlanCard from '@/components/dashboard/PlanCard';
 import ForecastTool from '@/components/dashboard/ForecastTool';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { PLANS, type Profile, type RahitaluOrder, type WalletTransaction } from '@/lib/types';
 import {
   LayoutDashboard, History, ShoppingBag, LogOut,
   BarChart3, User, Loader2, ArrowUpRight, ArrowDownLeft, Menu, X, CheckCircle2, CreditCard, TrendingUp
 } from "lucide-react";
-import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
@@ -43,18 +40,17 @@ export default function DashboardPage() {
     async function loadDashboardData() {
       try {
         setLoading(true);
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        const { data: { session } } = await supabase.auth.getSession();
 
-        if (sessionError || !session) {
+        if (!session) {
           router.push('/');
           return;
         }
 
-        // Try to fetch profile, maybe with a slight retry if needed
         let profileData = null;
         let retryCount = 0;
         while (retryCount < 3 && !profileData) {
-          const { data, error } = await supabase
+          const { data } = await supabase
             .from('profiles')
             .select('*')
             .eq('user_id', session.user.id)
@@ -69,8 +65,6 @@ export default function DashboardPage() {
         }
 
         if (!profileData) {
-          console.error('Profile not found for user:', session.user.id);
-          // Instead of immediate signout, redirect to login with a message
           toast({
             title: "Access Denied",
             description: "Profile setup incomplete. Please contact support.",
@@ -82,7 +76,6 @@ export default function DashboardPage() {
 
         setProfile(profileData);
 
-        // Load secondary data
         const [ordersRes, txRes] = await Promise.all([
           supabase
             .from('rahitalu_orders')
@@ -99,16 +92,15 @@ export default function DashboardPage() {
         setOrders(ordersRes.data || []);
         setTransactions(txRes.data || []);
 
-        // Sync orders in background
         const hasActiveOrders = (ordersRes.data || []).some(o => 
           ['pending', 'processing'].includes(o.status?.toLowerCase())
         );
         if (hasActiveOrders) {
-          syncUserOrders(session.user.id).catch(console.error);
+          syncUserOrders(session.user.id).catch(() => {});
         }
 
       } catch (error: any) {
-        console.error('Dashboard Load Error:', error);
+        // Suppress detailed console errors for client-side security
       } finally {
         setLoading(false);
       }

@@ -54,14 +54,14 @@ export async function getAdminDashboardData() {
         id: order._id || order.id || Math.random().toString(),
         reference: order.reference || 'N/A',
         phone: order.customerPhone || order.phone || 'Unknown',
-        plan: order.planId?.name || order.gig || 'Data Bundle',
-        status: order.status || 'unknown',
-        // Robust timestamp selection with fallback to now
-        timestamp: order.createdAt || order.created_at || order.updatedAt || new Date().toISOString()
+        plan: order.gig ? (order.gig.toString().includes('GB') ? order.gig : `${order.gig}GB`) : 'Data Bundle',
+        status: order.upstreamStatus || order.status || 'processing',
+        timestamp: order.upstreamUpdatedAt || order.createdAt || order.created_at || new Date().toISOString()
       }))
     };
   } catch (error: any) {
-    console.error('getAdminDashboardData Error:', error);
-    throw new Error('Failed to fetch admin data');
+    // Log generic error internally, don't expose sensitive details to caller
+    console.error('Admin Data Fetch Failed');
+    throw new Error('Could not retrieve administrative data');
   }
 }
