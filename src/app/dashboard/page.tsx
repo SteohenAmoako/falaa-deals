@@ -51,7 +51,7 @@ export default function DashboardPage() {
           return;
         }
 
-        // Fetch profile and system status independently for better reliability
+        // Fetch profile and system status
         const [profileRes, statusValue] = await Promise.all([
           supabase.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle(),
           getSystemStatus()
@@ -61,6 +61,7 @@ export default function DashboardPage() {
           setProfile(profileRes.data);
         }
 
+        // Ensure we only update if we actually got a valid response
         if (statusValue) {
           setSystemStatus(statusValue);
         }
@@ -89,7 +90,7 @@ export default function DashboardPage() {
         }
 
       } catch (error: any) {
-        // Handle silently
+        console.error('Error loading dashboard:', error);
       } finally {
         setLoading(false);
       }
@@ -124,9 +125,9 @@ export default function DashboardPage() {
 
   const firstName = profile.full_name.split(' ')[0];
   const totalOrders = orders.length;
-  const deliveredOrders = orders.filter(o => ['delivered', 'success'].includes((o.upstream_status || o.status)?.toLowerCase())).length;
+  const deliveredOrders = orders.filter(o => ['delivered', 'success', 'delivered'].includes((o.upstream_status || o.status)?.toLowerCase())).length;
   const totalDeposits = transactions.filter(t => t.type === 'credit' && t.status === 'success').reduce((sum, t) => sum + Number(t.amount), 0);
-  const totalSalesVolume = orders.reduce((sum, o) => sum + Number(o.sell_price_ghs), 0);
+  const totalSalesVolume = orders.filter(o => !['failed'].includes(o.status?.toLowerCase())).reduce((sum, o) => sum + Number(o.sell_price_ghs), 0);
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white flex">

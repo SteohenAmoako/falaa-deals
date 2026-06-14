@@ -11,17 +11,22 @@ const supabaseAdmin = createClient(
 
 /**
  * Fetches only the system status. 
- * Used by the dashboard to show maintenance alerts reliably.
+ * Defaults to enabled if not found, but logs errors for debugging.
  */
 export async function getSystemStatus() {
   try {
     const { data, error } = await supabaseAdmin
       .from('system_configs')
-      .select('*')
+      .select('value')
       .eq('key', 'maintenance_mode')
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching system status:', error.message);
+      return { enabled: true, message: '' };
+    }
+
+    // Return the stored value or the default
     return data?.value || { enabled: true, message: '' };
   } catch (error) {
     return { enabled: true, message: '' };
@@ -96,6 +101,9 @@ export async function getAdminDashboardData() {
   }
 }
 
+/**
+ * Updates the global system status in the system_configs table.
+ */
 export async function updateSystemStatus(enabled: boolean, message: string) {
   try {
     const { error } = await supabaseAdmin
@@ -106,10 +114,13 @@ export async function updateSystemStatus(enabled: boolean, message: string) {
         updated_at: new Date().toISOString()
       }, { onConflict: 'key' });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Update System Status Failed:', error.message);
+      return { success: false, message: error.message };
+    }
+    
     return { success: true };
   } catch (error: any) {
-    console.error('Update System Status Failed', error);
     return { success: false, message: error.message };
   }
 }
