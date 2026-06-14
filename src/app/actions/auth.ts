@@ -1,9 +1,8 @@
+
 'use server';
 
 import { supabase } from '@/lib/supabase';
 import { generateReferenceCode } from '@/lib/supabase';
-import { revalidatePath } from 'next/cache';
-import { cookies } from 'next/headers';
 
 export async function signUp(formData: { email: string; password: string; fullName: string; phone: string }) {
   try {
@@ -15,16 +14,20 @@ export async function signUp(formData: { email: string; password: string; fullNa
     if (authError) throw authError;
     if (!authData.user) throw new Error('Signup failed');
 
-    // Create profile
+    // Create profile record in public.profiles using the provided schema
     const { error: profileError } = await supabase.from('profiles').insert({
       user_id: authData.user.id,
       full_name: formData.fullName,
       phone: formData.phone,
       reference_code: generateReferenceCode(),
-      wallet_balance: 0,
+      wallet_balance: 0.00,
+      is_admin: false
     });
 
-    if (profileError) throw profileError;
+    if (profileError) {
+      console.error('Profile Creation Error:', profileError);
+      throw new Error('Could not create user profile.');
+    }
 
     return { success: true };
   } catch (error: any) {

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from "react";
@@ -14,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function LandingPage() {
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("login");
   const router = useRouter();
   const { toast } = useToast();
 
@@ -26,6 +28,7 @@ export default function LandingPage() {
 
     const result = await signIn({ email, password });
     if (result.success) {
+      toast({ title: "Login Successful", description: "Taking you to your dashboard..." });
       router.push('/dashboard');
     } else {
       toast({ title: "Login Failed", description: result.message, variant: "destructive" });
@@ -44,9 +47,9 @@ export default function LandingPage() {
 
     const result = await signUp({ email, password, fullName, phone });
     if (result.success) {
-      toast({ title: "Account Created!", description: "Please log in to continue." });
-      // Switch to login tab or auto login logic
-      window.location.reload(); 
+      toast({ title: "Account Created!", description: "You can now log in with your credentials." });
+      setLoading(false);
+      setActiveTab("login");
     } else {
       toast({ title: "Signup Failed", description: result.message, variant: "destructive" });
       setLoading(false);
@@ -100,7 +103,7 @@ export default function LandingPage() {
 
           <div className="relative">
             <Card className="bg-card/40 backdrop-blur-2xl border-white/5 shadow-2xl p-2 relative z-20 overflow-hidden">
-               <Tabs defaultValue="login" className="w-full">
+               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                  <TabsList className="grid w-full grid-cols-2 bg-background/50 mb-4 h-12">
                    <TabsTrigger value="login" className="font-bold">Login</TabsTrigger>
                    <TabsTrigger value="signup" className="font-bold">Register</TabsTrigger>
