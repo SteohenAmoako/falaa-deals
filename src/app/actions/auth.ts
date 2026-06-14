@@ -4,6 +4,10 @@
 import { supabase } from '@/lib/supabase';
 import { generateReferenceCode } from '@/lib/supabase';
 
+/**
+ * Handles user registration.
+ * Note: To avoid verification limits, go to Supabase Dashboard > Auth > Settings and disable "Confirm email".
+ */
 export async function signUp(formData: { email: string; password: string; fullName: string; phone: string }) {
   try {
     const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -12,9 +16,9 @@ export async function signUp(formData: { email: string; password: string; fullNa
     });
 
     if (authError) throw authError;
-    if (!authData.user) throw new Error('Signup failed');
+    if (!authData.user) throw new Error('Signup failed. Check if email confirmation is required in Supabase settings.');
 
-    // Create profile record in public.profiles using the provided schema
+    // Create profile record in public.profiles using your provided schema
     const { error: profileError } = await supabase.from('profiles').insert({
       user_id: authData.user.id,
       full_name: formData.fullName,
@@ -26,7 +30,8 @@ export async function signUp(formData: { email: string; password: string; fullNa
 
     if (profileError) {
       console.error('Profile Creation Error:', profileError);
-      throw new Error('Could not create user profile.');
+      // If profile fails, we might want to clean up auth user, but for now we throw
+      throw new Error('User created but profile setup failed.');
     }
 
     return { success: true };
@@ -36,6 +41,9 @@ export async function signUp(formData: { email: string; password: string; fullNa
   }
 }
 
+/**
+ * Handles user login.
+ */
 export async function signIn(formData: { email: string; password: string }) {
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
