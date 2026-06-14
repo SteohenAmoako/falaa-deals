@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 /**
@@ -11,9 +12,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Normalize the base URL - ensure no trailing slash
-const RAW_BASE_URL = process.env.RAHITALU_BASE_URL || 'https://data-api.rahitalu.com/v2';
-const BASE_URL = RAW_BASE_URL.replace(/\/+$/, '');
+const BASE_URL = (process.env.RAHITALU_BASE_URL || 'https://data-api.rahitalu.com/v2').replace(/\/+$/, '');
 
 const LOGIN_URL = `${BASE_URL}/auth/login`;
 const PURCHASE_URL = `${BASE_URL}/purchases`;
@@ -26,16 +25,14 @@ const TWO_MINUTES = 2 * 60 * 1000;
 async function safeParseJson(response: Response) {
   const contentType = response.headers.get('content-type');
   if (contentType && contentType.includes('application/json')) {
-    const data = await response.json();
-    return data;
+    return await response.json();
   }
   
-  // Handle non-JSON responses (like 404 or 500 HTML pages)
   const text = await response.text();
   console.error(`Rahitalu Non-JSON Response (Status ${response.status}):`, text.substring(0, 200));
   
   if (response.status === 404) {
-    throw new Error(`API Endpoint Not Found (404). Please check RAHITALU_BASE_URL: ${BASE_URL}`);
+    throw new Error('API Endpoint Not Found (404). Please check configuration.');
   }
   
   throw new Error(`Unexpected response from data provider (Status ${response.status}).`);
@@ -98,9 +95,6 @@ export async function getValidToken(): Promise<string> {
   return data.access_token;
 }
 
-/**
- * Places a data order using the /purchases endpoint.
- */
 export async function placeDataOrder(planId: string, phone: string, amount: number) {
   try {
     const token = await getValidToken();
@@ -132,9 +126,6 @@ export async function placeDataOrder(planId: string, phone: string, amount: numb
   }
 }
 
-/**
- * Fetches the upstream dashboard stats (e.g., wallet balance).
- */
 export async function getUpstreamDashboard() {
   try {
     const token = await getValidToken();
@@ -149,9 +140,6 @@ export async function getUpstreamDashboard() {
   }
 }
 
-/**
- * Fetches recent order history from Rahitalu.
- */
 export async function getUpstreamOrderHistory(limit = 50) {
   try {
     const token = await getValidToken();

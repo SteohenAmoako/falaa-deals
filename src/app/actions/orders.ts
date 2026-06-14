@@ -1,3 +1,4 @@
+
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
@@ -5,7 +6,6 @@ import { placeDataOrder } from '@/lib/rahitalu';
 import { PLANS } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 
-// Use Service Role Key to bypass RLS for administrative actions like debiting/ordering
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -39,7 +39,7 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
     // 2. Initiate Rahitalu purchase
     const rahitaluResponse = await placeDataOrder(plan.id, phone, plan.price);
     
-    // Use the reference returned from Rahitalu
+    // Use the reference returned from Rahitalu as the primary reference
     const orderRef = rahitaluResponse.reference || `FD-${Math.random().toString(36).substring(7).toUpperCase()}`;
 
     // 3. If Rahitalu succeeds, debit the wallet
@@ -52,7 +52,7 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
     if (debitError) throw new Error('Failed to update wallet balance');
 
     // 4. Record the wallet debit transaction
-    // Removed 'status' column as per user instruction
+    // 'status' column is removed as per user schema instruction
     await supabaseAdmin.from('wallet_transactions').insert({
       user_id: userId,
       amount: plan.price,

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -60,6 +61,7 @@ export default function PlanCard({ plan, userId }: PlanCardProps) {
         variant: "destructive" 
       });
     } finally {
+      setPhone('');
       setLoading(false);
     }
   };
@@ -99,7 +101,7 @@ export default function PlanCard({ plan, userId }: PlanCardProps) {
                   : "bg-black/40 text-white placeholder:text-gray-700"
               )}
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
               disabled={loading}
               maxLength={10}
             />
