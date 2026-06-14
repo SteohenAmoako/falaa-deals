@@ -170,7 +170,6 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 animate-in fade-in duration-500">
             <div className="xl:col-span-4 space-y-8">
               <WalletCard balance={profile.wallet_balance} referenceCode={profile.reference_code} />
-              <ForecastTool currentBalance={5} orders={orders} />
             </div>
 
             <div className="xl:col-span-8 space-y-8">
