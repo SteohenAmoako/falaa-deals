@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Smartphone, CheckCircle2, Loader2 } from "lucide-react";
 import { buyBundle } from '@/app/actions/orders';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 interface PlanCardProps {
   plan: {
@@ -43,29 +44,33 @@ export default function PlanCard({ plan, userId }: PlanCardProps) {
     }
   };
 
+  const isHighlighted = phone.length >= 10;
+
   return (
-    <Card className="flex flex-col h-full bg-card hover:border-primary/50 transition-all group overflow-hidden border-2 border-transparent">
-      <div className="bg-primary/5 p-6 group-hover:bg-primary/10 transition-colors">
-        <div className="flex justify-between items-start mb-4">
-          <CardTitle className="text-xl font-bold">{plan.name}</CardTitle>
-          <CheckCircle2 className="text-primary w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity" />
+    <Card className="flex flex-col h-full bg-[#111827]/80 backdrop-blur-xl border-white/5 hover:border-primary/30 transition-all group overflow-hidden shadow-2xl">
+      <div className="p-6 pb-0">
+        <div className="flex justify-between items-start mb-1">
+          <span className="text-sm font-bold text-foreground/80">{plan.name}</span>
+          <CheckCircle2 className="text-primary w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
-        <div className="flex items-baseline gap-1">
-          <span className="text-4xl font-black text-foreground">{plan.size}</span>
-        </div>
-        <p className="text-sm text-muted-foreground mt-2">{plan.description}</p>
+        <div className="text-4xl font-black text-foreground tracking-tighter mb-1">{plan.size}</div>
+        <p className="text-xs text-muted-foreground font-medium">{plan.description}</p>
       </div>
       
-      <CardContent className="p-6 flex-grow space-y-4">
-        <div className="text-2xl font-bold text-accent">GHS {plan.price}</div>
+      <CardContent className="p-6 space-y-6">
+        <div className="text-xl font-black text-accent tracking-tight">GHS {plan.price}</div>
+        
         <div className="space-y-2">
-          <Label htmlFor={`phone-${plan.id}`} className="text-xs text-muted-foreground uppercase font-semibold">MTN Number</Label>
+          <Label htmlFor={`phone-${plan.id}`} className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">MTN NUMBER</Label>
           <div className="relative">
-            <Smartphone className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+            <Smartphone className={cn("absolute left-3 top-3 w-4 h-4 transition-colors", isHighlighted ? "text-primary" : "text-muted-foreground")} />
             <Input 
               id={`phone-${plan.id}`}
               placeholder="024 000 0000" 
-              className="pl-10 h-11 bg-background/50 border-white/5"
+              className={cn(
+                "pl-10 h-12 font-bold transition-all border-none",
+                isHighlighted ? "bg-[#dbeafe] text-black" : "bg-black/40 text-white placeholder:text-gray-600"
+              )}
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               disabled={loading}
@@ -76,7 +81,7 @@ export default function PlanCard({ plan, userId }: PlanCardProps) {
       
       <CardFooter className="p-6 pt-0">
         <Button 
-          className="w-full h-11 font-bold tracking-wide" 
+          className="w-full h-12 font-black tracking-widest text-xs uppercase bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20" 
           onClick={handlePurchase}
           disabled={loading}
         >
