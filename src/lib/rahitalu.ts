@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 /**
  * @fileOverview Rahitalu API Integration
  * Handles token management and order placement with robust error handling.
+ * Documentation used: https://data-api.rahitalu.com/v2
  */
 
 const supabaseAdmin = createClient(
@@ -10,12 +11,12 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Normalize the base URL to ensure it doesn't end with a slash or contain redundant versioning
+// Normalize the base URL
 const RAW_BASE_URL = process.env.RAHITALU_BASE_URL || 'https://data-api.rahitalu.com/v2';
 const BASE_URL = RAW_BASE_URL.replace(/\/+$/, '');
 
 const LOGIN_URL = `${BASE_URL}/auth/login`;
-const ORDER_URL = `${BASE_URL}/orders`;
+const PURCHASE_URL = `${BASE_URL}/purchases`; // Corrected from /orders
 const TWO_MINUTES = 2 * 60 * 1000;
 
 /**
@@ -30,7 +31,7 @@ async function safeParseJson(response: Response) {
   
   // Handle non-JSON responses (like 404 or 500 HTML pages)
   if (response.status === 404) {
-    throw new Error(`API Endpoint Not Found (404). Please verify RAHITALU_BASE_URL.`);
+    throw new Error(`API Endpoint Not Found (404). Please verify RAHITALU_BASE_URL and endpoint paths.`);
   }
   
   const text = await response.text();
@@ -70,7 +71,6 @@ async function fetchNewToken(): Promise<string> {
       .eq('id', 1);
 
     if (error) {
-      // If update fails, the row might not exist, though it should have been seeded
       console.error('Failed to save token to database:', error);
     }
 
@@ -103,20 +103,28 @@ export async function getValidToken(): Promise<string> {
   return data.access_token;
 }
 
+/**
+ * Places a data order using the /purchases endpoint.
+ * @param planId The Rahitalu plan ID
+ * @param phone The recipient's phone number
+ * @param amount The price in GHS
+ */
 export async function placeDataOrder(planId: string, phone: string, amount: number) {
   try {
     const token = await getValidToken();
 
-    const response = await fetch(ORDER_URL, {
+    // Body structure updated to match documentation: customerPhone, sellPriceGHS, productType
+    const response = await fetch(PURCHASE_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        planId,
-        recipient: phone,
-        amount: amount
+        planId: planId,
+        customerPhone: phone,
+        sellPriceGHS: amount,
+        productType: 'instant'
       })
     });
 
