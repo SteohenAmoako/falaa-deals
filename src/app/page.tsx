@@ -1,13 +1,58 @@
 'use client';
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Smartphone, Zap, ShieldCheck, ArrowRight, UserPlus, LogIn } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Smartphone, Zap, ShieldCheck, ArrowRight, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { signIn, signUp } from "@/app/actions/auth";
+import { useToast } from "@/hooks/use-toast";
 
 export default function LandingPage() {
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+
+    const result = await signIn({ email, password });
+    if (result.success) {
+      router.push('/dashboard');
+    } else {
+      toast({ title: "Login Failed", description: result.message, variant: "destructive" });
+      setLoading(false);
+    }
+  };
+
+  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+    const fullName = formData.get('fullName') as string;
+    const phone = formData.get('phone') as string;
+
+    const result = await signUp({ email, password, fullName, phone });
+    if (result.success) {
+      toast({ title: "Account Created!", description: "Please log in to continue." });
+      // Switch to login tab or auto login logic
+      window.location.reload(); 
+    } else {
+      toast({ title: "Signup Failed", description: result.message, variant: "destructive" });
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-white">
       {/* Abstract Background Elements */}
@@ -23,8 +68,7 @@ export default function LandingPage() {
         </div>
         <div className="flex items-center gap-6">
           <Link href="/admin" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hidden md:block">Admin Portal</Link>
-          <Button variant="ghost" className="font-bold hover:bg-white/5">Sign In</Button>
-          <Button className="font-black px-8 shadow-xl shadow-primary/30">GET STARTED</Button>
+          <Button variant="ghost" className="font-bold hover:bg-white/5">Help Center</Button>
         </div>
       </header>
 
@@ -39,19 +83,9 @@ export default function LandingPage() {
                 <span className="text-primary italic">REIMAGINED.</span>
              </h1>
              <p className="text-xl text-muted-foreground max-w-md leading-relaxed">
-                Connect your MoMo, get your reference code, and experience zero-lag data activation. No waiting, no manual transfers.
+                Instant data activation. Use your custom reference code to top up your wallet via MoMo and buy data in 2 clicks.
              </p>
-             <div className="flex flex-col sm:flex-row gap-4 pt-4">
-               <Link href="/dashboard">
-                 <Button className="h-14 px-8 text-lg font-bold gap-2 group shadow-2xl shadow-primary/40">
-                   Enter Dashboard <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                 </Button>
-               </Link>
-               <Button variant="outline" className="h-14 px-8 text-lg font-bold border-white/10 bg-transparent hover:bg-white/5">
-                 View Coverage
-               </Button>
-             </div>
-
+             
              <div className="grid grid-cols-2 gap-8 pt-10 border-t border-white/5">
                 <div>
                    <div className="text-3xl font-black text-foreground">1.5s</div>
@@ -65,31 +99,65 @@ export default function LandingPage() {
           </div>
 
           <div className="relative">
-            <Card className="bg-card/40 backdrop-blur-2xl border-white/5 shadow-2xl p-8 relative z-20 overflow-hidden">
-               <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-3xl -z-10"></div>
-               <CardHeader className="text-center pb-8">
-                 <div className="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mx-auto mb-6 border border-white/5">
-                    <ShieldCheck className="w-8 h-8 text-primary" />
-                 </div>
-                 <CardTitle className="text-2xl font-bold">Secure Access</CardTitle>
-                 <CardDescription>Enter your credentials to manage your wallet.</CardDescription>
-               </CardHeader>
-               <CardContent className="space-y-6">
-                 <div className="space-y-2">
-                   <Label>Phone Number</Label>
-                   <Input placeholder="024 XXX XXXX" className="h-12 bg-background/50 border-white/5" />
-                 </div>
-                 <div className="space-y-2">
-                   <Label>Password</Label>
-                   <Input type="password" placeholder="••••••••" className="h-12 bg-background/50 border-white/5" />
-                 </div>
-                 <Link href="/dashboard" className="block">
-                  <Button className="w-full h-12 font-bold text-lg">LOG IN TO FALAADATA</Button>
-                 </Link>
-                 <div className="text-center text-sm text-muted-foreground">
-                   Don't have an account? <Link href="#" className="text-primary font-bold hover:underline">Register Now</Link>
-                 </div>
-               </CardContent>
+            <Card className="bg-card/40 backdrop-blur-2xl border-white/5 shadow-2xl p-2 relative z-20 overflow-hidden">
+               <Tabs defaultValue="login" className="w-full">
+                 <TabsList className="grid w-full grid-cols-2 bg-background/50 mb-4 h-12">
+                   <TabsTrigger value="login" className="font-bold">Login</TabsTrigger>
+                   <TabsTrigger value="signup" className="font-bold">Register</TabsTrigger>
+                 </TabsList>
+                 
+                 <TabsContent value="login">
+                   <form onSubmit={handleLogin}>
+                     <CardHeader className="text-center pb-6">
+                       <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
+                       <CardDescription>Enter your email and password to access your wallet.</CardDescription>
+                     </CardHeader>
+                     <CardContent className="space-y-4">
+                       <div className="space-y-2">
+                         <Label>Email Address</Label>
+                         <Input name="email" type="email" required placeholder="name@example.com" className="h-12 bg-background/50 border-white/5" />
+                       </div>
+                       <div className="space-y-2">
+                         <Label>Password</Label>
+                         <Input name="password" type="password" required placeholder="••••••••" className="h-12 bg-background/50 border-white/5" />
+                       </div>
+                       <Button disabled={loading} className="w-full h-12 font-bold text-lg mt-4">
+                         {loading ? <Loader2 className="animate-spin" /> : "LOG IN"}
+                       </Button>
+                     </CardContent>
+                   </form>
+                 </TabsContent>
+
+                 <TabsContent value="signup">
+                   <form onSubmit={handleSignup}>
+                     <CardHeader className="text-center pb-6">
+                       <CardTitle className="text-2xl font-bold">Join FalaaData</CardTitle>
+                       <CardDescription>Create an account to start buying automated bundles.</CardDescription>
+                     </CardHeader>
+                     <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                         <Label>Full Name</Label>
+                         <Input name="fullName" required placeholder="Kojo Antwi" className="h-11 bg-background/50 border-white/5" />
+                       </div>
+                       <div className="space-y-2">
+                         <Label>Email Address</Label>
+                         <Input name="email" type="email" required placeholder="kojo@example.com" className="h-11 bg-background/50 border-white/5" />
+                       </div>
+                       <div className="space-y-2">
+                         <Label>MTN Phone Number</Label>
+                         <Input name="phone" required placeholder="024 XXX XXXX" className="h-11 bg-background/50 border-white/5" />
+                       </div>
+                       <div className="space-y-2">
+                         <Label>Password</Label>
+                         <Input name="password" type="password" required placeholder="••••••••" className="h-11 bg-background/50 border-white/5" />
+                       </div>
+                       <Button disabled={loading} className="w-full h-12 font-bold text-lg mt-4">
+                         {loading ? <Loader2 className="animate-spin" /> : "CREATE ACCOUNT"}
+                       </Button>
+                     </CardContent>
+                   </form>
+                 </TabsContent>
+               </Tabs>
             </Card>
 
             {/* Decorative Card Stack */}
@@ -105,8 +173,7 @@ export default function LandingPage() {
             <span className="font-bold text-sm tracking-tight">FalaaData Automations © 2024</span>
          </div>
          <p className="text-xs text-muted-foreground max-w-md mx-auto">
-            Powered by Rahitalu Engine. Data provided is subject to network availability. 
-            All deposits are final and credited within 60 seconds.
+            Powered by Rahitalu Engine. Deposits processed via automated reference tracking.
          </p>
       </footer>
     </div>

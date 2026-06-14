@@ -7,39 +7,48 @@ import ForecastTool from '@/components/dashboard/ForecastTool';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { PLANS, type Profile, type RahitaluOrder, type WalletTransaction } from '@/lib/types';
+import { PLANS, type Profile, type RahitaluOrder } from '@/lib/types';
 import { LayoutDashboard, History, ShoppingBag, LogOut, BarChart3, User, Loader2 } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [orders, setOrders] = useState<RahitaluOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     async function loadDashboardData() {
       try {
         setLoading(true);
         
-        // In a real app with Auth, we would use: const { data: { user } } = await supabase.auth.getUser();
-        // For this prototype, we'll fetch the first profile to demonstrate connectivity
-        const { data: profiles, error: profileError } = await supabase
+        // Check session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          router.push('/');
+          return;
+        }
+
+        // Fetch profile
+        const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*')
-          .limit(1)
+          .eq('user_id', session.user.id)
           .single();
 
         if (profileError) throw profileError;
-        setProfile(profiles);
+        setProfile(profileData);
 
         // Fetch user's orders
         const { data: userOrders, error: orderError } = await supabase
           .from('rahitalu_orders')
           .select('*')
-          .eq('user_id', profiles.user_id)
+          .eq('user_id', session.user.id)
           .order('created_at', { ascending: false });
 
         if (orderError) throw orderError;
@@ -48,51 +57,44 @@ export default function DashboardPage() {
       } catch (error: any) {
         console.error('Dashboard Load Error:', error);
         toast({
-          title: "Connection Error",
-          description: "Failed to fetch data from your Supabase backend. Please check your tables and credentials.",
+          title: "Session Error",
+          description: "Please login again to continue.",
           variant: "destructive"
         });
+        router.push('/');
       } finally {
         setLoading(false);
       }
     }
 
     loadDashboardData();
-  }, [toast]);
+  }, [toast, router]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/');
+  };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 text-primary animate-spin" />
-          <p className="text-muted-foreground font-medium">Connecting to SB Bundles Engine...</p>
+          <p className="text-muted-foreground font-medium">Securing connection...</p>
         </div>
       </div>
     );
   }
 
-  if (!profile) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6 text-center">
-        <Card className="max-w-md p-8 border-dashed border-2">
-          <h2 className="text-2xl font-bold mb-4">No Profile Found</h2>
-          <p className="text-muted-foreground mb-6">
-            We connected to your Supabase instance, but couldn't find any user profiles. 
-            Make sure your `profiles` table has at least one entry.
-          </p>
-          <Button onClick={() => window.location.reload()}>Retry Connection</Button>
-        </Card>
-      </div>
-    );
-  }
+  if (!profile) return null;
 
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
       <aside className="w-64 border-r border-white/5 bg-card/50 hidden lg:flex flex-col p-6 space-y-8">
         <div className="flex items-center gap-3 px-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center font-black italic">SB</div>
-          <span className="text-xl font-black tracking-tighter">SB Bundles</span>
+          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center font-black italic">FD</div>
+          <span className="text-xl font-black tracking-tighter">FalaaData</span>
         </div>
         
         <nav className="flex-grow space-y-1">
@@ -120,7 +122,7 @@ export default function DashboardPage() {
                 <span className="text-xs text-muted-foreground">{profile.phone}</span>
              </div>
           </div>
-          <Button variant="outline" className="w-full gap-2 border-white/5 bg-transparent hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20">
+          <Button onClick={handleLogout} variant="outline" className="w-full gap-2 border-white/5 bg-transparent hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20">
             <LogOut size={16} /> Logout
           </Button>
         </div>
