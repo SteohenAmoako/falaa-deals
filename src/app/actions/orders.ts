@@ -38,6 +38,7 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
     }
 
     // 2. Initiate Rahitalu purchase
+    // Note: The API might return "Plan not found" if the planId is stale or incorrect
     const orderRef = `FD-${Math.random().toString(36).substring(7).toUpperCase()}`;
     const rahitaluResponse = await placeDataOrder(plan.id, phone, plan.price);
 
@@ -77,6 +78,7 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
     return { success: true, message: 'Bundle activated successfully! Your data is on the way.' };
   } catch (error: any) {
     console.error('Buy Bundle Error:', error);
+    // Ensure we pass the clean error message (e.g., "Plan not found") back to the UI
     return { success: false, message: error.message || 'An unexpected error occurred.' };
   }
 }
