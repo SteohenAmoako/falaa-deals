@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { signIn, signUp } from "@/app/actions/auth";
+import { signUp } from "@/app/actions/auth";
 import { useToast } from "@/hooks/use-toast";
 
 /**
@@ -29,8 +29,6 @@ export default function LandingPage() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          // If session exists, navigate and DON'T reset checkingSession
-          // to keep the loader visible during transition
           router.replace('/dashboard');
         } else {
           setCheckingSession(false);
@@ -45,19 +43,32 @@ export default function LandingPage() {
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
+
     const formData = new FormData(e.currentTarget);
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
 
-    const result = await signIn({ email, password });
-    
-    if (result.success) {
+    try {
+      // Sign in directly with Supabase client (not a server action) to ensure session is set client-side
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (error || !data.session) {
+        toast({
+          title: "Login Failed",
+          description: error?.message || "Invalid credentials. Please try again.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Session is confirmed — safe to redirect
       router.push('/dashboard');
-    } else {
-      toast({ 
-        title: "Login Failed", 
-        description: result.message, 
-        variant: "destructive" 
+    } catch (err: any) {
+      toast({
+        title: "Login Failed",
+        description: err.message || "Something went wrong.",
+        variant: "destructive",
       });
       setLoading(false);
     }
@@ -66,28 +77,47 @@ export default function LandingPage() {
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
+
     const formData = new FormData(e.currentTarget);
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     const fullName = formData.get('fullName') as string;
     const phone = formData.get('phone') as string;
 
-    const result = await signUp({ email, password, fullName, phone });
+    try {
+      // 1. Call server action to create user and profile
+      const result = await signUp({ email, password, fullName, phone });
 
-    if (result.success) {
-      const loginResult = await signIn({ email, password });
-      if (loginResult.success) {
-        router.push('/dashboard');
-      } else {
+      if (!result.success) {
+        toast({
+          title: "Signup Failed",
+          description: result.message,
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // 2. Auto sign in directly on the client after successful signup
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (error || !data.session) {
         setActiveTab("login");
         setLoading(false);
-        toast({ title: "Account Created", description: "Please log in with your new credentials." });
+        toast({
+          title: "Account Created!",
+          description: "Please log in with your new credentials.",
+        });
+        return;
       }
-    } else {
-      toast({ 
-        title: "Signup Failed", 
-        description: result.message, 
-        variant: "destructive" 
+
+      // Signed in successfully — redirect
+      router.push('/dashboard');
+    } catch (err: any) {
+      toast({
+        title: "Signup Failed",
+        description: err.message || "Something went wrong.",
+        variant: "destructive",
       });
       setLoading(false);
     }
