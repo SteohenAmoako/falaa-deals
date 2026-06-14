@@ -13,6 +13,10 @@ import { supabase } from "@/lib/supabase";
 import { signIn, signUp } from "@/app/actions/auth";
 import { useToast } from "@/hooks/use-toast";
 
+/**
+ * Centered Authentication Portal (Login/Register)
+ * Unified at the root path "/"
+ */
 export default function LandingPage() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
@@ -69,7 +73,6 @@ export default function LandingPage() {
     const result = await signUp({ email, password, fullName, phone });
 
     if (result.success) {
-      // Sign up successful, sign the user in
       const loginResult = await signIn({ email, password });
       if (loginResult.success) {
         router.push('/dashboard');

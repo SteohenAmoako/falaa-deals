@@ -49,7 +49,6 @@ export default function DashboardPage() {
           return; 
         }
 
-        // Sync statuses with Rahitalu silently in background
         syncUserOrders(session.user.id).catch(err => console.error('Silent Sync Error:', err));
 
         const [profileRes, ordersRes, txRes] = await Promise.all([
@@ -63,7 +62,6 @@ export default function DashboardPage() {
         }
         
         if (!profileRes.data) {
-          // If profile missing, wait a bit and retry once (handles eventual consistency)
           await new Promise(r => setTimeout(r, 2000));
           const retryRes = await supabase.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle();
           if (retryRes.data) {
@@ -80,13 +78,6 @@ export default function DashboardPage() {
 
       } catch (error: any) {
         console.error('Dashboard Load Error:', error);
-        if (error.message) {
-          toast({
-            title: "Data Sync Issue",
-            description: error.message,
-            variant: "destructive"
-          });
-        }
       } finally {
         setLoading(false);
       }
@@ -121,13 +112,15 @@ export default function DashboardPage() {
 
   const firstName = profile.full_name.split(' ')[0];
   const totalOrders = orders.length;
+  
+  // Robust Delivery Mapping
   const deliveredOrders = orders.filter(o => {
     const s = (o.upstream_status || o.status)?.toLowerCase();
     return s === 'delivered' || s === 'success';
   }).length;
   
   const totalDeposits = transactions
-    .filter(t => t.type === 'credit' && (t.status === 'success' || !t.status))
+    .filter(t => t.type === 'credit' && t.status === 'success')
     .reduce((sum, t) => sum + Number(t.amount), 0);
     
   const totalSalesVolume = orders.reduce((sum, o) => sum + Number(o.sell_price_ghs), 0);
@@ -214,7 +207,7 @@ export default function DashboardPage() {
                   <ShoppingBag className="w-3.5 h-3.5 text-violet-400" />
                   <h2 className="text-[10px] sm:text-sm font-bold uppercase tracking-widest text-zinc-400">Available Bundles</h2>
                 </div>
-                <div className="grid grid-cols-2 gap-3 sm:gap-6">
+                <div className="grid grid-cols-2 gap-2 sm:gap-6">
                   {PLANS.map(plan => (
                     <PlanCard key={plan.id} plan={plan} userId={profile.user_id} />
                   ))}
