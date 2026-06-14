@@ -35,6 +35,16 @@ export default function AdminDashboard() {
     fetchData();
   }, []);
 
+  const safeFormatDistanceToNow = (timestamp: string) => {
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) return 'recent';
+      return formatDistanceToNow(date) + ' ago';
+    } catch (error) {
+      return 'recent';
+    }
+  };
+
   if (loading && !data) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -162,7 +172,7 @@ export default function AdminDashboard() {
           <h2 className="text-xl font-bold">Live Stream</h2>
           <Card className="border-white/5 bg-card/30">
             <CardContent className="p-4 space-y-4">
-              {data?.liveStream.length === 0 ? (
+              {(!data?.liveStream || data?.liveStream.length === 0) ? (
                 <div className="text-center py-10 text-muted-foreground text-xs">No recent activity</div>
               ) : (
                 data?.liveStream.map((item) => (
@@ -177,7 +187,7 @@ export default function AdminDashboard() {
                       </p>
                       <div className="flex items-center gap-2">
                         <p className="text-[10px] text-muted-foreground uppercase">
-                          {formatDistanceToNow(new Date(item.timestamp))} ago
+                          {safeFormatDistanceToNow(item.timestamp)}
                         </p>
                         <Badge variant="outline" className="text-[8px] h-3 px-1 border-white/10 uppercase">{item.status}</Badge>
                       </div>

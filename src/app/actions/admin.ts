@@ -50,13 +50,14 @@ export async function getAdminDashboardData() {
         rahitaluBalance: upstreamDash?.wallet?.balance || 0
       },
       users: users || [],
-      liveStream: upstreamOrders.map((order: any) => ({
-        id: order._id || order.id,
-        reference: order.reference,
-        phone: order.customerPhone || order.phone,
+      liveStream: (upstreamOrders || []).map((order: any) => ({
+        id: order._id || order.id || Math.random().toString(),
+        reference: order.reference || 'N/A',
+        phone: order.customerPhone || order.phone || 'Unknown',
         plan: order.planId?.name || order.gig || 'Data Bundle',
-        status: order.status,
-        timestamp: order.createdAt || order.created_at
+        status: order.status || 'unknown',
+        // Robust timestamp selection with fallback to now
+        timestamp: order.createdAt || order.created_at || order.updatedAt || new Date().toISOString()
       }))
     };
   } catch (error: any) {
