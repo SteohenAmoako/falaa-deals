@@ -9,6 +9,25 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+/**
+ * Fetches only the system status. 
+ * Used by the dashboard to show maintenance alerts reliably.
+ */
+export async function getSystemStatus() {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('system_configs')
+      .select('*')
+      .eq('key', 'maintenance_mode')
+      .maybeSingle();
+
+    if (error) throw error;
+    return data?.value || { enabled: true, message: '' };
+  } catch (error) {
+    return { enabled: true, message: '' };
+  }
+}
+
 export async function getAdminDashboardData() {
   try {
     // 1. Fetch system stats from Supabase
@@ -44,11 +63,7 @@ export async function getAdminDashboardData() {
       .limit(100);
 
     // 4. Fetch system status
-    const { data: config } = await supabaseAdmin
-      .from('system_configs')
-      .select('*')
-      .eq('key', 'maintenance_mode')
-      .maybeSingle();
+    const systemStatus = await getSystemStatus();
 
     return {
       stats: {
@@ -57,7 +72,7 @@ export async function getAdminDashboardData() {
         todayOrders: todayOrders || 0,
         rahitaluBalance: upstreamDash?.wallet?.balance || 0
       },
-      systemStatus: config ? config.value : { enabled: true, message: '' },
+      systemStatus,
       users: users || [],
       liveStream: (upstreamOrders || []).map((order: any) => ({
         id: order._id || order.id || Math.random().toString(),

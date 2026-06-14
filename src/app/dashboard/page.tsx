@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { syncUserOrders } from '@/app/actions/orders';
+import { getSystemStatus } from '@/app/actions/admin';
 
 type DashboardTab = 'dashboard' | 'orders' | 'transactions' | 'usage';
 
@@ -50,18 +51,18 @@ export default function DashboardPage() {
           return;
         }
 
-        // Fetch profile and system config
-        const [profileRes, configRes] = await Promise.all([
+        // Fetch profile and system status independently for better reliability
+        const [profileRes, statusValue] = await Promise.all([
           supabase.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle(),
-          supabase.from('system_configs').select('*').eq('key', 'maintenance_mode').maybeSingle()
+          getSystemStatus()
         ]);
 
         if (profileRes.data) {
           setProfile(profileRes.data);
         }
 
-        if (configRes.data) {
-          setSystemStatus(configRes.data.value);
+        if (statusValue) {
+          setSystemStatus(statusValue);
         }
 
         const [ordersRes, txRes] = await Promise.all([
@@ -88,7 +89,7 @@ export default function DashboardPage() {
         }
 
       } catch (error: any) {
-        // Silently handle errors
+        // Handle silently
       } finally {
         setLoading(false);
       }
