@@ -8,66 +8,91 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { PLANS, type Profile, type RahitaluOrder, type WalletTransaction } from '@/lib/types';
-import { LayoutDashboard, History, ShoppingBag, LogOut, BarChart3, User } from "lucide-react";
+import { LayoutDashboard, History, ShoppingBag, LogOut, BarChart3, User, Loader2 } from "lucide-react";
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/lib/supabase';
+import { useToast } from '@/hooks/use-toast';
 
 export default function DashboardPage() {
-  // Mocking data for the demonstration as Supabase auth isn't initialized yet
   const [profile, setProfile] = useState<Profile | null>(null);
   const [orders, setOrders] = useState<RahitaluOrder[]>([]);
-  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
-    // Simulated hydration from API/Supabase
-    setProfile({
-      id: '1',
-      user_id: 'u1',
-      full_name: 'Kojo Antwi',
-      phone: '0244123456',
-      reference_code: 'FD-A3X9',
-      wallet_balance: 45.50,
-      is_admin: false,
-      created_at: new Date().toISOString()
-    });
+    async function loadDashboardData() {
+      try {
+        setLoading(true);
+        
+        // In a real app with Auth, we would use: const { data: { user } } = await supabase.auth.getUser();
+        // For this prototype, we'll fetch the first profile to demonstrate connectivity
+        const { data: profiles, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .limit(1)
+          .single();
 
-    setOrders([
-      {
-        id: 'o1',
-        user_id: 'u1',
-        phone: '0244123456',
-        plan_id: '6a282eb267c07f8445745dcc',
-        gig: '5.1GB',
-        sell_price_ghs: 15,
-        reference: 'FD-ORD123',
-        status: 'delivered',
-        upstream_status: 'completed',
-        delivered_gb: 5.1,
-        created_at: new Date(Date.now() - 86400000 * 2).toISOString()
+        if (profileError) throw profileError;
+        setProfile(profiles);
+
+        // Fetch user's orders
+        const { data: userOrders, error: orderError } = await supabase
+          .from('rahitalu_orders')
+          .select('*')
+          .eq('user_id', profiles.user_id)
+          .order('created_at', { ascending: false });
+
+        if (orderError) throw orderError;
+        setOrders(userOrders || []);
+
+      } catch (error: any) {
+        console.error('Dashboard Load Error:', error);
+        toast({
+          title: "Connection Error",
+          description: "Failed to fetch data from your Supabase backend. Please check your tables and credentials.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
       }
-    ]);
+    }
 
-    setTransactions([
-      {
-        id: 't1',
-        user_id: 'u1',
-        amount: 50.00,
-        type: 'credit',
-        reference: 'MOMO-991',
-        description: 'MoMo Deposit via FD-A3X9',
-        created_at: new Date(Date.now() - 86400000 * 3).toISOString()
-      }
-    ]);
-  }, []);
+    loadDashboardData();
+  }, [toast]);
 
-  if (!profile) return null;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 text-primary animate-spin" />
+          <p className="text-muted-foreground font-medium">Connecting to SB Bundles Engine...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6 text-center">
+        <Card className="max-w-md p-8 border-dashed border-2">
+          <h2 className="text-2xl font-bold mb-4">No Profile Found</h2>
+          <p className="text-muted-foreground mb-6">
+            We connected to your Supabase instance, but couldn't find any user profiles. 
+            Make sure your `profiles` table has at least one entry.
+          </p>
+          <Button onClick={() => window.location.reload()}>Retry Connection</Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
       <aside className="w-64 border-r border-white/5 bg-card/50 hidden lg:flex flex-col p-6 space-y-8">
         <div className="flex items-center gap-3 px-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center font-black italic">FD</div>
-          <span className="text-xl font-black tracking-tighter">FalaaData</span>
+          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center font-black italic">SB</div>
+          <span className="text-xl font-black tracking-tighter">SB Bundles</span>
         </div>
         
         <nav className="flex-grow space-y-1">
@@ -91,7 +116,7 @@ export default function DashboardPage() {
                 <User className="w-5 h-5 text-muted-foreground" />
              </div>
              <div className="flex flex-col">
-                <span className="text-sm font-semibold">{profile.full_name}</span>
+                <span className="text-sm font-semibold truncate max-w-[120px]">{profile.full_name}</span>
                 <span className="text-xs text-muted-foreground">{profile.phone}</span>
              </div>
           </div>
@@ -121,7 +146,7 @@ export default function DashboardPage() {
           <div className="xl:col-span-4 space-y-8">
             <WalletCard balance={profile.wallet_balance} referenceCode={profile.reference_code} />
             <div className="hidden xl:block">
-              <ForecastTool currentBalance={profile.wallet_balance / 3} orders={orders} />
+              <ForecastTool currentBalance={5} orders={orders} />
             </div>
           </div>
 
@@ -140,7 +165,7 @@ export default function DashboardPage() {
             </section>
 
             <div className="xl:hidden">
-              <ForecastTool currentBalance={profile.wallet_balance / 3} orders={orders} />
+              <ForecastTool currentBalance={5} orders={orders} />
             </div>
 
             <section>
