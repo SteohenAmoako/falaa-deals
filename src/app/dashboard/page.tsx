@@ -103,12 +103,19 @@ export default function DashboardPage() {
 
   const firstName = profile.full_name.split(' ')[0];
 
-  // Stats Calculations
+  // Robust Stats Calculations
   const totalOrders = orders.length;
-  const deliveredOrders = orders.filter(o => (o.upstream_status || o.status) === 'delivered').length;
+  const deliveredOrders = orders.filter(o => {
+    const status = (o.upstream_status || o.status)?.toLowerCase();
+    return status === 'delivered';
+  }).length;
+  
+  // Count successful credits (deposits)
   const totalDeposits = transactions
-    .filter(t => t.type === 'credit' && t.status === 'success')
+    .filter(t => t.type === 'credit' && (t.status === 'success' || !t.status))
     .reduce((sum, t) => sum + Number(t.amount), 0);
+    
+  // Count total spent volume (sales volume)
   const totalSalesVolume = orders.reduce((sum, o) => sum + Number(o.sell_price_ghs), 0);
 
   return (

@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
@@ -46,11 +47,12 @@ export async function POST(req: NextRequest) {
 
     if (updateError) throw updateError;
 
-    // 3. Record the transaction
+    // 3. Record the transaction with explicit success status
     await supabase.from('wallet_transactions').insert({
       user_id: profile.user_id,
       amount: creditAmount,
       type: 'credit',
+      status: 'success',
       reference: transactionId || `MOMO-${Date.now()}`,
       description: `Automated MoMo Deposit (${cleanRef})`,
     });
