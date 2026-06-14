@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -42,39 +41,40 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadDashboardData() {
       try {
-        setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) { router.push('/'); return; }
+        if (!session) { 
+          router.push('/'); 
+          return; 
+        }
 
-        // Sync statuses with Rahitalu first
+        setLoading(true);
+
+        // Sync statuses with Rahitalu
         await syncUserOrders(session.user.id);
 
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles').select('*').eq('user_id', session.user.id).single();
-        if (profileError) throw profileError;
-        setProfile(profileData);
+        const [profileRes, ordersRes, txRes] = await Promise.all([
+          supabase.from('profiles').select('*').eq('user_id', session.user.id).single(),
+          supabase.from('rahitalu_orders').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false }),
+          supabase.from('wallet_transactions').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false })
+        ]);
 
-        const { data: userOrders, error: orderError } = await supabase
-          .from('rahitalu_orders').select('*').eq('user_id', session.user.id)
-          .order('created_at', { ascending: false });
-        if (orderError) throw orderError;
-        setOrders(userOrders || []);
-
-        const { data: userTransactions, error: txError } = await supabase
-          .from('wallet_transactions').select('*').eq('user_id', session.user.id)
-          .order('created_at', { ascending: false });
-        if (txError) throw txError;
-        setTransactions(userTransactions || []);
+        if (profileRes.error) throw profileRes.error;
+        
+        setProfile(profileRes.data);
+        setOrders(ordersRes.data || []);
+        setTransactions(txRes.data || []);
 
       } catch (error: any) {
-        toast({ title: "Session Error", description: "Please login again.", variant: "destructive" });
-        router.push('/');
+        // Only toast if it's an actual error, not just a missing session
+        if (error.message !== 'Auth session missing') {
+          console.error('Dashboard Load Error:', error);
+        }
       } finally {
         setLoading(false);
       }
     }
     loadDashboardData();
-  }, [toast, router, activeTab]);
+  }, [router, activeTab]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -93,7 +93,7 @@ export default function DashboardPage() {
           <div className="w-12 h-12 rounded-2xl bg-violet-600 flex items-center justify-center">
             <Loader2 className="w-6 h-6 text-white animate-spin" />
           </div>
-          <p className="text-sm text-zinc-500 font-medium">Syncing your connectivity…</p>
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Syncing Network</p>
         </div>
       </div>
     );
@@ -102,53 +102,30 @@ export default function DashboardPage() {
   if (!profile) return null;
 
   const firstName = profile.full_name.split(' ')[0];
-
-  // Robust Stats Calculations
   const totalOrders = orders.length;
-  const deliveredOrders = orders.filter(o => {
-    const status = (o.upstream_status || o.status)?.toLowerCase();
-    return status === 'delivered';
-  }).length;
-  
-  // Count successful credits (deposits)
+  const deliveredOrders = orders.filter(o => (o.upstream_status || o.status)?.toLowerCase() === 'delivered').length;
   const totalDeposits = transactions
     .filter(t => t.type === 'credit' && (t.status === 'success' || !t.status))
     .reduce((sum, t) => sum + Number(t.amount), 0);
-    
-  // Count total spent volume (sales volume)
   const totalSalesVolume = orders.reduce((sum, o) => sum + Number(o.sell_price_ghs), 0);
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white flex">
+      {sidebarOpen && <div className="fixed inset-0 bg-black/60 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
-      {/* ── Mobile overlay ── */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 z-30 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* ── Sidebar ── */}
       <aside className={cn(
         "fixed top-0 left-0 h-full w-72 bg-[#111118] border-r border-white/5 z-40 flex flex-col p-6 transition-transform duration-300",
         "lg:translate-x-0 lg:static lg:z-auto",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        {/* Logo */}
         <div className="flex items-center justify-between mb-10">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-violet-600 flex items-center justify-center font-black text-sm tracking-tight">
-              FD
-            </div>
-            <span className="text-lg font-black tracking-tight">FalaaData</span>
+            <div className="w-9 h-9 rounded-xl bg-violet-600 flex items-center justify-center font-black text-sm tracking-tight italic">SB</div>
+            <span className="text-lg font-black tracking-tight">SB Bundles</span>
           </div>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-zinc-500 hover:text-white">
-            <X size={18} />
-          </button>
+          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-zinc-500 hover:text-white"><X size={18} /></button>
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 space-y-1">
           {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
             <button
@@ -156,9 +133,7 @@ export default function DashboardPage() {
               onClick={() => handleTabChange(id as DashboardTab)}
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all",
-                activeTab === id
-                  ? "bg-violet-600 text-white shadow-lg shadow-violet-600/20"
-                  : "text-zinc-400 hover:text-white hover:bg-white/5"
+                activeTab === id ? "bg-violet-600 text-white shadow-lg shadow-violet-600/20" : "text-zinc-400 hover:text-white hover:bg-white/5"
               )}
             >
               <Icon size={17} />
@@ -167,7 +142,6 @@ export default function DashboardPage() {
           ))}
         </nav>
 
-        {/* User block */}
         <div className="pt-6 border-t border-white/5 space-y-4">
           <div className="flex items-center gap-3 px-2">
             <div className="w-10 h-10 rounded-full bg-violet-600/20 border border-violet-600/30 flex items-center justify-center shrink-0">
@@ -178,33 +152,22 @@ export default function DashboardPage() {
               <p className="text-xs text-zinc-500 truncate">{profile.phone}</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
-          >
+          <button onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-all">
             <LogOut size={16} /> Sign out
           </button>
         </div>
       </aside>
 
-      {/* ── Main ── */}
       <div className="flex-1 flex flex-col min-w-0">
-
-        {/* Top bar (mobile) */}
         <header className="lg:hidden sticky top-0 z-20 bg-[#0a0a0f]/80 backdrop-blur border-b border-white/5 px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-violet-600 flex items-center justify-center font-black text-xs">FD</div>
-            <span className="font-black tracking-tight">FalaaData</span>
+            <div className="w-8 h-8 rounded-xl bg-violet-600 flex items-center justify-center font-black text-xs italic">SB</div>
+            <span className="font-black tracking-tight">SB Bundles</span>
           </div>
-          <button onClick={() => setSidebarOpen(true)} className="text-zinc-400 hover:text-white p-1">
-            <Menu size={22} />
-          </button>
+          <button onClick={() => setSidebarOpen(true)} className="text-zinc-400 hover:text-white p-1"><Menu size={22} /></button>
         </header>
 
-        {/* Page content */}
         <main className="flex-1 p-3 sm:p-6 lg:p-10 max-w-5xl w-full mx-auto space-y-6 sm:space-y-8">
-
-          {/* Page heading */}
           <div className="space-y-0.5 pt-2 lg:pt-0">
             <h1 className="text-xl sm:text-3xl font-black tracking-tight">
               {activeTab === 'dashboard'    && `Hey, ${firstName} 👋`}
@@ -213,22 +176,20 @@ export default function DashboardPage() {
               {activeTab === 'usage'        && 'Usage Insights'}
             </h1>
             <p className="text-xs sm:text-sm text-zinc-500">
-              {activeTab === 'dashboard'    && 'Buy data instantly. Your wallet is ready.'}
-              {activeTab === 'orders'       && 'All your data bundle purchases in one place.'}
-              {activeTab === 'transactions' && 'Every deposit and purchase recorded.'}
-              {activeTab === 'usage'        && 'See how fast you burn through data.'}
+              {activeTab === 'dashboard'    && 'Activate a new bundle instantly.'}
+              {activeTab === 'orders'       && 'Track your connectivity history.'}
+              {activeTab === 'transactions' && 'Wallet activity and funding logs.'}
+              {activeTab === 'usage'        && 'Your data consumption analysis.'}
             </p>
           </div>
 
-          {/* ── DASHBOARD TAB ── */}
           {activeTab === 'dashboard' && (
             <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
               <WalletCard balance={profile.wallet_balance} referenceCode={profile.reference_code} />
-
               <section className="space-y-4">
                 <div className="flex items-center gap-2">
                   <ShoppingBag className="w-3.5 h-3.5 text-violet-400" />
-                  <h2 className="text-[10px] sm:text-sm font-bold uppercase tracking-widest text-zinc-400">Choose a Bundle</h2>
+                  <h2 className="text-[10px] sm:text-sm font-bold uppercase tracking-widest text-zinc-400">Available Bundles</h2>
                 </div>
                 <div className="grid grid-cols-2 gap-3 sm:gap-6">
                   {PLANS.map(plan => (
@@ -239,7 +200,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* ── ORDERS TAB ── */}
           {activeTab === 'orders' && (
             <div className="animate-in fade-in duration-300 rounded-2xl border border-white/5 bg-[#111118] overflow-hidden">
               {orders.length === 0 ? (
@@ -247,28 +207,14 @@ export default function DashboardPage() {
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
-                    <TableHeader>
-                      <TableRow className="border-white/5 hover:bg-transparent">
-                        {['Date', 'Bundle', 'Phone', 'STATUS', 'Price'].map(h => (
-                          <TableHead key={h} className="text-[11px] uppercase font-bold text-zinc-500 py-4">
-                            {h === 'STATUS' ? (
-                               <span className="bg-white/5 px-2 py-1 rounded text-zinc-400">STATUS</span>
-                            ) : h}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow className="border-white/5"><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Date</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Bundle</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Phone</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Status</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4 text-right">Price</TableHead></TableRow></TableHeader>
                     <TableBody>
                       {orders.map(order => (
                         <TableRow key={order.id} className="border-white/5 hover:bg-white/3">
-                          <TableCell className="text-sm text-zinc-400 py-4">
-                            {new Date(order.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                          </TableCell>
+                          <TableCell className="text-sm text-zinc-400 py-4">{new Date(order.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</TableCell>
                           <TableCell className="font-bold text-white">{order.gig}</TableCell>
                           <TableCell className="font-mono text-xs text-zinc-400">{order.phone}</TableCell>
-                          <TableCell>
-                            <StatusBadge status={order.upstream_status || order.status} />
-                          </TableCell>
+                          <TableCell><StatusBadge status={order.upstream_status || order.status} /></TableCell>
                           <TableCell className="font-bold text-white text-right">GHS {Number(order.sell_price_ghs).toFixed(2)}</TableCell>
                         </TableRow>
                       ))}
@@ -279,7 +225,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* ── TRANSACTIONS TAB ── */}
           {activeTab === 'transactions' && (
             <div className="animate-in fade-in duration-300 rounded-2xl border border-white/5 bg-[#111118] overflow-hidden">
               {transactions.length === 0 ? (
@@ -287,40 +232,14 @@ export default function DashboardPage() {
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
-                    <TableHeader>
-                      <TableRow className="border-white/5 hover:bg-transparent">
-                        {['Date', 'Type', 'Description', 'Reference', 'Amount'].map(h => (
-                          <TableHead key={h} className="text-[11px] uppercase font-bold text-zinc-500 py-4">
-                            {h}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow className="border-white/5"><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Date</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Type</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Description</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4 text-right">Amount</TableHead></TableRow></TableHeader>
                     <TableBody>
                       {transactions.map(tx => (
                         <TableRow key={tx.id} className="border-white/5 hover:bg-white/3">
-                          <TableCell className="text-sm text-zinc-400 py-4">
-                            {new Date(tx.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1.5">
-                              {tx.type === 'credit'
-                                ? <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-400" />
-                                : <ArrowUpRight className="w-3.5 h-3.5 text-red-400" />}
-                              <span className={cn(
-                                "text-xs font-bold uppercase",
-                                tx.type === 'credit' ? 'text-emerald-400' : 'text-red-400'
-                              )}>{tx.type}</span>
-                            </div>
-                          </TableCell>
+                          <TableCell className="text-sm text-zinc-400 py-4">{new Date(tx.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</TableCell>
+                          <TableCell><div className="flex items-center gap-1.5">{tx.type === 'credit' ? <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowUpRight className="w-3.5 h-3.5 text-red-400" />}<span className={cn("text-xs font-bold uppercase", tx.type === 'credit' ? 'text-emerald-400' : 'text-red-400')}>{tx.type}</span></div></TableCell>
                           <TableCell className="text-sm text-zinc-400 max-w-[160px] truncate">{tx.description}</TableCell>
-                          <TableCell className="font-mono text-[10px] text-zinc-600">{tx.reference}</TableCell>
-                          <TableCell className={cn(
-                            "font-black text-right",
-                            tx.type === 'credit' ? 'text-emerald-400' : 'text-white'
-                          )}>
-                            {tx.type === 'credit' ? '+' : '-'} GHS {Number(tx.amount).toFixed(2)}
-                          </TableCell>
+                          <TableCell className={cn("font-black text-right", tx.type === 'credit' ? 'text-emerald-400' : 'text-white')}>{tx.type === 'credit' ? '+' : '-'} GHS {Number(tx.amount).toFixed(2)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -330,81 +249,28 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* ── USAGE TAB ── */}
           {activeTab === 'usage' && (
             <div className="animate-in fade-in duration-300 space-y-8">
-              {/* Stats Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="bg-[#111118] border-white/5 shadow-xl">
-                  <CardContent className="p-4 pt-6 text-center space-y-1">
-                    <div className="w-8 h-8 rounded-full bg-violet-600/10 flex items-center justify-center mx-auto mb-2">
-                       <ShoppingBag className="w-4 h-4 text-violet-400" />
-                    </div>
-                    <div className="text-xl font-black">{totalOrders}</div>
-                    <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Total Orders</div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-[#111118] border-white/5 shadow-xl">
-                  <CardContent className="p-4 pt-6 text-center space-y-1">
-                    <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-2">
-                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    </div>
-                    <div className="text-xl font-black">{deliveredOrders}</div>
-                    <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Delivered</div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-[#111118] border-white/5 shadow-xl">
-                  <CardContent className="p-4 pt-6 text-center space-y-1">
-                    <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-2">
-                       <CreditCard className="w-4 h-4 text-blue-400" />
-                    </div>
-                    <div className="text-xl font-black">GHS {totalDeposits.toFixed(2)}</div>
-                    <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Deposits</div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-violet-600 border-none shadow-xl shadow-violet-600/20">
-                  <CardContent className="p-4 pt-6 text-center space-y-1">
-                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-2">
-                       <TrendingUp className="w-4 h-4 text-white" />
-                    </div>
-                    <div className="text-xl font-black text-white">GHS {totalSalesVolume.toFixed(2)}</div>
-                    <div className="text-[10px] text-white/60 font-bold uppercase tracking-widest">Sales Vol</div>
-                  </CardContent>
-                </Card>
+                <Card className="bg-[#111118] border-white/5 shadow-xl"><CardContent className="p-4 pt-6 text-center space-y-1"><div className="w-8 h-8 rounded-full bg-violet-600/10 flex items-center justify-center mx-auto mb-2"><ShoppingBag className="w-4 h-4 text-violet-400" /></div><div className="text-xl font-black">{totalOrders}</div><div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Total Orders</div></CardContent></Card>
+                <Card className="bg-[#111118] border-white/5 shadow-xl"><CardContent className="p-4 pt-6 text-center space-y-1"><div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /></div><div className="text-xl font-black">{deliveredOrders}</div><div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Delivered</div></CardContent></Card>
+                <Card className="bg-[#111118] border-white/5 shadow-xl"><CardContent className="p-4 pt-6 text-center space-y-1"><div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-2"><CreditCard className="w-4 h-4 text-blue-400" /></div><div className="text-xl font-black">GHS {totalDeposits.toFixed(2)}</div><div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Deposits</div></CardContent></Card>
+                <Card className="bg-violet-600 border-none shadow-xl shadow-violet-600/20"><CardContent className="p-4 pt-6 text-center space-y-1"><div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-2"><TrendingUp className="w-4 h-4 text-white" /></div><div className="text-xl font-black text-white">GHS {totalSalesVolume.toFixed(2)}</div><div className="text-[10px] text-white/60 font-bold uppercase tracking-widest">Sales Vol</div></CardContent></Card>
               </div>
-
-              <div className="max-w-2xl">
-                <ForecastTool currentBalance={5} orders={orders} />
-              </div>
+              <div className="max-w-2xl"><ForecastTool currentBalance={profile.wallet_balance} orders={orders} /></div>
             </div>
           )}
         </main>
 
-        {/* ── Mobile bottom nav ── */}
         <nav className="lg:hidden sticky bottom-0 bg-[#111118]/95 backdrop-blur border-t border-white/5 flex">
           {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => handleTabChange(id as DashboardTab)}
-              className={cn(
-                "flex-1 flex flex-col items-center gap-1 py-3 text-[10px] font-bold uppercase tracking-wider transition-colors",
-                activeTab === id ? "text-violet-400" : "text-zinc-600"
-              )}
-            >
-              <Icon size={18} />
-              <span className="hidden xs:block">{label.split(' ')[0]}</span>
-            </button>
+            <button key={id} onClick={() => handleTabChange(id as DashboardTab)} className={cn("flex-1 flex flex-col items-center gap-1 py-3 text-[10px] font-bold uppercase tracking-wider transition-colors", activeTab === id ? "text-violet-400" : "text-zinc-600")}><Icon size={18} /><span className="hidden xs:block">{label.split(' ')[0]}</span></button>
           ))}
         </nav>
       </div>
     </div>
   );
 }
-
-/* ── Small reusable pieces ── */
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
@@ -413,23 +279,9 @@ function StatusBadge({ status }: { status: string }) {
     pending:    'bg-amber-500/10   text-amber-400   border-amber-500/20',
     failed:     'bg-red-500/10     text-red-400     border-red-500/20',
   };
-  return (
-    <span className={cn(
-      "inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-bold uppercase border",
-      map[status] ?? 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
-    )}>
-      {status}
-    </span>
-  );
+  return <span className={cn("inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-bold uppercase border", map[status?.toLowerCase()] ?? 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20')}>{status || 'pending'}</span>;
 }
 
 function EmptyState({ icon: Icon, message }: { icon: any; message: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 gap-3 text-center px-6">
-      <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center">
-        <Icon className="w-5 h-5 text-zinc-600" />
-      </div>
-      <p className="text-sm text-zinc-500 max-w-xs">{message}</p>
-    </div>
-  );
+  return <div className="flex flex-col items-center justify-center py-20 gap-3 text-center px-6"><div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center"><Icon className="w-5 h-5 text-zinc-600" /></div><p className="text-sm text-zinc-500 max-w-xs">{message}</p></div>;
 }
