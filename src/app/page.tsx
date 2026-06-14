@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Smartphone, Zap, ShieldCheck, ArrowRight, Loader2, Info, AlertCircle } from "lucide-react";
+import { Smartphone, Zap, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn, signUp } from "@/app/actions/auth";
@@ -76,7 +76,7 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-white">
+    <div className="min-h-screen bg-[#0a0f1e] text-foreground selection:bg-primary selection:text-white flex flex-col">
       {/* Background Glow */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary rounded-full blur-[140px]"></div>
@@ -85,7 +85,7 @@ export default function LandingPage() {
 
       <header className="relative z-10 p-6 lg:px-12 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center font-black italic shadow-lg shadow-primary/20">FD</div>
+          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center font-black italic shadow-lg shadow-primary/20 text-white">FD</div>
           <span className="text-2xl font-black tracking-tighter">FalaaData</span>
         </div>
         <div className="flex items-center gap-6">
@@ -94,7 +94,7 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <main className="relative z-10 max-w-7xl mx-auto px-6 lg:px-12 pt-12 pb-32">
+      <main className="relative z-10 max-w-7xl mx-auto px-6 lg:px-12 pt-12 pb-20 flex-grow">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           <div className="space-y-8">
              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-bold text-primary uppercase tracking-widest">
@@ -108,8 +108,8 @@ export default function LandingPage() {
                 Connect your MoMo wallet via a simple reference code and get your data bundles delivered in under 5 seconds.
              </p>
              
-             {setupError && (setupError.includes('rate limit exceeded') || setupError.includes('Confirm email')) && (
-               <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 text-foreground">
+             {setupError && (setupError.includes('limit reached') || setupError.includes('Confirm email')) && (
+               <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 text-white max-w-md">
                  <AlertCircle className="h-4 w-4" />
                  <AlertTitle className="font-bold">Configuration Required</AlertTitle>
                  <AlertDescription className="text-sm opacity-90">
@@ -120,14 +120,14 @@ export default function LandingPage() {
           </div>
 
           <div className="relative">
-            <Card className="bg-card/40 backdrop-blur-2xl border-white/5 shadow-2xl p-2 relative z-20 overflow-hidden">
+            <Card className="bg-[#111827]/80 backdrop-blur-2xl border-white/5 shadow-2xl p-2 relative z-20 overflow-hidden">
                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                 <TabsList className="grid w-full grid-cols-2 bg-background/50 mb-6 h-12">
+                 <TabsList className="grid w-full grid-cols-2 bg-black/20 mb-6 h-12">
                    <TabsTrigger value="login" className="font-bold text-base">Login</TabsTrigger>
                    <TabsTrigger value="signup" className="font-bold text-base">Register</TabsTrigger>
                  </TabsList>
                  
-                 <TabsContent value="login">
+                 <TabsContent value="login" className="mt-0">
                    <form onSubmit={handleLogin}>
                      <CardHeader className="text-center pb-6">
                        <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
@@ -135,14 +135,14 @@ export default function LandingPage() {
                      </CardHeader>
                      <CardContent className="space-y-4">
                        <div className="space-y-2">
-                         <Label>Email Address</Label>
-                         <Input name="email" type="email" required placeholder="user@example.com" className="h-12 bg-background/50 border-white/5" />
+                         <Label className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Email Address</Label>
+                         <Input name="email" type="email" required placeholder="user@example.com" className="h-12 bg-[#dbeafe]/90 border-none text-black placeholder:text-gray-500" />
                        </div>
                        <div className="space-y-2">
-                         <Label>Password</Label>
-                         <Input name="password" type="password" required placeholder="••••••••" className="h-12 bg-background/50 border-white/5" />
+                         <Label className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Password</Label>
+                         <Input name="password" type="password" required placeholder="••••••••" className="h-12 bg-[#dbeafe]/90 border-none text-black placeholder:text-gray-500" />
                        </div>
-                       <Button disabled={loading} className="w-full h-12 font-bold text-lg mt-4 group">
+                       <Button disabled={loading} className="w-full h-12 font-bold text-lg mt-4 group bg-primary hover:bg-primary/90 text-white">
                          {loading ? <Loader2 className="animate-spin" /> : (
                            <span className="flex items-center gap-2">LOG IN <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" /></span>
                          )}
@@ -151,7 +151,7 @@ export default function LandingPage() {
                    </form>
                  </TabsContent>
 
-                 <TabsContent value="signup">
+                 <TabsContent value="signup" className="mt-0">
                    <form onSubmit={handleSignup}>
                      <CardHeader className="text-center pb-6">
                        <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
@@ -159,22 +159,22 @@ export default function LandingPage() {
                      </CardHeader>
                      <CardContent className="space-y-4">
                         <div className="space-y-2">
-                         <Label>Full Name</Label>
-                         <Input name="fullName" required placeholder="Kojo Antwi" className="h-11 bg-background/50 border-white/5" />
+                         <Label className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Full Name</Label>
+                         <Input name="fullName" required placeholder="Kojo Antwi" className="h-11 bg-[#dbeafe]/90 border-none text-black placeholder:text-gray-500" />
                        </div>
                        <div className="space-y-2">
-                         <Label>Email Address</Label>
-                         <Input name="email" type="email" required placeholder="kojo@example.com" className="h-11 bg-background/50 border-white/5" />
+                         <Label className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Email Address</Label>
+                         <Input name="email" type="email" required placeholder="kojo@example.com" className="h-11 bg-[#dbeafe]/90 border-none text-black placeholder:text-gray-500" />
                        </div>
                        <div className="space-y-2">
-                         <Label>MTN Phone Number</Label>
-                         <Input name="phone" required placeholder="024XXXXXXX" className="h-11 bg-background/50 border-white/5" />
+                         <Label className="text-xs uppercase font-bold text-muted-foreground tracking-wider">MTN Phone Number</Label>
+                         <Input name="phone" required placeholder="024XXXXXXX" className="h-11 bg-[#dbeafe]/90 border-none text-black placeholder:text-gray-500" />
                        </div>
                        <div className="space-y-2">
-                         <Label>Password</Label>
-                         <Input name="password" type="password" required placeholder="••••••••" className="h-11 bg-background/50 border-white/5" />
+                         <Label className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Password</Label>
+                         <Input name="password" type="password" required placeholder="••••••••" className="h-11 bg-[#dbeafe]/90 border-none text-black placeholder:text-gray-500" />
                        </div>
-                       <Button disabled={loading} className="w-full h-12 font-bold text-lg mt-4">
+                       <Button disabled={loading} className="w-full h-12 font-bold text-lg mt-4 bg-primary hover:bg-primary/90 text-white">
                          {loading ? <Loader2 className="animate-spin" /> : "CREATE ACCOUNT"}
                        </Button>
                      </CardContent>
@@ -189,15 +189,19 @@ export default function LandingPage() {
         </div>
       </main>
 
-      <footer className="relative z-10 border-t border-white/5 p-10 bg-card/20">
-         <div className="max-w-7xl mx-auto flex flex-col items-center text-center">
-            <div className="flex items-center gap-2 mb-4">
-               <div className="w-6 h-6 bg-primary rounded flex items-center justify-center text-[10px] font-black">FD</div>
+      <footer className="relative z-10 border-t border-white/5 p-8 bg-black/20 mt-auto">
+         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+               <div className="w-6 h-6 bg-primary rounded flex items-center justify-center text-[10px] font-black text-white">FD</div>
                <span className="font-bold text-sm tracking-tight uppercase">FalaaData Automations © 2024</span>
             </div>
-            <p className="text-xs text-muted-foreground max-w-md">
-               Powered by Rahitalu Engine. Deposits processed via automated reference tracking.
-            </p>
+            
+            <div className="flex items-center gap-6">
+               <div className="w-6 h-6 rounded-full border border-white/10 flex items-center justify-center text-[10px] font-bold text-muted-foreground">N</div>
+               <p className="text-[10px] text-muted-foreground max-w-xs text-center md:text-right">
+                  Powered by Rahitalu Engine. Deposits processed via automated reference tracking.
+               </p>
+            </div>
          </div>
       </footer>
     </div>

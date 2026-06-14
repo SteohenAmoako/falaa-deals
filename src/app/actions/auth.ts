@@ -18,7 +18,7 @@ export async function signUp(formData: { email: string; password: string; fullNa
     });
 
     if (authError) {
-      // Specifically handle the rate limit error with a helpful message
+      // Specifically handle the rate limit error with a helpful message as seen in the UI
       if (authError.message.includes('rate limit exceeded')) {
         throw new Error('Supabase email limit reached. Please disable "Confirm email" in your Supabase Auth settings to allow instant signups.');
       }
@@ -28,7 +28,6 @@ export async function signUp(formData: { email: string; password: string; fullNa
     if (!authData.user) throw new Error('Signup failed. Check your Supabase configuration.');
 
     // 2. Create the profile record in your public.profiles table
-    // Note: We use the user_id from auth to link the profile
     const { error: profileError } = await supabase.from('profiles').insert({
       user_id: authData.user.id,
       full_name: formData.fullName,
@@ -40,8 +39,6 @@ export async function signUp(formData: { email: string; password: string; fullNa
 
     if (profileError) {
       console.error('Profile Creation Error:', profileError);
-      // Even if profile fails, the auth user is created. 
-      // In a production app, you might want to rollback or retry.
       throw new Error('User created but profile setup failed: ' + profileError.message);
     }
 
