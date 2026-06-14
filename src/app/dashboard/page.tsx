@@ -73,7 +73,7 @@ export default function DashboardPage() {
       }
     }
     loadDashboardData();
-  }, [toast, router]);
+  }, [toast, router, activeTab]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -214,7 +214,7 @@ export default function DashboardPage() {
                   <ShoppingBag className="w-3.5 h-3.5 text-violet-400" />
                   <h2 className="text-[10px] sm:text-sm font-bold uppercase tracking-widest text-zinc-400">Choose a Bundle</h2>
                 </div>
-                <div className="grid grid-cols-2 gap-2 sm:gap-6">
+                <div className="grid grid-cols-2 gap-3 sm:gap-6">
                   {PLANS.map(plan => (
                     <PlanCard key={plan.id} plan={plan} userId={profile.user_id} />
                   ))}
@@ -233,9 +233,11 @@ export default function DashboardPage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="border-white/5 hover:bg-transparent">
-                        {['Date', 'Bundle', 'Phone', 'Status', 'Price'].map(h => (
+                        {['Date', 'Bundle', 'Phone', 'STATUS', 'Price'].map(h => (
                           <TableHead key={h} className="text-[11px] uppercase font-bold text-zinc-500 py-4">
-                            {h}
+                            {h === 'STATUS' ? (
+                               <span className="bg-white/5 px-2 py-1 rounded text-zinc-400">STATUS</span>
+                            ) : h}
                           </TableHead>
                         ))}
                       </TableRow>
@@ -251,7 +253,7 @@ export default function DashboardPage() {
                           <TableCell>
                             <StatusBadge status={order.upstream_status || order.status} />
                           </TableCell>
-                          <TableCell className="font-bold text-white">GHS {order.sell_price_ghs}</TableCell>
+                          <TableCell className="font-bold text-white text-right">GHS {Number(order.sell_price_ghs).toFixed(2)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -352,7 +354,7 @@ function StatusBadge({ status }: { status: string }) {
   };
   return (
     <span className={cn(
-      "inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border",
+      "inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-bold uppercase border",
       map[status] ?? 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
     )}>
       {status}

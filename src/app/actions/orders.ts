@@ -13,6 +13,7 @@ const supabaseAdmin = createClient(
 
 /**
  * Synchronizes local order statuses with the upstream Rahitalu API.
+ * Uses 'upstreamStatus' field from the Rahitalu API response.
  */
 export async function syncUserOrders(userId: string) {
   try {
@@ -22,13 +23,13 @@ export async function syncUserOrders(userId: string) {
     // 2. Fetch local orders that are still in a non-final state
     const { data: localOrders } = await supabaseAdmin
       .from('rahitalu_orders')
-      .select('id, reference, status')
+      .select('id, reference, status, phone')
       .eq('user_id', userId)
       .in('status', ['pending', 'processing']);
 
     if (!localOrders || localOrders.length === 0) return;
 
-    // 3. Compare and update
+    // 3. Compare and update using robust matching (reference or ID)
     for (const local of localOrders) {
       const match = upstreamOrders.find((u: any) => 
         u.reference === local.reference || 
@@ -36,14 +37,17 @@ export async function syncUserOrders(userId: string) {
         u.id === local.reference
       );
 
-      if (match && match.status !== local.status) {
-        await supabaseAdmin
-          .from('rahitalu_orders')
-          .update({ 
-            status: match.status, 
-            upstream_status: match.status 
-          })
-          .eq('id', local.id);
+      if (match) {
+        const upstreamStatus = match.upstreamStatus || match.status;
+        if (upstreamStatus && upstreamStatus !== local.status) {
+          await supabaseAdmin
+            .from('rahitalu_orders')
+            .update({ 
+              status: upstreamStatus, 
+              upstream_status: upstreamStatus 
+            })
+            .eq('id', local.id);
+        }
       }
     }
   } catch (error) {
@@ -105,13 +109,13 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
       gig: plan.size,
       sell_price_ghs: plan.price,
       reference: orderRef,
-      status: rahitaluResponse.status || 'processing',
-      upstream_status: rahitaluResponse.status || 'pending',
+      status: rahitaluResponse.upstreamStatus || rahitaluResponse.status || 'processing',
+      upstream_status: rahitaluResponse.upstreamStatus || rahitaluResponse.status || 'pending',
       delivered_gb: 0,
     });
 
     revalidatePath('/dashboard');
-    return { success: true, message: 'Bundle activated! Status: ' + (rahitaluResponse.status || 'processing') };
+    return { success: true, message: 'Bundle activated! Status: ' + (rahitaluResponse.upstreamStatus || rahitaluResponse.status || 'processing') };
   } catch (error: any) {
     console.error('Buy Bundle Error:', error);
     return { success: false, message: error.message || 'An unexpected error occurred.' };
