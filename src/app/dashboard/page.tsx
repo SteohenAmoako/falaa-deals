@@ -181,17 +181,17 @@ export default function DashboardPage() {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-10 max-w-5xl w-full mx-auto space-y-8">
+        <main className="flex-1 p-3 sm:p-6 lg:p-10 max-w-5xl w-full mx-auto space-y-6 sm:space-y-8">
 
           {/* Page heading */}
-          <div className="space-y-1 pt-2 lg:pt-0">
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+          <div className="space-y-0.5 pt-2 lg:pt-0">
+            <h1 className="text-xl sm:text-3xl font-black tracking-tight">
               {activeTab === 'dashboard'    && `Hey, ${firstName} 👋`}
               {activeTab === 'orders'       && 'My Orders'}
               {activeTab === 'transactions' && 'Transactions'}
               {activeTab === 'usage'        && 'Usage Insights'}
             </h1>
-            <p className="text-sm text-zinc-500">
+            <p className="text-xs sm:text-sm text-zinc-500">
               {activeTab === 'dashboard'    && 'Buy data instantly. Your wallet is ready.'}
               {activeTab === 'orders'       && 'All your data bundle purchases in one place.'}
               {activeTab === 'transactions' && 'Every deposit and purchase recorded.'}
@@ -201,16 +201,16 @@ export default function DashboardPage() {
 
           {/* ── DASHBOARD TAB ── */}
           {activeTab === 'dashboard' && (
-            <div className="space-y-8 animate-in fade-in duration-300">
+            <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
               <WalletCard balance={profile.wallet_balance} referenceCode={profile.reference_code} />
 
               <section className="space-y-4">
                 <div className="flex items-center gap-2">
-                  <ShoppingBag className="w-4 h-4 text-violet-400" />
-                  <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Choose a Bundle</h2>
+                  <ShoppingBag className="w-3.5 h-3.5 text-violet-400" />
+                  <h2 className="text-[10px] sm:text-sm font-bold uppercase tracking-widest text-zinc-400">Choose a Bundle</h2>
                 </div>
-                {/* 1 column on mobile, 2 columns from sm up */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6">
+                {/* FORCED 2 COLUMNS ON ALL SCREENS */}
+                <div className="grid grid-cols-2 gap-2 sm:gap-6">
                   {PLANS.map(plan => (
                     <PlanCard key={plan.id} plan={plan} userId={profile.user_id} />
                   ))}
