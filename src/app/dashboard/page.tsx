@@ -50,25 +50,30 @@ export default function DashboardPage() {
           return;
         }
 
-        // Use maybeSingle to avoid 406 coercion errors when record is missing
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
-
-        if (profileError) {
-          console.error('Profile fetch error:', profileError);
-          throw profileError;
+        // Try to fetch profile, maybe with a slight retry if needed
+        let profileData = null;
+        let retryCount = 0;
+        while (retryCount < 3 && !profileData) {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+          
+          if (data) {
+            profileData = data;
+          } else {
+            retryCount++;
+            if (retryCount < 3) await new Promise(r => setTimeout(r, 1000));
+          }
         }
 
         if (!profileData) {
           console.error('Profile not found for user:', session.user.id);
-          // If no profile, we can't function. Sign out and redirect.
-          await supabase.auth.signOut();
+          // Instead of immediate signout, redirect to login with a message
           toast({
-            title: "Account Setup Incomplete",
-            description: "We couldn't find your profile. Please register again.",
+            title: "Access Denied",
+            description: "Profile setup incomplete. Please contact support.",
             variant: "destructive",
           });
           router.push('/');
@@ -77,7 +82,7 @@ export default function DashboardPage() {
 
         setProfile(profileData);
 
-        // Load secondary data in parallel
+        // Load secondary data
         const [ordersRes, txRes] = await Promise.all([
           supabase
             .from('rahitalu_orders')
@@ -94,7 +99,7 @@ export default function DashboardPage() {
         setOrders(ordersRes.data || []);
         setTransactions(txRes.data || []);
 
-        // Sync orders in background if there are active ones
+        // Sync orders in background
         const hasActiveOrders = (ordersRes.data || []).some(o => 
           ['pending', 'processing'].includes(o.status?.toLowerCase())
         );
@@ -104,7 +109,6 @@ export default function DashboardPage() {
 
       } catch (error: any) {
         console.error('Dashboard Load Error:', error);
-        // Don't toast/redirect for every minor error to avoid loops
       } finally {
         setLoading(false);
       }
@@ -129,7 +133,7 @@ export default function DashboardPage() {
           <div className="w-12 h-12 rounded-2xl bg-violet-600 flex items-center justify-center">
             <Loader2 className="w-6 h-6 text-white animate-spin" />
           </div>
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Connecting...</p>
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Establishing Session...</p>
         </div>
       </div>
     );

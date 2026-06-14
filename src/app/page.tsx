@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from "react";
@@ -28,7 +29,9 @@ export default function LandingPage() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          router.push('/dashboard');
+          // If session exists, navigate and DON'T reset checkingSession
+          // to keep the loader visible during transition
+          router.replace('/dashboard');
         } else {
           setCheckingSession(false);
         }
