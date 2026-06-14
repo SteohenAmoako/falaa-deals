@@ -4,11 +4,13 @@ import { useState, useEffect } from 'react';
 import WalletCard from '@/components/dashboard/WalletCard';
 import PlanCard from '@/components/dashboard/PlanCard';
 import ForecastTool from '@/components/dashboard/ForecastTool';
-import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { PLANS, type Profile, type RahitaluOrder, type WalletTransaction } from '@/lib/types';
-import { LayoutDashboard, History, ShoppingBag, LogOut, BarChart3, User, Loader2, ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import {
+  LayoutDashboard, History, ShoppingBag, LogOut,
+  BarChart3, User, Loader2, ArrowUpRight, ArrowDownLeft, Menu, X
+} from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -17,62 +19,54 @@ import { cn } from '@/lib/utils';
 
 type DashboardTab = 'dashboard' | 'orders' | 'transactions' | 'usage';
 
+const NAV_ITEMS = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'orders',    label: 'My Orders',    icon: ShoppingBag },
+  { id: 'transactions', label: 'Transactions', icon: History },
+  { id: 'usage',    label: 'Usage Stats',  icon: BarChart3 },
+] as const;
+
 export default function DashboardPage() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [orders, setOrders] = useState<RahitaluOrder[]>([]);
+  const [profile, setProfile]           = useState<Profile | null>(null);
+  const [orders, setOrders]             = useState<RahitaluOrder[]>([]);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<DashboardTab>('dashboard');
-  const { toast } = useToast();
-  const router = useRouter();
+  const [loading, setLoading]           = useState(true);
+  const [activeTab, setActiveTab]       = useState<DashboardTab>('dashboard');
+  const [sidebarOpen, setSidebarOpen]   = useState(false);
+  const { toast }  = useToast();
+  const router     = useRouter();
 
   useEffect(() => {
     async function loadDashboardData() {
       try {
         setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session) {
-          router.push('/');
-          return;
-        }
+        if (!session) { router.push('/'); return; }
 
         const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .single();
-
+          .from('profiles').select('*').eq('user_id', session.user.id).single();
         if (profileError) throw profileError;
         setProfile(profileData);
 
         const { data: userOrders, error: orderError } = await supabase
-          .from('rahitalu_orders')
-          .select('*')
-          .eq('user_id', session.user.id)
+          .from('rahitalu_orders').select('*').eq('user_id', session.user.id)
           .order('created_at', { ascending: false });
-
         if (orderError) throw orderError;
         setOrders(userOrders || []);
 
         const { data: userTransactions, error: txError } = await supabase
-          .from('wallet_transactions')
-          .select('*')
-          .eq('user_id', session.user.id)
+          .from('wallet_transactions').select('*').eq('user_id', session.user.id)
           .order('created_at', { ascending: false });
-
         if (txError) throw txError;
         setTransactions(userTransactions || []);
 
       } catch (error: any) {
-        console.error('Dashboard Load Error:', error);
         toast({ title: "Session Error", description: "Please login again.", variant: "destructive" });
         router.push('/');
       } finally {
         setLoading(false);
       }
     }
-
     loadDashboardData();
   }, [toast, router]);
 
@@ -81,191 +75,294 @@ export default function DashboardPage() {
     router.push('/');
   };
 
+  const handleTabChange = (tab: DashboardTab) => {
+    setActiveTab(tab);
+    setSidebarOpen(false);
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-violet-600 flex items-center justify-center">
+            <Loader2 className="w-6 h-6 text-white animate-spin" />
+          </div>
+          <p className="text-sm text-zinc-500 font-medium">Loading your dashboard…</p>
+        </div>
       </div>
     );
   }
 
   if (!profile) return null;
 
+  const firstName = profile.full_name.split(' ')[0];
+
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-white/5 bg-card/50 hidden lg:flex flex-col p-6 space-y-8">
-        <div className="flex items-center gap-3 px-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center font-black italic">SB</div>
-          <span className="text-xl font-black tracking-tighter">SB Bundles</span>
+    <div className="min-h-screen bg-[#0a0a0f] text-white flex">
+
+      {/* ── Mobile overlay ── */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* ── Sidebar ── */}
+      <aside className={cn(
+        "fixed top-0 left-0 h-full w-72 bg-[#111118] border-r border-white/5 z-40 flex flex-col p-6 transition-transform duration-300",
+        "lg:translate-x-0 lg:static lg:z-auto",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        {/* Logo */}
+        <div className="flex items-center justify-between mb-10">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-violet-600 flex items-center justify-center font-black text-sm tracking-tight">
+              FD
+            </div>
+            <span className="text-lg font-black tracking-tight">FalaaData</span>
+          </div>
+          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-zinc-500 hover:text-white">
+            <X size={18} />
+          </button>
         </div>
-        
-        <nav className="flex-grow space-y-1">
-          <Button 
-            variant="ghost" 
-            onClick={() => setActiveTab('dashboard')}
-            className={cn("w-full justify-start gap-3", activeTab === 'dashboard' ? "text-primary bg-primary/10" : "text-muted-foreground")}
-          >
-            <LayoutDashboard size={18} /> Dashboard
-          </Button>
-          <Button 
-            variant="ghost" 
-            onClick={() => setActiveTab('orders')}
-            className={cn("w-full justify-start gap-3", activeTab === 'orders' ? "text-primary bg-primary/10" : "text-muted-foreground")}
-          >
-            <ShoppingBag size={18} /> My Orders
-          </Button>
-          <Button 
-            variant="ghost" 
-            onClick={() => setActiveTab('transactions')}
-            className={cn("w-full justify-start gap-3", activeTab === 'transactions' ? "text-primary bg-primary/10" : "text-muted-foreground")}
-          >
-            <History size={18} /> Transactions
-          </Button>
-          <Button 
-            variant="ghost" 
-            onClick={() => setActiveTab('usage')}
-            className={cn("w-full justify-start gap-3", activeTab === 'usage' ? "text-primary bg-primary/10" : "text-muted-foreground")}
-          >
-            <BarChart3 size={18} /> Usage Stats
-          </Button>
+
+        {/* Nav */}
+        <nav className="flex-1 space-y-1">
+          {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => handleTabChange(id as DashboardTab)}
+              className={cn(
+                "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all",
+                activeTab === id
+                  ? "bg-violet-600 text-white shadow-lg shadow-violet-600/20"
+                  : "text-zinc-400 hover:text-white hover:bg-white/5"
+              )}
+            >
+              <Icon size={17} />
+              {label}
+            </button>
+          ))}
         </nav>
 
-        <div className="pt-6 border-t border-white/5">
-          <div className="flex items-center gap-3 px-2 mb-6">
-             <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center border border-white/10">
-                <User className="w-5 h-5 text-muted-foreground" />
-             </div>
-             <div className="flex flex-col">
-                <span className="text-sm font-semibold truncate max-w-[120px]">{profile.full_name}</span>
-                <span className="text-xs text-muted-foreground">{profile.phone}</span>
-             </div>
+        {/* User block */}
+        <div className="pt-6 border-t border-white/5 space-y-4">
+          <div className="flex items-center gap-3 px-2">
+            <div className="w-10 h-10 rounded-full bg-violet-600/20 border border-violet-600/30 flex items-center justify-center shrink-0">
+              <User className="w-5 h-5 text-violet-400" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold truncate">{profile.full_name}</p>
+              <p className="text-xs text-zinc-500 truncate">{profile.phone}</p>
+            </div>
           </div>
-          <Button onClick={handleLogout} variant="outline" className="w-full gap-2 border-white/5 bg-transparent hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20">
-            <LogOut size={16} /> Logout
-          </Button>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+          >
+            <LogOut size={16} /> Sign out
+          </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 p-6 lg:p-10 space-y-8 max-w-7xl mx-auto w-full">
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-black tracking-tight">
-              {activeTab === 'dashboard' && `Welcome back, ${profile.full_name.split(' ')[0]}!`}
-              {activeTab === 'orders' && `My Data Orders`}
-              {activeTab === 'transactions' && `Wallet Transactions`}
-              {activeTab === 'usage' && `AI Usage Insights`}
-            </h1>
-            <p className="text-muted-foreground">
-              {activeTab === 'dashboard' && 'Manage your wallet and buy data bundles instantly.'}
-              {activeTab === 'orders' && 'Track all your data bundle purchases.'}
-              {activeTab === 'transactions' && 'Your financial history and deposits.'}
-              {activeTab === 'usage' && 'Predict when your data will run out using AI.'}
-            </p>
+      {/* ── Main ── */}
+      <div className="flex-1 flex flex-col min-w-0">
+
+        {/* Top bar (mobile) */}
+        <header className="lg:hidden sticky top-0 z-20 bg-[#0a0a0f]/80 backdrop-blur border-b border-white/5 px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-violet-600 flex items-center justify-center font-black text-xs">FD</div>
+            <span className="font-black tracking-tight">FalaaData</span>
           </div>
+          <button onClick={() => setSidebarOpen(true)} className="text-zinc-400 hover:text-white p-1">
+            <Menu size={22} />
+          </button>
         </header>
 
-        {activeTab === 'dashboard' && (
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 animate-in fade-in duration-500">
-            <div className="xl:col-span-4 space-y-8">
-              <WalletCard balance={profile.wallet_balance} referenceCode={profile.reference_code} />
-            </div>
+        {/* Page content */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-10 max-w-5xl w-full mx-auto space-y-8">
 
-            <div className="xl:col-span-8 space-y-8">
-              <section>
-                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <ShoppingBag className="w-5 h-5 text-primary" /> Available Bundles
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Page heading */}
+          <div className="space-y-1 pt-2 lg:pt-0">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+              {activeTab === 'dashboard'    && `Hey, ${firstName} 👋`}
+              {activeTab === 'orders'       && 'My Orders'}
+              {activeTab === 'transactions' && 'Transactions'}
+              {activeTab === 'usage'        && 'Usage Insights'}
+            </h1>
+            <p className="text-sm text-zinc-500">
+              {activeTab === 'dashboard'    && 'Buy data instantly. Your wallet is ready.'}
+              {activeTab === 'orders'       && 'All your data bundle purchases in one place.'}
+              {activeTab === 'transactions' && 'Every deposit and purchase recorded.'}
+              {activeTab === 'usage'        && 'See how fast you burn through data.'}
+            </p>
+          </div>
+
+          {/* ── DASHBOARD TAB ── */}
+          {activeTab === 'dashboard' && (
+            <div className="space-y-8 animate-in fade-in duration-300">
+              <WalletCard balance={profile.wallet_balance} referenceCode={profile.reference_code} />
+
+              <section className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="w-4 h-4 text-violet-400" />
+                  <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Choose a Bundle</h2>
+                </div>
+                {/* 1 column on mobile, 2 columns from sm up */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6">
                   {PLANS.map(plan => (
                     <PlanCard key={plan.id} plan={plan} userId={profile.user_id} />
                   ))}
                 </div>
               </section>
             </div>
-          </div>
-        )}
+          )}
 
-        {activeTab === 'orders' && (
-          <Card className="border-white/5 bg-card/30 animate-in slide-in-from-bottom-4 duration-500">
-            <Table>
-              <TableHeader className="bg-muted/50">
-                <TableRow className="border-white/5 hover:bg-transparent">
-                  <TableHead className="text-xs uppercase font-bold text-muted-foreground">Date</TableHead>
-                  <TableHead className="text-xs uppercase font-bold text-muted-foreground">Plan</TableHead>
-                  <TableHead className="text-xs uppercase font-bold text-muted-foreground">Phone</TableHead>
-                  <TableHead className="text-xs uppercase font-bold text-muted-foreground">Status</TableHead>
-                  <TableHead className="text-right text-xs uppercase font-bold text-muted-foreground">Price</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.length === 0 ? (
-                  <TableRow><TableCell colSpan={5} className="text-center py-20 opacity-50">No orders found.</TableCell></TableRow>
-                ) : (
-                  orders.map(order => (
-                    <TableRow key={order.id} className="border-white/5 hover:bg-white/5">
-                      <TableCell className="text-sm">{new Date(order.created_at).toLocaleDateString()}</TableCell>
-                      <TableCell className="font-bold">{order.gig}</TableCell>
-                      <TableCell className="font-mono text-xs">{order.phone}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className={cn("text-[10px] uppercase font-bold", order.status === 'delivered' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-primary/10 text-primary')}>
-                          {order.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-bold">GHS {order.sell_price_ghs}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </Card>
-        )}
+          {/* ── ORDERS TAB ── */}
+          {activeTab === 'orders' && (
+            <div className="animate-in fade-in duration-300 rounded-2xl border border-white/5 bg-[#111118] overflow-hidden">
+              {orders.length === 0 ? (
+                <EmptyState icon={ShoppingBag} message="No orders yet. Buy your first bundle above." />
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-white/5 hover:bg-transparent">
+                        {['Date', 'Bundle', 'Phone', 'Status', 'Price'].map(h => (
+                          <TableHead key={h} className="text-[11px] uppercase font-bold text-zinc-500 py-4">
+                            {h}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {orders.map(order => (
+                        <TableRow key={order.id} className="border-white/5 hover:bg-white/3">
+                          <TableCell className="text-sm text-zinc-400 py-4">
+                            {new Date(order.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                          </TableCell>
+                          <TableCell className="font-bold text-white">{order.gig}</TableCell>
+                          <TableCell className="font-mono text-xs text-zinc-400">{order.phone}</TableCell>
+                          <TableCell>
+                            <StatusBadge status={order.status} />
+                          </TableCell>
+                          <TableCell className="font-bold text-white">GHS {order.sell_price_ghs}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          )}
 
-        {activeTab === 'transactions' && (
-          <Card className="border-white/5 bg-card/30 animate-in slide-in-from-bottom-4 duration-500">
-            <Table>
-              <TableHeader className="bg-muted/50">
-                <TableRow className="border-white/5 hover:bg-transparent">
-                  <TableHead className="text-xs uppercase font-bold text-muted-foreground">Date</TableHead>
-                  <TableHead className="text-xs uppercase font-bold text-muted-foreground">Type</TableHead>
-                  <TableHead className="text-xs uppercase font-bold text-muted-foreground">Description</TableHead>
-                  <TableHead className="text-xs uppercase font-bold text-muted-foreground">Reference</TableHead>
-                  <TableHead className="text-right text-xs uppercase font-bold text-muted-foreground">Amount</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {transactions.length === 0 ? (
-                  <TableRow><TableCell colSpan={5} className="text-center py-20 opacity-50">No transactions recorded.</TableCell></TableRow>
-                ) : (
-                  transactions.map(tx => (
-                    <TableRow key={tx.id} className="border-white/5 hover:bg-white/5">
-                      <TableCell className="text-sm">{new Date(tx.created_at).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {tx.type === 'credit' ? <ArrowDownLeft className="w-3 h-3 text-emerald-500" /> : <ArrowUpRight className="w-3 h-3 text-red-500" />}
-                          <span className={cn("text-xs font-bold uppercase", tx.type === 'credit' ? 'text-emerald-500' : 'text-red-500')}>{tx.type}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{tx.description}</TableCell>
-                      <TableCell className="font-mono text-[10px] opacity-70">{tx.reference}</TableCell>
-                      <TableCell className={cn("text-right font-black", tx.type === 'credit' ? 'text-emerald-500' : 'text-foreground')}>
-                        {tx.type === 'credit' ? '+' : '-'} GHS {tx.amount.toFixed(2)}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </Card>
-        )}
+          {/* ── TRANSACTIONS TAB ── */}
+          {activeTab === 'transactions' && (
+            <div className="animate-in fade-in duration-300 rounded-2xl border border-white/5 bg-[#111118] overflow-hidden">
+              {transactions.length === 0 ? (
+                <EmptyState icon={History} message="No transactions yet. Top up your wallet to get started." />
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-white/5 hover:bg-transparent">
+                        {['Date', 'Type', 'Description', 'Reference', 'Amount'].map(h => (
+                          <TableHead key={h} className="text-[11px] uppercase font-bold text-zinc-500 py-4">
+                            {h}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {transactions.map(tx => (
+                        <TableRow key={tx.id} className="border-white/5 hover:bg-white/3">
+                          <TableCell className="text-sm text-zinc-400 py-4">
+                            {new Date(tx.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              {tx.type === 'credit'
+                                ? <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-400" />
+                                : <ArrowUpRight className="w-3.5 h-3.5 text-red-400" />}
+                              <span className={cn(
+                                "text-xs font-bold uppercase",
+                                tx.type === 'credit' ? 'text-emerald-400' : 'text-red-400'
+                              )}>{tx.type}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm text-zinc-400 max-w-[160px] truncate">{tx.description}</TableCell>
+                          <TableCell className="font-mono text-[10px] text-zinc-600">{tx.reference}</TableCell>
+                          <TableCell className={cn(
+                            "font-black text-right",
+                            tx.type === 'credit' ? 'text-emerald-400' : 'text-white'
+                          )}>
+                            {tx.type === 'credit' ? '+' : '-'} GHS {Number(tx.amount).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          )}
 
-        {activeTab === 'usage' && (
-          <div className="max-w-3xl animate-in fade-in duration-500">
-            <ForecastTool currentBalance={5} orders={orders} />
-          </div>
-        )}
-      </main>
+          {/* ── USAGE TAB ── */}
+          {activeTab === 'usage' && (
+            <div className="animate-in fade-in duration-300 max-w-2xl">
+              <ForecastTool currentBalance={5} orders={orders} />
+            </div>
+          )}
+        </main>
+
+        {/* ── Mobile bottom nav ── */}
+        <nav className="lg:hidden sticky bottom-0 bg-[#111118]/95 backdrop-blur border-t border-white/5 flex">
+          {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => handleTabChange(id as DashboardTab)}
+              className={cn(
+                "flex-1 flex flex-col items-center gap-1 py-3 text-[10px] font-bold uppercase tracking-wider transition-colors",
+                activeTab === id ? "text-violet-400" : "text-zinc-600"
+              )}
+            >
+              <Icon size={18} />
+              <span className="hidden xs:block">{label.split(' ')[0]}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
+    </div>
+  );
+}
+
+/* ── Small reusable pieces ── */
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    delivered:  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    processing: 'bg-violet-500/10  text-violet-400  border-violet-500/20',
+    pending:    'bg-amber-500/10   text-amber-400   border-amber-500/20',
+    failed:     'bg-red-500/10     text-red-400     border-red-500/20',
+  };
+  return (
+    <span className={cn(
+      "inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border",
+      map[status] ?? 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
+    )}>
+      {status}
+    </span>
+  );
+}
+
+function EmptyState({ icon: Icon, message }: { icon: any; message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 gap-3 text-center px-6">
+      <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center">
+        <Icon className="w-5 h-5 text-zinc-600" />
+      </div>
+      <p className="text-sm text-zinc-500 max-w-xs">{message}</p>
     </div>
   );
 }

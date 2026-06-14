@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -70,20 +69,20 @@ export default function PlanCard({ plan, userId }: PlanCardProps) {
 
   return (
     <Card className="flex flex-col h-full bg-[#111827] border-white/5 hover:border-primary/20 transition-all group overflow-hidden shadow-2xl">
-      <div className="p-8 pb-0 space-y-1">
+      <div className="p-5 sm:p-8 pb-0 space-y-1">
         <div className="flex justify-between items-start">
-          <span className="text-sm font-bold text-muted-foreground/80">{plan.name}</span>
+          <span className="text-xs sm:text-sm font-bold text-muted-foreground/80">{plan.name}</span>
           <CheckCircle2 className="text-primary w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
-        <div className="text-5xl font-black text-foreground tracking-tighter">{plan.size}</div>
-        <p className="text-xs text-muted-foreground font-medium uppercase tracking-tight">{plan.description}</p>
+        <div className="text-4xl sm:text-5xl font-black text-foreground tracking-tighter">{plan.size}</div>
+        <p className="text-[10px] sm:text-xs text-muted-foreground font-medium uppercase tracking-tight">{plan.description}</p>
       </div>
       
-      <CardContent className="p-8 space-y-8">
-        <div className="text-2xl font-black text-accent tracking-tight">GHS {plan.price}</div>
+      <CardContent className="p-5 sm:p-8 space-y-6 sm:space-y-8">
+        <div className="text-xl sm:text-2xl font-black text-accent tracking-tight">GHS {plan.price}</div>
         
         <div className="space-y-3">
-          <Label htmlFor={`phone-${plan.id}`} className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.2em]">MTN NUMBER</Label>
+          <Label htmlFor={`phone-${plan.id}`} className="text-[9px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-[0.2em]">MTN NUMBER</Label>
           <div className="relative">
             <div className={cn(
               "absolute left-4 top-1/2 -translate-y-1/2 transition-colors z-10",
@@ -95,10 +94,10 @@ export default function PlanCard({ plan, userId }: PlanCardProps) {
               id={`phone-${plan.id}`}
               placeholder="024 000 0000" 
               className={cn(
-                "pl-11 h-14 font-bold text-lg transition-all border-none ring-offset-transparent focus-visible:ring-0",
+                "pl-11 h-12 sm:h-14 font-bold text-base sm:text-lg transition-all border-none ring-offset-transparent focus-visible:ring-0",
                 isHighlighted 
                   ? "bg-[#dbeafe] text-black" 
-                  : "bg-black/40 text-white placeholder:text-gray-700"
+                  : "bg-black/40 text-white placeholder:text-zinc-800"
               )}
               value={phone}
               onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
@@ -109,9 +108,9 @@ export default function PlanCard({ plan, userId }: PlanCardProps) {
         </div>
       </CardContent>
       
-      <CardFooter className="p-8 pt-0">
+      <CardFooter className="p-5 sm:p-8 pt-0">
         <Button 
-          className="w-full h-14 font-black tracking-widest text-sm uppercase bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/10 rounded-xl" 
+          className="w-full h-12 sm:h-14 font-black tracking-wider sm:tracking-widest text-xs sm:text-sm uppercase bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/10 rounded-xl" 
           onClick={handlePurchase}
           disabled={loading}
         >
