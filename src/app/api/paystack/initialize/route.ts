@@ -10,8 +10,13 @@ export async function POST(req: NextRequest) {
     }
 
     const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
-    // Set callback to our verification page
-    const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/payment/verify`;
+    
+    // Dynamically determine the app URL from the request headers to support local IP testing and deployments
+    const protocol = req.headers.get('x-forwarded-proto') || 'http';
+    const host = req.headers.get('host');
+    const origin = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${host}`;
+    
+    const callbackUrl = `${origin}/payment/verify`;
 
     const response = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
@@ -47,7 +52,6 @@ export async function POST(req: NextRequest) {
       description: 'Wallet funding via Paystack (Pending Redirect)',
     });
 
-    // Return the full data which includes authorization_url
     return NextResponse.json(data.data);
   } catch (error: any) {
     console.error('Paystack Initialize Error:', error);
