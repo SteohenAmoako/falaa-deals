@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import WalletCard from '@/components/dashboard/WalletCard';
 import PlanCard from '@/components/dashboard/PlanCard';
 import ForecastTool from '@/components/dashboard/ForecastTool';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -40,10 +39,9 @@ export default function DashboardPage() {
   const { toast }  = useToast();
   const router     = useRouter();
   
-  // Track reconciliation to prevent infinite loops
   const isReconciling = useRef(false);
 
-  const loadDashboardData = useCallback(async (isAutoVerify = false) => {
+  const loadDashboardData = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
 
@@ -52,7 +50,6 @@ export default function DashboardPage() {
         return;
       }
 
-      // Fetch profile and system status
       const [profileRes, statusValue] = await Promise.all([
         supabase.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle(),
         getSystemStatus()
@@ -85,8 +82,6 @@ export default function DashboardPage() {
       setOrders(currentOrders);
       setTransactions(currentTxs);
 
-      // --- SELF-HEALING PAYMENT RECONCILIATION ---
-      // If we find pending credits, verify them automatically
       if (!isReconciling.current) {
         const pendingCredits = currentTxs.filter(t => t.type === 'credit' && t.status === 'pending');
         if (pendingCredits.length > 0) {
@@ -110,7 +105,6 @@ export default function DashboardPage() {
           }
 
           if (recovered) {
-            // Refresh data once after all attempts
             const { data: updatedProfile } = await supabase.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle();
             if (updatedProfile) setProfile(updatedProfile);
             
@@ -256,7 +250,6 @@ export default function DashboardPage() {
 
           {activeTab === 'dashboard' && (
             <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
-              <WalletCard balance={profile.wallet_balance} referenceCode={profile.reference_code} disabled={!systemStatus.enabled} />
               <section className="space-y-4">
                 <div className="flex items-center gap-2">
                   <ShoppingBag className="w-3.5 h-3.5 text-violet-400" />

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -32,7 +33,7 @@ interface PlanCardProps {
   disabled?: boolean;
 }
 
-export default function PlanCard({ plan, userId, walletBalance, disabled }: PlanCardProps) {
+export default function PlanCard({ plan, userId, disabled }: PlanCardProps) {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -64,7 +65,6 @@ export default function PlanCard({ plan, userId, walletBalance, disabled }: Plan
     setShowConfirm(false);
 
     try {
-      // 1. Initialize transaction on server
       const response = await fetch('/api/paystack/initialize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -78,7 +78,6 @@ export default function PlanCard({ plan, userId, walletBalance, disabled }: Plan
       const data = await response.json();
       if (!data.reference) throw new Error(data.error || 'Failed to initialize payment');
 
-      // 2. Load Paystack Inline
       const PaystackPop = (await import('@paystack/inline-js')).default;
       const paystack = new PaystackPop();
       
@@ -91,7 +90,6 @@ export default function PlanCard({ plan, userId, walletBalance, disabled }: Plan
         onSuccess: async (transaction: any) => {
           toast({ title: "Payment Successful", description: "Fulfilling your data order..." });
           
-          // 3. Fulfill the order on the server
           const result = await fulfillDirectOrder(transaction.reference, plan.id, phone, userId);
           
           if (result.success) {
@@ -183,10 +181,10 @@ export default function PlanCard({ plan, userId, walletBalance, disabled }: Plan
           <DialogHeader>
             <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-primary" />
-              Confirm Details
+              Confirm Purchase
             </DialogTitle>
             <DialogDescription className="text-zinc-400 text-sm">
-              You will be redirected to Paystack to complete the purchase.
+              Verify your details before completing the payment via Paystack.
             </DialogDescription>
           </DialogHeader>
           
