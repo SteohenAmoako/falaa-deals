@@ -1,12 +1,11 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Smartphone, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+import { Smartphone, CheckCircle2, Loader2, AlertCircle, CreditCard } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,9 +14,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { buyBundle } from '@/app/actions/orders';
+import { fulfillDirectOrder } from '@/app/actions/orders';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 
 interface PlanCardProps {
   plan: {
@@ -36,7 +36,16 @@ export default function PlanCard({ plan, userId, walletBalance, disabled }: Plan
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
   const { toast } = useToast();
+
+  useEffect(() => {
+    async function getEmail() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email) setUserEmail(session.user.email);
+    }
+    getEmail();
+  }, []);
 
   const handleInitialClick = () => {
     if (!phone || phone.length < 10) {
@@ -47,38 +56,66 @@ export default function PlanCard({ plan, userId, walletBalance, disabled }: Plan
       });
       return;
     }
-    if (walletBalance < plan.price) {
-      toast({
-        title: "Insufficient Balance",
-        description: `You need GHS ${plan.price.toFixed(2)} for this bundle. Your balance is GHS ${walletBalance.toFixed(2)}.`,
-        variant: "destructive"
-      });
-      return;
-    }
     setShowConfirm(true);
   };
 
-  const handlePurchase = async () => {
+  const handlePaystackPayment = async () => {
     setLoading(true);
     setShowConfirm(false);
+
     try {
-      const result = await buyBundle(userId, plan.id, phone);
+      // 1. Initialize transaction on server
+      const response = await fetch('/api/paystack/initialize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: plan.price,
+          email: userEmail,
+          userId: userId
+        }),
+      });
+
+      const data = await response.json();
+      if (!data.reference) throw new Error(data.error || 'Failed to initialize payment');
+
+      // 2. Load Paystack Inline
+      const PaystackPop = (await import('@paystack/inline-js')).default;
+      const paystack = new PaystackPop();
       
-      if (result.success) {
-        toast({ title: "Success!", description: result.message });
-        setPhone('');
-      } else {
-        toast({ title: "Purchase Failed", description: result.message, variant: "destructive" });
-      }
+      paystack.newTransaction({
+        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+        email: userEmail,
+        amount: Math.round(plan.price * 100),
+        currency: 'GHS',
+        reference: data.reference,
+        onSuccess: async (transaction: any) => {
+          toast({ title: "Payment Successful", description: "Fulfilling your data order..." });
+          
+          // 3. Fulfill the order on the server
+          const result = await fulfillDirectOrder(transaction.reference, plan.id, phone, userId);
+          
+          if (result.success) {
+            toast({ title: "Order Complete", description: result.message });
+            setPhone('');
+          } else {
+            toast({ title: "Fulfillment Failed", description: result.message, variant: "destructive" });
+          }
+          setLoading(false);
+        },
+        onCancel: () => {
+          toast({ title: "Payment Cancelled", description: "You cancelled the payment." });
+          setLoading(false);
+        }
+      });
+
     } catch (err: any) {
-      toast({ title: "Purchase Failed", description: "An unexpected error occurred", variant: "destructive" });
-    } finally {
+      console.error('Payment Error:', err);
+      toast({ title: "Payment Error", description: err.message || "An unexpected error occurred", variant: "destructive" });
       setLoading(false);
     }
   };
 
   const isHighlighted = phone.length >= 10;
-  const balanceAfter = walletBalance - plan.price;
 
   return (
     <>
@@ -100,7 +137,7 @@ export default function PlanCard({ plan, userId, walletBalance, disabled }: Plan
           <div className="text-sm sm:text-2xl font-black text-accent tracking-tight">GHS {plan.price.toFixed(2)}</div>
           
           <div className="space-y-2">
-            <Label htmlFor={`phone-${plan.id}`} className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-[0.1em] sm:tracking-[0.2em]">MTN NUMBER</Label>
+            <Label htmlFor={`phone-${plan.id}`} className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-[0.1em] sm:tracking-[0.2em]">RECIPIENT NUMBER</Label>
             <div className="relative">
               <div className={cn(
                 "absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 transition-colors z-10",
@@ -146,10 +183,10 @@ export default function PlanCard({ plan, userId, walletBalance, disabled }: Plan
           <DialogHeader>
             <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-primary" />
-              Confirm Purchase
+              Confirm Details
             </DialogTitle>
             <DialogDescription className="text-zinc-400 text-sm">
-              Please verify the details below before activating your bundle.
+              You will be redirected to Paystack to complete the purchase.
             </DialogDescription>
           </DialogHeader>
           
@@ -159,24 +196,20 @@ export default function PlanCard({ plan, userId, walletBalance, disabled }: Plan
               <span className="font-mono font-bold text-lg text-white">{phone}</span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-white/5">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Bundle Size</span>
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Bundle</span>
               <span className="font-black text-lg text-primary">{plan.size}</span>
             </div>
-            <div className="flex justify-between items-center py-2 border-b border-white/5">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Cost</span>
-              <span className="font-black text-lg text-white">GHS {plan.price.toFixed(2)}</span>
-            </div>
             <div className="flex justify-between items-center pt-2">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Balance After</span>
-              <span className={cn("font-black text-lg", balanceAfter >= 0 ? "text-emerald-400" : "text-red-400")}>
-                GHS {balanceAfter.toFixed(2)}
-              </span>
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Total Cost</span>
+              <span className="font-black text-xl text-white">GHS {plan.price.toFixed(2)}</span>
             </div>
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="ghost" onClick={() => setShowConfirm(false)} className="font-bold text-zinc-400 hover:text-white">Cancel</Button>
-            <Button onClick={handlePurchase} className="bg-primary hover:bg-primary/90 text-white font-black px-8">ACTIVATE NOW</Button>
+            <Button onClick={handlePaystackPayment} className="bg-primary hover:bg-primary/90 text-white font-black px-8 flex items-center gap-2">
+              <CreditCard size={18} /> PAY NOW
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
