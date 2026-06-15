@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -16,7 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useRouter } from 'next/navigation';
 
 interface PaystackDepositProps {
   userEmail: string;
@@ -28,7 +26,6 @@ export default function PaystackDeposit({ userEmail, userId, disabled }: Paystac
   const [amount, setAmount] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
   const { toast } = useToast();
 
   const handleFundWallet = async () => {
@@ -44,8 +41,7 @@ export default function PaystackDeposit({ userEmail, userId, disabled }: Paystac
 
     setLoading(true);
     try {
-      // 1. Initialize on our server
-      const initResponse = await fetch('/api/paystack/initialize', {
+      const response = await fetch('/api/paystack/initialize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -55,38 +51,16 @@ export default function PaystackDeposit({ userEmail, userId, disabled }: Paystac
         }),
       });
 
-      const initData = await initResponse.json();
+      const data = await response.json();
 
-      if (!initData.reference) {
-        throw new Error(initData.error || 'Failed to initialize payment');
+      if (data.authorization_url) {
+        // Redirect to Paystack Gateway
+        window.location.href = data.authorization_url;
+      } else {
+        throw new Error(data.error || 'Failed to initialize payment');
       }
-
-      // 2. Load Paystack Inline
-      const PaystackPop = (await import('@paystack/inline-js')).default;
-      const paystack = new PaystackPop();
-      
-      paystack.newTransaction({
-        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
-        email: userEmail,
-        amount: Math.round(parsedAmount * 100),
-        currency: 'GHS',
-        ref: initData.reference,
-        onSuccess: (transaction: any) => {
-          setIsDialogOpen(false);
-          setLoading(false);
-          router.push(`/payment/verify?reference=${transaction.reference}`);
-        },
-        onCancel: () => {
-          setLoading(false);
-          toast({ title: "Cancelled", description: "Payment was cancelled." });
-        },
-        metadata: {
-          user_id: userId
-        }
-      });
-
     } catch (err: any) {
-      console.error(err);
+      console.error('Paystack Initialization Error:', err);
       toast({ 
         title: "Payment Error", 
         description: err.message || "Could not start payment process.", 
@@ -136,7 +110,7 @@ export default function PaystackDeposit({ userEmail, userId, disabled }: Paystac
             disabled={loading || !amount}
           >
             {loading ? <Loader2 className="animate-spin mr-2" /> : <CreditCard className="w-5 h-5 mr-2" />}
-            {loading ? 'INITIALIZING...' : 'PROCEED TO PAY'}
+            {loading ? 'REDIRECTING...' : 'PROCEED TO PAY'}
           </Button>
         </DialogFooter>
       </DialogContent>

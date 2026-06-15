@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
@@ -11,6 +10,7 @@ export async function POST(req: NextRequest) {
     }
 
     const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
+    // Set callback to our verification page
     const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/payment/verify`;
 
     const response = await fetch('https://api.paystack.co/transaction/initialize', {
@@ -37,16 +37,17 @@ export async function POST(req: NextRequest) {
       throw new Error(data.message || 'Paystack initialization failed');
     }
 
-    // Record pending transaction
+    // Record pending transaction before redirecting
     await supabase.from('wallet_transactions').insert({
       user_id: userId,
       amount: amount,
       type: 'credit',
       reference: data.data.reference,
       status: 'pending',
-      description: 'Wallet funding via Paystack (Pending)',
+      description: 'Wallet funding via Paystack (Pending Redirect)',
     });
 
+    // Return the full data which includes authorization_url
     return NextResponse.json(data.data);
   } catch (error: any) {
     console.error('Paystack Initialize Error:', error);
