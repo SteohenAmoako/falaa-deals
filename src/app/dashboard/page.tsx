@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import WalletCard from '@/components/dashboard/WalletCard';
 import PlanCard from '@/components/dashboard/PlanCard';
 import ForecastTool from '@/components/dashboard/ForecastTool';
@@ -40,63 +40,81 @@ export default function DashboardPage() {
   const { toast }  = useToast();
   const router     = useRouter();
 
-  useEffect(() => {
-    async function loadDashboardData() {
-      try {
-        setLoading(true);
-        const { data: { session } } = await supabase.auth.getSession();
+  const loadDashboardData = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
 
-        if (!session) {
-          router.push('/');
-          return;
-        }
-
-        // Fetch profile and system status
-        const [profileRes, statusValue] = await Promise.all([
-          supabase.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle(),
-          getSystemStatus()
-        ]);
-
-        if (profileRes.data) {
-          setProfile(profileRes.data);
-        }
-
-        // Ensure we only update if we actually got a valid response
-        if (statusValue) {
-          setSystemStatus(statusValue);
-        }
-
-        const [ordersRes, txRes] = await Promise.all([
-          supabase
-            .from('rahitalu_orders')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .order('created_at', { ascending: false }),
-          supabase
-            .from('wallet_transactions')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .order('created_at', { ascending: false })
-        ]);
-
-        setOrders(ordersRes.data || []);
-        setTransactions(txRes.data || []);
-
-        const hasActiveOrders = (ordersRes.data || []).some(o => 
-          ['pending', 'processing'].includes(o.status?.toLowerCase())
-        );
-        if (hasActiveOrders) {
-          syncUserOrders(session.user.id).catch(() => {});
-        }
-
-      } catch (error: any) {
-        console.error('Error loading dashboard:', error);
-      } finally {
-        setLoading(false);
+      if (!session) {
+        router.push('/');
+        return;
       }
+
+      // Fetch profile and system status
+      const [profileRes, statusValue] = await Promise.all([
+        supabase.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle(),
+        getSystemStatus()
+      ]);
+
+      if (profileRes.data) {
+        setProfile(profileRes.data);
+      }
+
+      if (statusValue) {
+        setSystemStatus(statusValue);
+      }
+
+      const [ordersRes, txRes] = await Promise.all([
+        supabase
+          .from('rahitalu_orders')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('wallet_transactions')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false })
+      ]);
+
+      setOrders(ordersRes.data || []);
+      const currentTxs = txRes.data || [];
+      setTransactions(currentTxs);
+
+      // --- SELF-HEALING PAYMENT RECONCILIATION ---
+      // If we find pending credits, try to verify them automatically
+      const pendingCredits = currentTxs.filter(t => t.type === 'credit' && t.status === 'pending');
+      if (pendingCredits.length > 0) {
+        for (const tx of pendingCredits) {
+          fetch('/api/paystack/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reference: tx.reference }),
+          }).then(res => res.json()).then(data => {
+            if (data.success) {
+              // Reload data if a payment was successfully recovered
+              loadDashboardData();
+            }
+          }).catch(() => {});
+        }
+      }
+
+      const hasActiveOrders = (ordersRes.data || []).some(o => 
+        ['pending', 'processing'].includes(o.status?.toLowerCase())
+      );
+      if (hasActiveOrders) {
+        syncUserOrders(session.user.id).catch(() => {});
+      }
+
+    } catch (error: any) {
+      console.error('Error loading dashboard:', error);
+    } finally {
+      setLoading(false);
     }
-    loadDashboardData();
   }, [router]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
