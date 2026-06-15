@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -38,7 +37,6 @@ export async function POST(req: NextRequest) {
 
     // Handle unsuccessful or failed payments on Paystack side
     if (!data.status || data.data.status !== 'success') {
-      // If it's a known failure, update status to failed instead of just erroring
       if (data.data?.status === 'failed' || data.data?.status === 'reversed') {
         await supabaseAdmin
           .from('wallet_transactions')
@@ -51,7 +49,7 @@ export async function POST(req: NextRequest) {
     const actualAmount = data.data.amount / 100; // Convert pesewas to GHS
     const userId = data.data.metadata.user_id;
 
-    // 3. Get current profile balance using a direct query to ensure we have the absolute latest
+    // 3. Get current profile balance
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('id, wallet_balance')
@@ -65,8 +63,7 @@ export async function POST(req: NextRequest) {
     const currentBalance = parseFloat(profile.wallet_balance.toString()) || 0;
     const newBalance = currentBalance + actualAmount;
 
-    // 4. Atomic balance update and transaction status change
-    // We update the profile first
+    // 4. Atomic balance update
     const { error: updateError } = await supabaseAdmin
       .from('profiles')
       .update({ wallet_balance: newBalance })
@@ -76,7 +73,7 @@ export async function POST(req: NextRequest) {
       throw new Error('Failed to update wallet balance');
     }
 
-    // 5. Update Transaction Status to success
+    // 5. Update Transaction Status
     await supabaseAdmin
       .from('wallet_transactions')
       .update({ 

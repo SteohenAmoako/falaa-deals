@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,7 +9,6 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
-// Dynamically import Paystack logic to avoid window undefined error during SSR
 const PaystackDeposit = dynamic(() => import('./PaystackDeposit'), { 
   ssr: false,
   loading: () => <Button disabled className="w-full h-10"><Loader2 className="animate-spin mr-2 h-4 w-4" /> Loading Paystack...</Button>
@@ -47,7 +45,7 @@ export default function WalletCard({ balance, referenceCode, disabled }: WalletC
       "bg-[#111827]/50 border-white/5 shadow-2xl overflow-hidden relative group max-w-md",
       disabled && "opacity-60 pointer-events-none"
     )}>
-      {/* Wallet Watermark - Added pointer-events-none to fix click interference */}
+      {/* Wallet Watermark - Fixed pointer events to not block clicks */}
       <div className="absolute top-2 right-2 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
         <Wallet size={80} strokeWidth={1} />
       </div>
