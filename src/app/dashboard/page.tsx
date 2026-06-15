@@ -7,10 +7,11 @@ import ForecastTool from '@/components/dashboard/ForecastTool';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { PLANS, type Profile, type RahitaluOrder, type WalletTransaction } from '@/lib/types';
 import {
   LayoutDashboard, History, ShoppingBag, LogOut,
-  BarChart3, User, Loader2, ArrowUpRight, ArrowDownLeft, Menu, X, CheckCircle2, CreditCard, TrendingUp, AlertTriangle
+  BarChart3, User, Loader2, ArrowUpRight, ArrowDownLeft, Menu, X, CheckCircle2, CreditCard, TrendingUp, AlertTriangle, ExternalLink
 } from "lucide-react";
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -249,7 +250,7 @@ export default function DashboardPage() {
           </div>
 
           {activeTab === 'dashboard' && (
-            <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
+            <div className="space-y-6 sm:space-y-12 animate-in fade-in duration-300">
               <section className="space-y-4">
                 <div className="flex items-center gap-2">
                   <ShoppingBag className="w-3.5 h-3.5 text-violet-400" />
@@ -259,6 +260,25 @@ export default function DashboardPage() {
                   {PLANS.map(plan => (
                     <PlanCard key={plan.id} plan={plan} userId={profile.user_id} walletBalance={profile.wallet_balance} disabled={!systemStatus.enabled} />
                   ))}
+                </div>
+              </section>
+
+              {/* Regular Bundles Section */}
+              <section className="pt-8 border-t border-white/5 space-y-6">
+                <div className="text-center space-y-2">
+                  <h3 className="text-lg font-black tracking-tight">Looking for regular offers?</h3>
+                  <p className="text-xs text-zinc-500 max-w-sm mx-auto">Visit our main website to explore a wider range of high-speed regular data bundles and exclusive deals.</p>
+                </div>
+                <div className="flex justify-center">
+                  <Button 
+                    asChild 
+                    className="h-14 px-8 rounded-2xl bg-[#111118] hover:bg-white/5 text-white border border-white/10 font-black uppercase tracking-widest text-xs flex items-center gap-3 transition-all group"
+                  >
+                    <a href="https://sbbundles-main.vercel.app/" target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="w-4 h-4 text-violet-400 group-hover:scale-110 transition-transform" />
+                      Regular Bundles
+                    </a>
+                  </Button>
                 </div>
               </section>
             </div>
