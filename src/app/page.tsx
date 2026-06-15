@@ -49,7 +49,6 @@ export default function LandingPage() {
     const password = formData.get('password') as string;
 
     try {
-      // Sign in directly with Supabase client (not a server action) to ensure session is set client-side
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error || !data.session) {
@@ -62,7 +61,6 @@ export default function LandingPage() {
         return;
       }
 
-      // Session is confirmed — safe to redirect
       router.push('/dashboard');
     } catch (err: any) {
       toast({
@@ -85,7 +83,6 @@ export default function LandingPage() {
     const phone = formData.get('phone') as string;
 
     try {
-      // 1. Call server action to create user and profile
       const result = await signUp({ email, password, fullName, phone });
 
       if (!result.success) {
@@ -98,7 +95,6 @@ export default function LandingPage() {
         return;
       }
 
-      // 2. Auto sign in directly on the client after successful signup
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error || !data.session) {
@@ -111,7 +107,6 @@ export default function LandingPage() {
         return;
       }
 
-      // Signed in successfully — redirect
       router.push('/dashboard');
     } catch (err: any) {
       toast({
@@ -133,14 +128,13 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0f1e] text-foreground flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Abstract Background Orbs */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/20 rounded-full blur-[140px]" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent/20 rounded-full blur-[120px]" />
 
       <div className="relative w-full max-w-md z-10 space-y-8">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center font-black italic shadow-2xl shadow-primary/20 text-white text-2xl">SB</div>
-          <h1 className="text-3xl font-black tracking-tighter">SB Bundles</h1>
+        <div className="flex flex-col items-center gap-3 text-white">
+          <div className="w-16 h-16 bg-violet-600 rounded-2xl flex items-center justify-center font-black italic shadow-2xl shadow-violet-600/20 text-white text-2xl">SB</div>
+          <h1 className="text-3xl font-black tracking-tighter">Falaa Deals</h1>
         </div>
 
         <Card className="bg-[#111827]/80 backdrop-blur-2xl border-white/5 shadow-2xl overflow-hidden">

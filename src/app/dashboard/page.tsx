@@ -168,7 +168,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white flex">
       {sidebarOpen && <div className="fixed inset-0 bg-black/60 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />}
-
+      
       <aside className={cn(
         "fixed top-0 left-0 h-full w-72 bg-[#111118] border-r border-white/5 z-40 flex flex-col p-6 transition-transform duration-300",
         "lg:translate-x-0 lg:static lg:z-auto",
@@ -176,8 +176,8 @@ export default function DashboardPage() {
       )}>
         <div className="flex items-center justify-between mb-10">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-violet-600 flex items-center justify-center font-black text-sm tracking-tight italic">SB</div>
-            <span className="text-lg font-black tracking-tight">SB Bundles</span>
+            <div className="w-9 h-9 rounded-xl bg-violet-600 flex items-center justify-center font-black text-sm tracking-tight italic text-white">SB</div>
+            <span className="text-lg font-black tracking-tight">Falaa Deals</span>
           </div>
           <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-zinc-500 hover:text-white"><X size={18} /></button>
         </div>
@@ -217,8 +217,8 @@ export default function DashboardPage() {
       <div className="flex-1 flex flex-col min-w-0">
         <header className="lg:hidden sticky top-0 z-20 bg-[#0a0a0f]/80 backdrop-blur border-b border-white/5 px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-violet-600 flex items-center justify-center font-black text-xs italic">SB</div>
-            <span className="font-black tracking-tight">SB Bundles</span>
+            <div className="w-8 h-8 rounded-xl bg-violet-600 flex items-center justify-center font-black text-xs italic text-white">SB</div>
+            <span className="font-black tracking-tight">Falaa Deals</span>
           </div>
           <button onClick={() => setSidebarOpen(true)} className="text-zinc-400 hover:text-white p-1"><Menu size={22} /></button>
         </header>
@@ -263,7 +263,6 @@ export default function DashboardPage() {
                 </div>
               </section>
 
-              {/* Regular Bundles Section */}
               <section className="pt-8 border-t border-white/5 space-y-6">
                 <div className="text-center space-y-2">
                   <h3 className="text-lg font-black tracking-tight">Looking for regular offers?</h3>
