@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -9,11 +8,26 @@ import { Switch } from '@/components/ui/switch';
 import {
   Users, ShoppingCart, Wallet, 
   Search, Loader2, RefreshCw, CheckCircle2, Clock, XCircle,
-  Zap, ArrowDownLeft, LogOut, LayoutDashboard, AlertCircle, Save
+  Zap, ArrowDownLeft, LogOut, LayoutDashboard, AlertCircle, Save, Settings2
 } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { getAdminDashboardData, updateSystemStatus } from '@/app/actions/admin';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter, 
+  DialogDescription 
+} from '@/components/ui/dialog';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
+import { getAdminDashboardData, updateSystemStatus, adjustUserBalance } from '@/app/actions/admin';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
@@ -33,6 +47,14 @@ export default function AdminDashboard() {
 
   const [localSystemEnabled, setLocalSystemEnabled] = useState(true);
   const [localSystemMessage, setLocalSystemMessage] = useState('');
+
+  // Adjustment Dialog State
+  const [isAdjOpen, setIsAdjOpen] = useState(false);
+  const [adjUser, setAdjUser] = useState<any>(null);
+  const [adjType, setAdjType] = useState<'credit' | 'debit'>('credit');
+  const [adjAmount, setAdjAmount] = useState('');
+  const [adjReason, setAdjReason] = useState('');
+  const [adjLoading, setAdjLoading] = useState(false);
 
   const router = useRouter();
   const { toast } = useToast();
@@ -81,6 +103,36 @@ export default function AdminDashboard() {
     } finally {
       setUpdatingStatus(false);
     }
+  };
+
+  const handleAdjustBalance = async () => {
+    if (!adjUser || !adjAmount || parseFloat(adjAmount) <= 0 || !adjReason) {
+      toast({ title: "Validation Error", description: "Please fill all adjustment fields.", variant: "destructive" });
+      return;
+    }
+
+    setAdjLoading(true);
+    try {
+      const result = await adjustUserBalance(adjUser.id, parseFloat(adjAmount), adjType, adjReason);
+      if (result.success) {
+        toast({ title: "Balance Adjusted", description: `Successfully ${adjType}ed GHS ${adjAmount} for ${adjUser.full_name}.` });
+        setIsAdjOpen(false);
+        setAdjAmount('');
+        setAdjReason('');
+        fetchData();
+      } else {
+        toast({ title: "Adjustment Failed", description: result.message, variant: "destructive" });
+      }
+    } catch (e) {
+      toast({ title: "Adjustment Failed", description: "An internal error occurred", variant: "destructive" });
+    } finally {
+      setAdjLoading(false);
+    }
+  };
+
+  const openAdjustment = (user: any) => {
+    setAdjUser(user);
+    setIsAdjOpen(true);
   };
 
   const handleLogout = async () => {
@@ -139,7 +191,6 @@ export default function AdminDashboard() {
       </header>
 
       <div className="p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto space-y-8">
-        {/* System Controls */}
         <Card className="bg-[#111111] border-white/5 overflow-hidden">
           <CardHeader className="border-b border-white/5 flex flex-row items-center justify-between py-4">
             <div className="flex items-center gap-2">
@@ -175,7 +226,6 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <StatCard icon={Users} iconColor="text-[#FFD700]" iconBg="bg-[#FFD700]/10" value={data?.stats.totalUsers ?? 0} label="Total Users" loading={loading} />
           <StatCard icon={ArrowDownLeft} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" value={`GHS ${(data?.stats.todayDeposits ?? 0).toFixed(2)}`} label="Today's Deposits" loading={loading} />
@@ -218,14 +268,14 @@ export default function AdminDashboard() {
                               <div className="w-8 h-8 rounded-full bg-[#FFD700]/10 border border-[#FFD700]/20 flex items-center justify-center shrink-0">
                                 <span className="text-[11px] font-black text-[#FFD700]">{user.full_name?.charAt(0).toUpperCase()}</span>
                               </div>
-                              <span className="text-sm font-semibold truncate max-w-[100px] sm:max-w-none">{user.full_name}</span>
+                              <span className="text-sm font-semibold">{user.full_name}</span>
                             </div>
                           </TableCell>
                           <TableCell><code className="bg-white/5 px-2 py-1 rounded-lg text-xs font-mono text-[#FFD700]">{user.reference_code}</code></TableCell>
                           <TableCell className="font-bold text-sm">GHS {parseFloat(user.wallet_balance).toFixed(2)}</TableCell>
                           <TableCell className="text-xs text-zinc-500 hidden sm:table-cell">{new Date(user.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</TableCell>
                           <TableCell className="text-right pr-5">
-                            <Button size="sm" className="h-7 text-[11px] font-bold bg-[#FFD700]/10 text-[#FFD700] hover:bg-[#FFD700] hover:text-black border-0 px-3">Credit</Button>
+                            <Button size="sm" onClick={() => openAdjustment(user)} className="h-7 text-[10px] font-black uppercase bg-[#FFD700]/10 text-[#FFD700] hover:bg-[#FFD700] hover:text-black border-0 px-3">Adjust</Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -280,6 +330,74 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Adjustment Dialog */}
+      <Dialog open={isAdjOpen} onOpenChange={setIsAdjOpen}>
+        <DialogContent className="bg-[#111111] border-white/5 text-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-black uppercase tracking-tight flex items-center gap-2">
+              <Settings2 className="w-5 h-5 text-[#FFD700]" />
+              Adjust Wallet
+            </DialogTitle>
+            <DialogDescription className="text-zinc-500 text-xs">
+              Manually credit or debit {adjUser?.full_name}'s wallet balance.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Adjustment Type</label>
+                <Select value={adjType} onValueChange={(v: any) => setAdjType(v)}>
+                  <SelectTrigger className="bg-[#0d0d0d] border-white/5 h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#111111] border-white/5 text-white">
+                    <SelectItem value="credit">CREDIT (+)</SelectItem>
+                    <SelectItem value="debit">DEBIT (-)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Amount (GHS)</label>
+                <Input 
+                  type="number" 
+                  placeholder="0.00" 
+                  className="bg-[#0d0d0d] border-white/5 h-11 font-bold"
+                  value={adjAmount}
+                  onChange={(e) => setAdjAmount(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Reason / Description</label>
+              <Textarea 
+                placeholder="e.g. Compensation for failed order" 
+                className="bg-[#0d0d0d] border-white/5 text-sm min-h-[80px]"
+                value={adjReason}
+                onChange={(e) => setAdjReason(e.target.value)}
+              />
+            </div>
+            {adjUser && (
+              <div className="bg-[#FFD700]/5 border border-[#FFD700]/10 p-3 rounded-xl flex justify-between items-center">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Current Balance</span>
+                <span className="text-sm font-black text-[#FFD700]">GHS {parseFloat(adjUser.wallet_balance).toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsAdjOpen(false)} className="text-zinc-500 hover:text-white font-bold">Cancel</Button>
+            <Button 
+              className="bg-[#FFD700] hover:bg-[#FFD700]/90 text-black font-black uppercase tracking-widest text-xs px-8 h-11"
+              onClick={handleAdjustBalance}
+              disabled={adjLoading}
+            >
+              {adjLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Apply Adjustment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,8 +1,8 @@
-
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
 import { getUpstreamDashboard, getUpstreamOrderHistory } from '@/lib/rahitalu';
+import { revalidatePath } from 'next/cache';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,7 +11,6 @@ const supabaseAdmin = createClient(
 
 /**
  * Fetches only the system status. 
- * Defaults to enabled if not found, but logs errors for debugging.
  */
 export async function getSystemStatus() {
   try {
@@ -26,7 +25,6 @@ export async function getSystemStatus() {
       return { enabled: true, message: '' };
     }
 
-    // Return the stored value or the default
     return data?.value || { enabled: true, message: '' };
   } catch (error) {
     return { enabled: true, message: '' };
@@ -35,7 +33,6 @@ export async function getSystemStatus() {
 
 export async function getAdminDashboardData() {
   try {
-    // 1. Fetch system stats from Supabase
     const { count: totalUsers } = await supabaseAdmin
       .from('profiles')
       .select('*', { count: 'exact', head: true });
@@ -56,18 +53,15 @@ export async function getAdminDashboardData() {
       .select('*', { count: 'exact', head: true })
       .gte('created_at', today);
 
-    // 2. Fetch upstream stats from Rahitalu
     const upstreamDash = await getUpstreamDashboard();
     const upstreamOrders = await getUpstreamOrderHistory(20);
 
-    // 3. Fetch user directory
     const { data: users } = await supabaseAdmin
       .from('profiles')
-      .select('id, full_name, reference_code, wallet_balance, created_at')
+      .select('id, full_name, reference_code, wallet_balance, created_at, user_id')
       .order('created_at', { ascending: false })
       .limit(100);
 
-    // 4. Fetch system status
     const systemStatus = await getSystemStatus();
 
     return {
@@ -83,14 +77,8 @@ export async function getAdminDashboardData() {
         id: order._id || order.id || Math.random().toString(),
         reference: order.reference || 'N/A',
         phone: order.phone || order.customerPhone || 'Unknown',
-        plan: order.gig
-          ? `${order.gig}GB MTN`
-          : 'Data Bundle',
-        price: order.amount
-          ? Number(order.amount).toFixed(2)
-          : order.sellPriceGHS
-          ? Number(order.sellPriceGHS).toFixed(2)
-          : null,
+        plan: order.gig ? `${order.gig}GB MTN` : 'Data Bundle',
+        price: order.amount ? Number(order.amount).toFixed(2) : order.sellPriceGHS ? Number(order.sellPriceGHS).toFixed(2) : null,
         status: (order.upstreamStatus || order.status || 'pending').toLowerCase(),
         timestamp: order.upstreamUpdatedAt || order.createdAt || order.created_at || new Date().toISOString(),
       }))
@@ -101,9 +89,6 @@ export async function getAdminDashboardData() {
   }
 }
 
-/**
- * Updates the global system status in the system_configs table.
- */
 export async function updateSystemStatus(enabled: boolean, message: string) {
   try {
     const { error } = await supabaseAdmin
@@ -114,13 +99,56 @@ export async function updateSystemStatus(enabled: boolean, message: string) {
         updated_at: new Date().toISOString()
       }, { onConflict: 'key' });
 
-    if (error) {
-      console.error('Update System Status Failed:', error.message);
-      return { success: false, message: error.message };
-    }
-    
+    if (error) throw error;
     return { success: true };
   } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+}
+
+/**
+ * Manually adjusts a user's wallet balance.
+ */
+export async function adjustUserBalance(profileId: string, amount: number, type: 'credit' | 'debit', reason: string) {
+  try {
+    // 1. Fetch profile
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, user_id, wallet_balance')
+      .eq('id', profileId)
+      .single();
+
+    if (profileError || !profile) throw new Error('User profile not found');
+
+    const currentBalance = parseFloat(profile.wallet_balance.toString());
+    const newBalance = type === 'credit' ? currentBalance + amount : currentBalance - amount;
+
+    if (newBalance < 0 && type === 'debit') {
+      throw new Error('Insufficient funds for this debit operation');
+    }
+
+    // 2. Update balance
+    const { error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update({ wallet_balance: newBalance })
+      .eq('id', profileId);
+
+    if (updateError) throw updateError;
+
+    // 3. Log transaction
+    await supabaseAdmin.from('wallet_transactions').insert({
+      user_id: profile.user_id,
+      amount,
+      type,
+      status: 'success',
+      reference: `ADM-${Math.random().toString(36).substring(7).toUpperCase()}`,
+      description: `Admin ${type === 'credit' ? 'Credit' : 'Debit'}: ${reason}`,
+    });
+
+    revalidatePath('/dashboard');
+    return { success: true, newBalance };
+  } catch (error: any) {
+    console.error('Adjust Balance Error:', error);
     return { success: false, message: error.message };
   }
 }
