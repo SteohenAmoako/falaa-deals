@@ -263,8 +263,8 @@ export default function DashboardPage() {
                 </div>
               </section>
 
-              <section className="pt-8 border-t border-white/5 space-y-6">
-                <div className="text-center space-y-2">
+              <section className="pt-8 border-t border-white/5 space-y-6 text-center">
+                <div className="space-y-2">
                   <h3 className="text-lg font-black tracking-tight">Looking for regular offers?</h3>
                   <p className="text-xs text-zinc-500 max-w-sm mx-auto">Visit our main website to explore a wider range of high-speed regular data bundles and exclusive deals.</p>
                 </div>
@@ -279,6 +279,33 @@ export default function DashboardPage() {
                     </a>
                   </Button>
                 </div>
+              </section>
+
+              <section className="pt-8 border-t border-white/5 space-y-4">
+                <div className="flex items-center gap-2">
+                  <History className="w-3.5 h-3.5 text-violet-400" />
+                  <h2 className="text-[10px] sm:text-sm font-bold uppercase tracking-widest text-zinc-400">Recent Activity</h2>
+                </div>
+                {orders.length === 0 ? (
+                   <p className="text-xs text-zinc-600 italic px-2">No recent transactions.</p>
+                ) : (
+                  <div className="grid gap-3">
+                    {orders.slice(0, 2).map(order => (
+                      <div key={order.id} className="bg-[#111118] border border-white/5 p-4 rounded-2xl flex items-center justify-between group hover:bg-white/3 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-violet-600/10 flex items-center justify-center">
+                            <ShoppingBag className="w-5 h-5 text-violet-400" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-white">{order.gig} Bundle</p>
+                            <p className="text-[10px] text-zinc-500 font-medium font-mono">{order.phone} · {new Date(order.created_at).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                        <StatusBadge status={order.upstream_status || order.status} />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </section>
             </div>
           )}
