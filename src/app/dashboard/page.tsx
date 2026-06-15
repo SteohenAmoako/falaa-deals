@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import WalletCard from '@/components/dashboard/WalletCard';
 import PlanCard from '@/components/dashboard/PlanCard';
 import ForecastTool from '@/components/dashboard/ForecastTool';
@@ -39,8 +39,11 @@ export default function DashboardPage() {
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const { toast }  = useToast();
   const router     = useRouter();
+  
+  // Track reconciliation to prevent infinite loops
+  const isReconciling = useRef(false);
 
-  const loadDashboardData = useCallback(async () => {
+  const loadDashboardData = useCallback(async (isAutoVerify = false) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
 
@@ -76,29 +79,49 @@ export default function DashboardPage() {
           .order('created_at', { ascending: false })
       ]);
 
-      setOrders(ordersRes.data || []);
+      const currentOrders = ordersRes.data || [];
       const currentTxs = txRes.data || [];
+      
+      setOrders(currentOrders);
       setTransactions(currentTxs);
 
       // --- SELF-HEALING PAYMENT RECONCILIATION ---
-      // If we find pending credits, try to verify them automatically
-      const pendingCredits = currentTxs.filter(t => t.type === 'credit' && t.status === 'pending');
-      if (pendingCredits.length > 0) {
-        for (const tx of pendingCredits) {
-          fetch('/api/paystack/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reference: tx.reference }),
-          }).then(res => res.json()).then(data => {
-            if (data.success) {
-              // Reload data if a payment was successfully recovered
-              loadDashboardData();
+      // If we find pending credits, verify them automatically
+      if (!isReconciling.current) {
+        const pendingCredits = currentTxs.filter(t => t.type === 'credit' && t.status === 'pending');
+        if (pendingCredits.length > 0) {
+          isReconciling.current = true;
+          let recovered = false;
+
+          for (const tx of pendingCredits) {
+            try {
+              const res = await fetch('/api/paystack/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reference: tx.reference }),
+              });
+              const data = await res.json();
+              if (data.success) {
+                recovered = true;
+              }
+            } catch (err) {
+              console.warn('Reconciliation failed for ref:', tx.reference);
             }
-          }).catch(() => {});
+          }
+
+          if (recovered) {
+            // Refresh data once after all attempts
+            const { data: updatedProfile } = await supabase.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle();
+            if (updatedProfile) setProfile(updatedProfile);
+            
+            const { data: updatedTxs } = await supabase.from('wallet_transactions').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false });
+            if (updatedTxs) setTransactions(updatedTxs);
+          }
+          isReconciling.current = false;
         }
       }
 
-      const hasActiveOrders = (ordersRes.data || []).some(o => 
+      const hasActiveOrders = currentOrders.some(o => 
         ['pending', 'processing'].includes(o.status?.toLowerCase())
       );
       if (hasActiveOrders) {
@@ -143,7 +166,7 @@ export default function DashboardPage() {
 
   const firstName = profile.full_name.split(' ')[0];
   const totalOrders = orders.length;
-  const deliveredOrders = orders.filter(o => ['delivered', 'success', 'delivered'].includes((o.upstream_status || o.status)?.toLowerCase())).length;
+  const deliveredOrders = orders.filter(o => ['delivered', 'success'].includes((o.upstream_status || o.status)?.toLowerCase())).length;
   const totalDeposits = transactions.filter(t => t.type === 'credit' && t.status === 'success').reduce((sum, t) => sum + Number(t.amount), 0);
   const totalSalesVolume = orders.filter(o => !['failed'].includes(o.status?.toLowerCase())).reduce((sum, o) => sum + Number(o.sell_price_ghs), 0);
 

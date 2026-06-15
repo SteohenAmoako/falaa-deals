@@ -47,8 +47,8 @@ export default function WalletCard({ balance, referenceCode, disabled }: WalletC
       "bg-[#111827]/50 border-white/5 shadow-2xl overflow-hidden relative group max-w-md",
       disabled && "opacity-60 pointer-events-none"
     )}>
-      {/* Wallet Watermark */}
-      <div className="absolute top-2 right-2 opacity-5 group-hover:opacity-10 transition-opacity">
+      {/* Wallet Watermark - Added pointer-events-none to fix click interference */}
+      <div className="absolute top-2 right-2 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
         <Wallet size={80} strokeWidth={1} />
       </div>
       
@@ -62,7 +62,7 @@ export default function WalletCard({ balance, referenceCode, disabled }: WalletC
         </div>
       </CardHeader>
 
-      <CardContent className="p-4 pt-4 space-y-4">
+      <CardContent className="p-4 pt-4 space-y-4 relative z-10">
         <div className="bg-black/30 rounded-xl p-4 border border-white/5 space-y-3">
           <div className="flex flex-col gap-0.5">
             <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Reference Code</span>

@@ -99,7 +99,11 @@ export default function PaystackDeposit({ userEmail, userId, disabled }: Paystac
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Button className="w-full gap-2 font-semibold shadow-lg shadow-primary/20" disabled={disabled}>
+        <Button 
+          type="button"
+          className="w-full gap-2 font-semibold shadow-lg shadow-primary/20 relative z-20" 
+          disabled={disabled}
+        >
           <RefreshCw className="w-4 h-4" /> Fund Wallet
         </Button>
       </DialogTrigger>
@@ -126,6 +130,7 @@ export default function PaystackDeposit({ userEmail, userId, disabled }: Paystac
         </div>
         <DialogFooter>
           <Button 
+            type="button"
             onClick={handleFundWallet} 
             className="w-full h-12 font-bold text-lg"
             disabled={loading || !amount}
