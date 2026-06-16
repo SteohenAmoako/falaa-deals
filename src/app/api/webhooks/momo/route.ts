@@ -10,13 +10,11 @@ const supabaseAdmin = createClient(
  * Expected incoming text format (from MoMo SMS via iPhone Shortcut):
  *
  *   "Reference: FD-A3X9. Payment received for GHS 15.00 Transaction ID: 83297704110"
- * 
- * Note: The regex is now more flexible to handle variations in punctuation.
  */
 function parseMomoMessage(rawText: string) {
-  // Matches "Reference: FD-XXXX" (ignores trailing dots or spaces)
+  // Matches "Reference: FD-XXXX" (case insensitive, alphanumeric with hyphen)
   const referenceMatch = rawText.match(/Reference:\s*([A-Za-z0-9\-]+)/i);
-  // Matches "GHS 15.00" or similar
+  // Matches "GHS 15.00" or similar amounts with optional commas
   const amountMatch = rawText.match(/GHS\s*([\d,]+\.?\d*)/i);
   // Matches "Transaction ID: 12345"
   const transactionIdMatch = rawText.match(/Transaction ID:\s*(\w+)/i);
@@ -43,6 +41,7 @@ export async function POST(req: NextRequest) {
     let rawText: string;
     const contentType = req.headers.get('content-type') || '';
 
+    // Handle both raw text (default from Shortcut) or JSON wrapped text
     if (contentType.includes('application/json')) {
       const body = await req.json();
       rawText = body.text || body.message || '';
@@ -57,14 +56,14 @@ export async function POST(req: NextRequest) {
     const parsed = parseMomoMessage(rawText);
     if (!parsed) {
       return NextResponse.json(
-        { success: false, message: 'Could not parse reference, amount, or transaction ID' },
+        { success: false, message: 'Could not parse reference, amount, or transaction ID. Ensure the SMS format matches.' },
         { status: 400 }
       );
     }
 
     const { reference, amount, transactionId } = parsed;
 
-    // Check if transaction already exists
+    // 1. Idempotency Check: Don't process the same MoMo Transaction ID twice
     const { data: existingTx } = await supabaseAdmin
       .from('wallet_transactions')
       .select('id')
@@ -79,7 +78,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Find the profile by reference code
+    // 2. Locate User Profile by Reference Code
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('id, user_id, wallet_balance, full_name')
@@ -88,7 +87,7 @@ export async function POST(req: NextRequest) {
 
     if (profileError || !profile) {
       return NextResponse.json(
-        { success: false, message: `No account found for reference ${reference}` },
+        { success: false, message: `No account found for reference code: ${reference}` },
         { status: 404 }
       );
     }
@@ -96,7 +95,7 @@ export async function POST(req: NextRequest) {
     const currentBalance = parseFloat(profile.wallet_balance.toString());
     const newBalance = currentBalance + amount;
 
-    // Credit the wallet
+    // 3. Update Wallet Balance Atomically
     const { error: updateError } = await supabaseAdmin
       .from('profiles')
       .update({ wallet_balance: newBalance })
@@ -104,19 +103,19 @@ export async function POST(req: NextRequest) {
 
     if (updateError) throw updateError;
 
-    // Log the transaction
+    // 4. Log the Successful Transaction
     await supabaseAdmin.from('wallet_transactions').insert({
       user_id: profile.user_id,
       amount,
       type: 'credit',
       reference: transactionId,
-      description: `MoMo deposit via ${reference}`,
+      description: `Automatic MoMo deposit via reference ${reference}`,
       status: 'success'
     });
 
     return NextResponse.json({
       success: true,
-      message: `Wallet credited successfully`,
+      message: `Wallet for ${profile.full_name} credited with GHS ${amount}`,
       data: {
         customer: profile.full_name,
         reference,
@@ -126,11 +125,11 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('MoMo Webhook Error:', error);
+    console.error('MoMo Webhook Fatal Error:', error);
     return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function GET() {
-  return NextResponse.json({ success: true, message: 'MoMo webhook is live' });
+  return NextResponse.json({ success: true, message: 'MoMo Webhook Endpoint is active' });
 }
