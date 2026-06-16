@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { PLANS, type Profile, type RahitaluOrder, type WalletTransaction } from '@/lib/types';
 import {
   LayoutDashboard, History, ShoppingBag, LogOut,
-  BarChart3, User, Loader2, ArrowUpRight, ArrowDownLeft, Menu, X, CheckCircle2, CreditCard, TrendingUp, AlertTriangle, ExternalLink, Copy, Wallet, Info
+  BarChart3, User, Loader2, ArrowUpRight, ArrowDownLeft, Menu, X, CheckCircle2, CreditCard, TrendingUp, AlertTriangle, ExternalLink, Copy, Wallet, Info, Plus
 } from "lucide-react";
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -236,15 +236,63 @@ export default function DashboardPage() {
             <span className="font-black tracking-tight">Falaa Deals</span>
           </div>
           
-          <div className="hidden lg:flex items-center gap-4 ml-auto">
-            <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-2xl border border-white/5">
-              <Wallet className="w-4 h-4 text-violet-400" />
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Wallet</span>
-              <span className="text-sm font-black text-white">GHS {Number(profile.wallet_balance).toFixed(2)}</span>
-            </div>
-          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline" className="h-9 gap-1.5 bg-violet-600/10 border-violet-600/20 text-violet-400 hover:bg-violet-600 hover:text-white transition-all text-xs font-bold px-3 rounded-xl">
+                  <Plus className="w-3.5 h-3.5" />
+                  Top Up
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-[#111118] border-white/5 text-white max-w-sm">
+                <DialogHeader>
+                  <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
+                    <Info className="w-5 h-5 text-violet-400" />
+                    Manual Deposit
+                  </DialogTitle>
+                  <DialogDescription className="text-zinc-400 text-sm">
+                    Follow these steps to fund your wallet instantly.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-6 py-4">
+                  <div className="bg-black/40 p-4 rounded-xl border border-white/5 space-y-4">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Step 1: Send MoMo To</p>
+                      <p className="text-2xl font-black text-white">0595919802</p>
+                    </div>
+                    <div className="space-y-1 pt-2 border-t border-white/5">
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Step 2: Use Reference</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-2xl font-black text-violet-400 font-mono">{profile.reference_code}</p>
+                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => copyRef(profile.reference_code)}>
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex gap-3">
+                    <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                    <p className="text-[11px] font-medium text-red-300 leading-tight">
+                      <strong className="uppercase">Warning:</strong> You MUST use <span className="font-bold text-white underline">{profile.reference_code}</span> as the reference/reason or your wallet will NOT be credited automatically.
+                    </p>
+                  </div>
 
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-zinc-400 hover:text-white p-1 ml-auto"><Menu size={22} /></button>
+                  <p className="text-[10px] text-zinc-500 text-center italic">
+                    Wallet will be credited automatically once payment is received.
+                  </p>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <div className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white/5 rounded-2xl border border-white/5">
+              <Wallet className="w-3.5 h-3.5 text-violet-400" />
+              <span className="hidden xs:inline text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Wallet</span>
+              <span className="text-xs sm:text-sm font-black text-white">GHS {Number(profile.wallet_balance).toFixed(2)}</span>
+            </div>
+
+            <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-zinc-400 hover:text-white p-1 ml-1"><Menu size={22} /></button>
+          </div>
         </header>
 
         <main className="flex-1 p-3 sm:p-6 lg:p-10 max-w-5xl w-full mx-auto space-y-6 sm:space-y-8">
@@ -272,14 +320,6 @@ export default function DashboardPage() {
                 {activeTab === 'transactions' && 'Wallet activity and funding logs.'}
                 {activeTab === 'usage'        && 'Your data consumption analysis.'}
               </p>
-            </div>
-            
-            <div className="lg:hidden flex items-center justify-between bg-white/5 p-3 rounded-2xl border border-white/5">
-              <div className="flex items-center gap-2">
-                <Wallet className="w-4 h-4 text-violet-400" />
-                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Balance</span>
-              </div>
-              <span className="text-sm font-black text-white">GHS {Number(profile.wallet_balance).toFixed(2)}</span>
             </div>
           </div>
 
@@ -462,7 +502,7 @@ export default function DashboardPage() {
                             <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex gap-3">
                               <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
                               <p className="text-[11px] font-medium text-red-300 leading-tight">
-                                <strong className="uppercase">Warning:</strong> You MUST use <span className="font-bold text-white underline">{profile.reference_code}</span> as the reference/reason or your wallet will NOT be debited automatically.
+                                <strong className="uppercase">Warning:</strong> You MUST use <span className="font-bold text-white underline">{profile.reference_code}</span> as the reference/reason or your wallet will NOT be credited automatically.
                               </p>
                             </div>
 
