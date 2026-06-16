@@ -8,16 +8,3 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
-
-/**
- * Generates a unique reference code for wallet deposits.
- * Format: FD-XXXX (e.g., FD-A3X9)
- */
-export function generateReferenceCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = 'FD-';
-  for (let i = 0; i < 4; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-}
