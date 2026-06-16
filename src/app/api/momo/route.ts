@@ -8,7 +8,6 @@ const supabaseAdmin = createClient(
 
 /**
  * Robust parser for MoMo transactions.
- * Supports both raw text SMS and the specific JSON structure from iPhone Shortcuts.
  */
 function parseMomoMessage(rawText: string) {
   const referenceMatch = rawText.match(/Reference:\s*([A-Za-z0-9\-]+)/i);
@@ -32,6 +31,11 @@ export async function POST(req: NextRequest) {
     const expectedSecret = process.env.MOMO_WEBHOOK_SECRET;
 
     // Security Check
+    if (!expectedSecret) {
+      console.error('CRITICAL: MOMO_WEBHOOK_SECRET is not set in environment variables.');
+      return NextResponse.json({ success: false, message: 'Server configuration error' }, { status: 500 });
+    }
+
     if (!secret || secret !== expectedSecret) {
       console.error('Unauthorized MoMo webhook attempt. Received:', secret);
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
@@ -46,10 +50,6 @@ export async function POST(req: NextRequest) {
     if (contentType.includes('application/json')) {
       const body = await req.json();
       
-      /**
-       * Matches the exact keys shown in the user's iPhone Shortcut image:
-       * reference, amount, transactionId
-       */
       reference = body.reference;
       
       // Handle amount if passed as string "GHS 10.00" or number
@@ -59,9 +59,9 @@ export async function POST(req: NextRequest) {
         amount = body.amount;
       }
       
-      transactionId = body.transactionId || body.transactionID;
+      transactionId = body.transactionId || body.transactionID || body.transactionId;
 
-      // Fallback for wrapped text inside JSON (message/text)
+      // Fallback for wrapped text inside JSON
       if (!reference && (body.text || body.message)) {
         const parsed = parseMomoMessage(body.text || body.message);
         if (parsed) {
@@ -71,7 +71,6 @@ export async function POST(req: NextRequest) {
         }
       }
     } else {
-      // Handle raw text body
       const rawText = await req.text();
       const parsed = parseMomoMessage(rawText);
       if (parsed) {
@@ -91,7 +90,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Idempotency Check: Prevent duplicate processing
+    // 1. Idempotency Check
     const { data: existingTx } = await supabaseAdmin
       .from('wallet_transactions')
       .select('id')
@@ -156,5 +155,13 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ success: true, message: 'MoMo Webhook Active' });
+  const isSecretSet = !!process.env.MOMO_WEBHOOK_SECRET;
+  return NextResponse.json({ 
+    success: true, 
+    message: 'MoMo Webhook Active',
+    diagnostics: {
+      environmentSecretConfigured: isSecretSet,
+      endpoint: '/api/momo'
+    }
+  });
 }
