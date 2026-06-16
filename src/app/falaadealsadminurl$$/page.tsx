@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Users, ShoppingCart, Wallet, 
   Search, Loader2, RefreshCw, CheckCircle2, Clock, XCircle,
-  Zap, ArrowDownLeft, LogOut, LayoutDashboard, AlertCircle, Save, Settings2, History, TrendingUp
+  Zap, ArrowDownLeft, LogOut, LayoutDashboard, AlertCircle, Save, Settings2, History, TrendingUp, Download
 } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -152,8 +152,45 @@ export default function AdminDashboard() {
 
   const filteredUsers = (data?.users || []).filter(u =>
     u.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-    u.reference_code?.toLowerCase().includes(search.toLowerCase())
+    u.reference_code?.toLowerCase().includes(search.toLowerCase()) ||
+    u.phone?.includes(search)
   );
+
+  const handleExportUsers = () => {
+    if (!filteredUsers.length) {
+      toast({ title: "No data", description: "No users to export.", variant: "destructive" });
+      return;
+    }
+
+    // CSV Headers
+    const headers = ["Full Name", "Phone Number"];
+    
+    // Prepare rows
+    const rows = filteredUsers.map(user => [
+      `"${user.full_name?.replace(/"/g, '""')}"`, // Escape quotes in names
+      `"${user.phone || ''}"`
+    ]);
+
+    // Create CSV content
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.join(","))
+    ].join("\n");
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const date = new Date().toISOString().split('T')[0];
+    
+    link.setAttribute("href", url);
+    link.setAttribute("download", `falaadeals_customers_${date}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({ title: "Export Started", description: "Your customer list is being downloaded." });
+  };
 
   if (authLoading) return (
     <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center">
@@ -290,17 +327,38 @@ export default function AdminDashboard() {
 
           <TabsContent value="users">
             <div className="space-y-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
-                <Input placeholder="Search name or reference…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9 bg-[#111111] border-white/5 text-white h-10 w-full sm:w-80" />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
+                  <Input 
+                    placeholder="Search name, phone or reference…" 
+                    value={search} 
+                    onChange={e => setSearch(e.target.value)} 
+                    className="pl-9 bg-[#111111] border-white/5 text-white h-10 w-full" 
+                  />
+                </div>
+                <Button 
+                  onClick={handleExportUsers} 
+                  variant="outline" 
+                  className="h-10 bg-[#111111] border-white/5 text-zinc-400 hover:text-white gap-2 font-bold text-xs uppercase tracking-widest"
+                >
+                  <Download className="w-4 h-4" />
+                  Export Excel
+                </Button>
               </div>
               <div className="rounded-2xl border border-white/5 bg-[#111111] overflow-hidden">
                 <Table>
-                  <TableHeader><TableRow className="border-white/5 hover:bg-transparent"><TableHead className="pl-5">User</TableHead><TableHead>Reference</TableHead><TableHead>Balance</TableHead><TableHead className="text-right pr-5">Action</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow className="border-white/5 hover:bg-transparent"><TableHead className="pl-5">User</TableHead><TableHead>Phone</TableHead><TableHead>Reference</TableHead><TableHead>Balance</TableHead><TableHead className="text-right pr-5">Action</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {filteredUsers.map(user => (
                       <TableRow key={user.id} className="border-white/5 hover:bg-white/3">
-                        <TableCell className="pl-5"><span className="text-sm font-semibold">{user.full_name}</span></TableCell>
+                        <TableCell className="pl-5">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-semibold">{user.full_name}</span>
+                            <span className="text-[10px] text-zinc-500 font-mono">{user.user_id?.substring(0,8)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell><span className="text-xs font-mono text-zinc-400">{user.phone || 'N/A'}</span></TableCell>
                         <TableCell><code className="text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-[#FFD700]">{user.reference_code}</code></TableCell>
                         <TableCell className="font-bold">GHS {parseFloat(user.wallet_balance).toFixed(2)}</TableCell>
                         <TableCell className="text-right pr-5"><Button size="sm" onClick={() => openAdjustment(user)} className="h-7 text-[9px] bg-[#FFD700]/10 text-[#FFD700] hover:bg-[#FFD700] hover:text-black">Adjust</Button></TableCell>
