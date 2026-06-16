@@ -10,7 +10,7 @@ const supabaseAdmin = createClient(
 );
 
 /**
- * Fetches only the system status. 
+ * Fetches the maintenance mode status.
  */
 export async function getSystemStatus() {
   try {
@@ -31,6 +31,9 @@ export async function getSystemStatus() {
   }
 }
 
+/**
+ * Aggregates data for the Admin Dashboard.
+ */
 export async function getAdminDashboardData() {
   try {
     const { count: totalUsers } = await supabaseAdmin
@@ -65,8 +68,9 @@ export async function getAdminDashboardData() {
     const { data: recentTransactions } = await supabaseAdmin
       .from('wallet_transactions')
       .select('*, profiles(full_name)')
+      .eq('type', 'credit')
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(30);
 
     const systemStatus = await getSystemStatus();
 
@@ -118,7 +122,6 @@ export async function updateSystemStatus(enabled: boolean, message: string) {
  */
 export async function adjustUserBalance(profileId: string, amount: number, type: 'credit' | 'debit', reason: string) {
   try {
-    // 1. Fetch profile
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('id, user_id, wallet_balance')
@@ -134,7 +137,6 @@ export async function adjustUserBalance(profileId: string, amount: number, type:
       throw new Error('Insufficient funds for this debit operation');
     }
 
-    // 2. Update balance
     const { error: updateError } = await supabaseAdmin
       .from('profiles')
       .update({ wallet_balance: newBalance })
@@ -142,7 +144,6 @@ export async function adjustUserBalance(profileId: string, amount: number, type:
 
     if (updateError) throw updateError;
 
-    // 3. Log transaction
     await supabaseAdmin.from('wallet_transactions').insert({
       user_id: profile.user_id,
       amount,

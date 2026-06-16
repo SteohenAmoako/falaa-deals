@@ -7,7 +7,8 @@ const supabaseAdmin = createClient(
 );
 
 /**
- * Parses MoMo message from raw text if provided.
+ * Robust parser for MoMo transactions.
+ * Supports both raw text SMS and the specific JSON structure from iPhone Shortcuts.
  */
 function parseMomoMessage(rawText: string) {
   const referenceMatch = rawText.match(/Reference:\s*([A-Za-z0-9\-]+)/i);
@@ -28,7 +29,11 @@ function parseMomoMessage(rawText: string) {
 export async function POST(req: NextRequest) {
   try {
     const secret = req.nextUrl.searchParams.get('secret');
-    if (secret !== process.env.MOMO_WEBHOOK_SECRET) {
+    const expectedSecret = process.env.MOMO_WEBHOOK_SECRET;
+
+    // Security Check
+    if (!secret || secret !== expectedSecret) {
+      console.error('Unauthorized MoMo webhook attempt. Received:', secret);
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -41,14 +46,24 @@ export async function POST(req: NextRequest) {
     if (contentType.includes('application/json')) {
       const body = await req.json();
       
-      // Support for the JSON format seen in the iPhone Shortcut photo
-      if (body.reference && body.amount && (body.transactionId || body.transactionID)) {
-        reference = body.reference;
-        amount = typeof body.amount === 'string' ? parseFloat(body.amount.replace(/[^0-9.]/g, '')) : body.amount;
-        transactionId = body.transactionId || body.transactionID;
-      } 
-      // Fallback for wrapped text
-      else if (body.text || body.message) {
+      /**
+       * Matches the exact keys shown in the user's iPhone Shortcut image:
+       * reference, amount, transactionId
+       */
+      reference = body.reference;
+      
+      // Handle amount if passed as string "GHS 10.00" or number
+      if (typeof body.amount === 'string') {
+        amount = parseFloat(body.amount.replace(/[^0-9.]/g, ''));
+      } else {
+        amount = body.amount;
+      }
+      
+      // Support transactionId (lowercase i) as seen in user image, or transactionID
+      transactionId = body.transactionId || body.transactionID || body.transactionId;
+
+      // Fallback for wrapped text inside JSON (message/text)
+      if (!reference && (body.text || body.message)) {
         const parsed = parseMomoMessage(body.text || body.message);
         if (parsed) {
           reference = parsed.reference;
@@ -57,6 +72,7 @@ export async function POST(req: NextRequest) {
         }
       }
     } else {
+      // Handle raw text body
       const rawText = await req.text();
       const parsed = parseMomoMessage(rawText);
       if (parsed) {
@@ -66,14 +82,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!reference || !amount || !transactionId) {
+    if (!reference || amount === null || isNaN(amount) || !transactionId) {
       return NextResponse.json(
-        { success: false, message: 'Data parsing failed. Ensure all fields (reference, amount, transactionId) are provided.' },
+        { 
+          success: false, 
+          message: 'Data parsing failed. Ensure reference, amount, and transactionId are correctly sent.' 
+        },
         { status: 400 }
       );
     }
 
-    // 1. Idempotency Check
+    // 1. Idempotency Check: Prevent duplicate processing
     const { data: existingTx } = await supabaseAdmin
       .from('wallet_transactions')
       .select('id')
@@ -81,7 +100,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (existingTx) {
-      return NextResponse.json({ success: true, message: 'Transaction already processed' });
+      return NextResponse.json({ success: true, message: 'Transaction already processed', transactionId });
     }
 
     // 2. Locate User Profile
@@ -92,6 +111,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (profileError || !profile) {
+      console.warn(`Profile not found for reference: ${reference}`);
       return NextResponse.json(
         { success: false, message: `Account not found for reference: ${reference}` },
         { status: 404 }
@@ -107,7 +127,10 @@ export async function POST(req: NextRequest) {
       .update({ wallet_balance: newBalance })
       .eq('id', profile.id);
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      console.error('Failed to update balance:', updateError);
+      throw updateError;
+    }
 
     // 4. Log Transaction
     await supabaseAdmin.from('wallet_transactions').insert({
@@ -115,15 +138,20 @@ export async function POST(req: NextRequest) {
       amount,
       type: 'credit',
       reference: transactionId,
-      description: `MoMo deposit via reference ${reference}`,
+      description: `Automatic MoMo deposit (Ref: ${reference})`,
       status: 'success'
     });
 
     return NextResponse.json({
       success: true,
-      message: `Wallet for ${profile.full_name} credited with GHS ${amount}`,
+      message: `Wallet for ${profile.full_name} credited with GHS ${amount.toFixed(2)}`,
+      data: {
+        newBalance: newBalance.toFixed(2),
+        transactionId
+      }
     });
   } catch (error: any) {
+    console.error('MoMo Webhook Fatal Error:', error);
     return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
   }
 }
