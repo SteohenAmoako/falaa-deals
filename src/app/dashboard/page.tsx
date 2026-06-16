@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -11,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { PLANS, type Profile, type RahitaluOrder, type WalletTransaction } from '@/lib/types';
 import {
   LayoutDashboard, History, ShoppingBag, LogOut,
-  BarChart3, User, Loader2, ArrowUpRight, ArrowDownLeft, Menu, X, CheckCircle2, CreditCard, TrendingUp, AlertTriangle, ExternalLink
+  BarChart3, User, Loader2, ArrowUpRight, ArrowDownLeft, Menu, X, CheckCircle2, CreditCard, TrendingUp, AlertTriangle, ExternalLink, Copy, Info
 } from "lucide-react";
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -144,6 +143,11 @@ export default function DashboardPage() {
     setSidebarOpen(false);
   };
 
+  const copyRef = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast({ title: "Copied!", description: "Reference code copied to clipboard." });
+  };
+
   if (loading && !profile) {
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
@@ -205,7 +209,10 @@ export default function DashboardPage() {
             </div>
             <div className="min-w-0">
               <p className="text-sm font-bold truncate">{profile.full_name}</p>
-              <p className="text-xs text-zinc-500 truncate">{profile.phone}</p>
+              <p className="text-xs text-zinc-500 truncate flex items-center gap-1.5">
+                {profile.phone} 
+                <span className="text-[10px] text-zinc-600 font-bold px-1.5 py-0.5 bg-white/5 rounded border border-white/5 select-none">{profile.reference_code}</span>
+              </p>
             </div>
           </div>
           <button onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-all">
@@ -273,7 +280,7 @@ export default function DashboardPage() {
                     asChild 
                     className="h-14 px-8 rounded-2xl bg-[#111118] hover:bg-white/5 text-white border border-white/10 font-black uppercase tracking-widest text-xs flex items-center gap-3 transition-all group"
                   >
-                    <a href="https://sbbundles-main.vercel.app/" target="_blank" rel="noopener noreferrer">
+                    <a href="https://sbbundles-main.vercel.app/store/qqqq" target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="w-4 h-4 text-violet-400 group-hover:scale-110 transition-transform" />
                       Regular Bundles
                     </a>
@@ -367,7 +374,47 @@ export default function DashboardPage() {
                 <Card className="bg-[#111118] border-white/5 shadow-xl"><CardContent className="p-4 pt-6 text-center space-y-1"><div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-2"><CreditCard className="w-4 h-4 text-blue-400" /></div><div className="text-xl font-black">GHS {totalDeposits.toFixed(2)}</div><div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Deposits</div></CardContent></Card>
                 <Card className="bg-violet-600 border-none shadow-xl shadow-violet-600/20"><CardContent className="p-4 pt-6 text-center space-y-1"><div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-2"><TrendingUp className="w-4 h-4 text-white" /></div><div className="text-xl font-black text-white">GHS {totalSalesVolume.toFixed(2)}</div><div className="text-[10px] text-white/60 font-bold uppercase tracking-widest">Sales Vol</div></CardContent></Card>
               </div>
-              <div className="max-w-2xl"><ForecastTool currentBalance={profile.wallet_balance} orders={orders} /></div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <ForecastTool currentBalance={profile.wallet_balance} orders={orders} />
+                
+                <Card className="bg-[#111118] border-white/5 shadow-xl flex flex-col">
+                  <div className="p-6 pb-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <CreditCard className="w-4 h-4 text-violet-400" />
+                      <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Manual Deposit</h3>
+                    </div>
+                    <p className="text-xs text-zinc-500">Need to fund via MoMo transfer? Use your unique reference below.</p>
+                  </div>
+                  <CardContent className="p-6 flex-1 flex flex-col justify-center">
+                    <div className="bg-black/30 rounded-2xl p-6 border border-white/5 space-y-4 text-center">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Your Unique Reference</span>
+                        <div className="flex items-center justify-center gap-3">
+                          <span className="text-3xl font-black tracking-widest text-violet-400 font-mono">{profile.reference_code}</span>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-zinc-500 hover:text-white" onClick={() => copyRef(profile.reference_code)}>
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="pt-4 border-t border-white/5 space-y-2 text-left">
+                        <div className="flex items-start gap-3">
+                          <div className="w-5 h-5 rounded-full bg-violet-600/10 flex items-center justify-center shrink-0 mt-0.5"><span className="text-[10px] font-black text-violet-400">1</span></div>
+                          <p className="text-[11px] text-zinc-400 leading-tight">Send MoMo to our number (check Support for details).</p>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <div className="w-5 h-5 rounded-full bg-violet-600/10 flex items-center justify-center shrink-0 mt-0.5"><span className="text-[10px] font-black text-violet-400">2</span></div>
+                          <p className="text-[11px] text-zinc-400 leading-tight">Use <span className="text-white font-bold">{profile.reference_code}</span> as the Reference/Reason.</p>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <div className="w-5 h-5 rounded-full bg-violet-600/10 flex items-center justify-center shrink-0 mt-0.5"><span className="text-[10px] font-black text-violet-400">3</span></div>
+                          <p className="text-[11px] text-zinc-400 leading-tight">Your wallet will be credited automatically upon receipt.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           )}
         </main>
