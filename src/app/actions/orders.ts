@@ -34,10 +34,11 @@ export async function fulfillDirectOrder(reference: string, planId: string, phon
     const orderRef = rahitaluResponse.reference || rahitaluResponse._id || reference;
 
     // 3. Record the transaction in Supabase
+    // We log two entries for direct Paystack: a credit (deposit) and a debit (purchase)
     await supabaseAdmin.from('wallet_transactions').insert({
       user_id: userId,
       amount: plan.price,
-      type: 'credit', // Credit for the deposit
+      type: 'credit',
       status: 'success',
       reference: reference,
       description: `Payment for ${plan.size} Bundle (${phone})`,
@@ -46,7 +47,7 @@ export async function fulfillDirectOrder(reference: string, planId: string, phon
     await supabaseAdmin.from('wallet_transactions').insert({
       user_id: userId,
       amount: plan.price,
-      type: 'debit', // Debit for the bundle
+      type: 'debit',
       status: 'success',
       reference: orderRef,
       description: `Bought ${plan.size} Bundle for ${phone}`,
@@ -70,6 +71,72 @@ export async function fulfillDirectOrder(reference: string, planId: string, phon
   } catch (error: any) {
     console.error('Fulfillment Error:', error);
     return { success: false, message: error.message || 'Fulfillment failed' };
+  }
+}
+
+/**
+ * Buys a bundle using the user's wallet balance.
+ */
+export async function buyBundle(userId: string, planId: string, phone: string) {
+  try {
+    const plan = PLANS.find(p => p.id === planId);
+    if (!plan) throw new Error('Invalid plan selected');
+
+    // 1. Fetch current profile
+    const { data: profile, error: profileErr } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (profileErr || !profile) throw new Error('User profile not found');
+
+    const currentBalance = parseFloat(profile.wallet_balance.toString());
+    if (currentBalance < plan.price) {
+      return { success: false, message: 'Insufficient wallet balance.' };
+    }
+
+    // 2. Initiate Rahitalu purchase
+    const rahitaluResponse = await placeDataOrder(plan.id, phone, plan.price);
+    const orderRef = rahitaluResponse.reference || rahitaluResponse._id || `WB-${Math.random().toString(36).substring(7).toUpperCase()}`;
+
+    // 3. Deduct balance
+    const newBalance = currentBalance - plan.price;
+    const { error: updateErr } = await supabaseAdmin
+      .from('profiles')
+      .update({ wallet_balance: newBalance })
+      .eq('id', profile.id);
+
+    if (updateErr) throw new Error('Failed to update balance');
+
+    // 4. Record Transaction
+    await supabaseAdmin.from('wallet_transactions').insert({
+      user_id: userId,
+      amount: plan.price,
+      type: 'debit',
+      status: 'success',
+      reference: orderRef,
+      description: `Wallet Purchase: ${plan.size} Bundle for ${phone}`,
+    });
+
+    // 5. Record Order
+    await supabaseAdmin.from('rahitalu_orders').insert({
+      user_id: userId,
+      phone,
+      plan_id: plan.id,
+      gig: plan.size,
+      sell_price_ghs: plan.price,
+      reference: orderRef,
+      status: rahitaluResponse.upstreamStatus || rahitaluResponse.status || 'processing',
+      upstream_status: rahitaluResponse.upstreamStatus || rahitaluResponse.status || 'pending',
+      delivered_gb: 0,
+    });
+
+    revalidatePath('/dashboard');
+    return { success: true, message: 'Bundle activated via wallet!' };
+  } catch (error: any) {
+    console.error('Wallet Purchase Error:', error);
+    return { success: false, message: error.message || 'An error occurred during wallet purchase.' };
   }
 }
 
@@ -109,63 +176,5 @@ export async function syncUserOrders(userId: string) {
     }
   } catch (error) {
     console.error('Order Sync Error:', error);
-  }
-}
-
-/**
- * Original buyBundle logic (for wallet usage)
- */
-export async function buyBundle(userId: string, planId: string, phone: string) {
-  try {
-    const plan = PLANS.find(p => p.id === planId);
-    if (!plan) throw new Error('Invalid plan selected');
-
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
-    if (!profile) throw new Error('User profile not found');
-
-    const currentBalance = parseFloat(profile.wallet_balance.toString());
-    if (currentBalance < plan.price) {
-      return { success: false, message: 'Insufficient balance.' };
-    }
-
-    const rahitaluResponse = await placeDataOrder(plan.id, phone, plan.price);
-    const orderRef = rahitaluResponse.reference || rahitaluResponse._id || `FD-${Math.random().toString(36).substring(7).toUpperCase()}`;
-
-    const newBalance = currentBalance - plan.price;
-    await supabaseAdmin
-      .from('profiles')
-      .update({ wallet_balance: newBalance })
-      .eq('id', profile.id);
-
-    await supabaseAdmin.from('wallet_transactions').insert({
-      user_id: userId,
-      amount: plan.price,
-      type: 'debit',
-      status: 'success',
-      reference: orderRef,
-      description: `Bought ${plan.size} Bundle for ${phone}`,
-    });
-
-    await supabaseAdmin.from('rahitalu_orders').insert({
-      user_id: userId,
-      phone,
-      plan_id: plan.id,
-      gig: plan.size,
-      sell_price_ghs: plan.price,
-      reference: orderRef,
-      status: rahitaluResponse.upstreamStatus || rahitaluResponse.status || 'processing',
-      upstream_status: rahitaluResponse.upstreamStatus || rahitaluResponse.status || 'pending',
-      delivered_gb: 0,
-    });
-
-    revalidatePath('/dashboard');
-    return { success: true, message: 'Bundle activated!' };
-  } catch (error: any) {
-    return { success: false, message: error.message || 'An error occurred.' };
   }
 }

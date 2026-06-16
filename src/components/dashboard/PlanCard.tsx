@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,7 +5,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Smartphone, CheckCircle2, Loader2, AlertCircle, CreditCard } from "lucide-react";
+import { Smartphone, CheckCircle2, Loader2, AlertCircle, CreditCard, Wallet } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +14,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { fulfillDirectOrder } from '@/app/actions/orders';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { fulfillDirectOrder, buyBundle } from '@/app/actions/orders';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -33,11 +33,12 @@ interface PlanCardProps {
   disabled?: boolean;
 }
 
-export default function PlanCard({ plan, userId, disabled }: PlanCardProps) {
+export default function PlanCard({ plan, userId, walletBalance, disabled }: PlanCardProps) {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [userEmail, setUserEmail] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'paystack'>('paystack');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -60,55 +61,70 @@ export default function PlanCard({ plan, userId, disabled }: PlanCardProps) {
     setShowConfirm(true);
   };
 
-  const handlePaystackPayment = async () => {
+  const handleProcessOrder = async () => {
     setLoading(true);
     setShowConfirm(false);
 
     try {
-      const response = await fetch('/api/paystack/initialize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: plan.price,
-          email: userEmail,
-          userId: userId
-        }),
-      });
-
-      const data = await response.json();
-      if (!data.reference) throw new Error(data.error || 'Failed to initialize payment');
-
-      const PaystackPop = (await import('@paystack/inline-js')).default;
-      const paystack = new PaystackPop();
-      
-      paystack.newTransaction({
-        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-        email: userEmail,
-        amount: Math.round(plan.price * 100),
-        currency: 'GHS',
-        reference: data.reference,
-        onSuccess: async (transaction: any) => {
-          toast({ title: "Payment Successful", description: "Fulfilling your data order..." });
-          
-          const result = await fulfillDirectOrder(transaction.reference, plan.id, phone, userId);
-          
-          if (result.success) {
-            toast({ title: "Order Complete", description: result.message });
-            setPhone('');
-          } else {
-            toast({ title: "Fulfillment Failed", description: result.message, variant: "destructive" });
-          }
+      if (paymentMethod === 'wallet') {
+        if (walletBalance < plan.price) {
+          toast({ title: "Insufficient Balance", description: "Top up your wallet or use Paystack.", variant: "destructive" });
           setLoading(false);
-        },
-        onCancel: () => {
-          toast({ title: "Payment Cancelled", description: "You cancelled the payment." });
-          setLoading(false);
+          return;
         }
-      });
 
+        const result = await buyBundle(userId, plan.id, phone);
+        if (result.success) {
+          toast({ title: "Success", description: result.message });
+          setPhone('');
+        } else {
+          toast({ title: "Error", description: result.message, variant: "destructive" });
+        }
+        setLoading(false);
+      } else {
+        // Paystack Inline Flow
+        const response = await fetch('/api/paystack/initialize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: plan.price,
+            email: userEmail,
+            userId: userId
+          }),
+        });
+
+        const data = await response.json();
+        if (!data.reference) throw new Error(data.error || 'Failed to initialize payment');
+
+        const PaystackPop = (await import('@paystack/inline-js')).default;
+        const paystack = new PaystackPop();
+        
+        paystack.newTransaction({
+          key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
+          email: userEmail,
+          amount: Math.round(plan.price * 100),
+          currency: 'GHS',
+          reference: data.reference,
+          onSuccess: async (transaction: any) => {
+            toast({ title: "Payment Verified", description: "Fulfilling your data order..." });
+            const result = await fulfillDirectOrder(transaction.reference, plan.id, phone, userId);
+            if (result.success) {
+              toast({ title: "Order Complete", description: result.message });
+              setPhone('');
+            } else {
+              toast({ title: "Fulfillment Failed", description: result.message, variant: "destructive" });
+            }
+            setLoading(false);
+          },
+          onCancel: () => {
+            toast({ title: "Payment Cancelled", description: "Transaction was not completed." });
+            setLoading(false);
+          }
+        });
+      }
     } catch (err: any) {
-      console.error('Payment Error:', err);
-      toast({ title: "Payment Error", description: err.message || "An unexpected error occurred", variant: "destructive" });
+      console.error('Order Process Error:', err);
+      toast({ title: "Error", description: err.message || "An unexpected error occurred", variant: "destructive" });
       setLoading(false);
     }
   };
@@ -177,36 +193,77 @@ export default function PlanCard({ plan, userId, disabled }: PlanCardProps) {
       </Card>
 
       <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <DialogContent className="bg-[#111827] border-white/5 sm:max-w-md">
+        <DialogContent className="bg-[#111827] border-white/5 sm:max-w-md text-white">
           <DialogHeader>
             <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-primary" />
-              Confirm Purchase
+              Confirmation
             </DialogTitle>
             <DialogDescription className="text-zinc-400 text-sm">
-              Verify your details before completing the payment via Paystack.
+              Confirm recipient and choose your preferred payment method.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="bg-black/30 rounded-2xl p-6 border border-white/5 space-y-4 my-2">
-            <div className="flex justify-between items-center py-2 border-b border-white/5">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Recipient</span>
-              <span className="font-mono font-bold text-lg text-white">{phone}</span>
+          <div className="space-y-6 my-2">
+            <div className="bg-black/30 rounded-2xl p-5 border border-white/5 space-y-3">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-bold text-zinc-500 uppercase tracking-widest">Recipient</span>
+                <span className="font-mono font-bold text-base text-white">{phone}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-bold text-zinc-500 uppercase tracking-widest">Plan</span>
+                <span className="font-black text-base text-primary">{plan.size}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-white/5">
+                <span className="font-bold text-zinc-500 uppercase tracking-widest">Total Price</span>
+                <span className="font-black text-xl text-white">GHS {plan.price.toFixed(2)}</span>
+              </div>
             </div>
-            <div className="flex justify-between items-center py-2 border-b border-white/5">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Bundle</span>
-              <span className="font-black text-lg text-primary">{plan.size}</span>
-            </div>
-            <div className="flex justify-between items-center pt-2">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Total Cost</span>
-              <span className="font-black text-xl text-white">GHS {plan.price.toFixed(2)}</span>
+
+            <div className="space-y-3">
+              <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Select Payment Method</Label>
+              <RadioGroup value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)} className="grid gap-3">
+                <div 
+                  className={cn(
+                    "flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all",
+                    paymentMethod === 'wallet' ? "bg-violet-600/10 border-violet-600" : "bg-black/20 border-white/5"
+                  )}
+                  onClick={() => setPaymentMethod('wallet')}
+                >
+                  <div className="flex items-center gap-3">
+                    <RadioGroupItem value="wallet" id="wallet" className="border-zinc-700" />
+                    <div>
+                      <Label htmlFor="wallet" className="font-bold text-sm block cursor-pointer">Wallet Balance</Label>
+                      <span className="text-[10px] text-zinc-500 font-medium">Current: GHS {walletBalance.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  <Wallet className={cn("w-5 h-5", paymentMethod === 'wallet' ? "text-violet-400" : "text-zinc-700")} />
+                </div>
+
+                <div 
+                  className={cn(
+                    "flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all",
+                    paymentMethod === 'paystack' ? "bg-primary/10 border-primary" : "bg-black/20 border-white/5"
+                  )}
+                  onClick={() => setPaymentMethod('paystack')}
+                >
+                  <div className="flex items-center gap-3">
+                    <RadioGroupItem value="paystack" id="paystack" className="border-zinc-700" />
+                    <div>
+                      <Label htmlFor="paystack" className="font-bold text-sm block cursor-pointer">Direct Paystack</Label>
+                      <span className="text-[10px] text-zinc-500 font-medium">MoMo / Card / Bank</span>
+                    </div>
+                  </div>
+                  <CreditCard className={cn("w-5 h-5", paymentMethod === 'paystack' ? "text-primary" : "text-zinc-700")} />
+                </div>
+              </RadioGroup>
             </div>
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2 sm:gap-0 mt-4">
             <Button variant="ghost" onClick={() => setShowConfirm(false)} className="font-bold text-zinc-400 hover:text-white">Cancel</Button>
-            <Button onClick={handlePaystackPayment} className="bg-primary hover:bg-primary/90 text-white font-black px-8 flex items-center gap-2">
-              <CreditCard size={18} /> PAY NOW
+            <Button onClick={handleProcessOrder} className="bg-primary hover:bg-primary/90 text-white font-black px-8">
+              {paymentMethod === 'wallet' ? 'USE WALLET' : 'PAY NOW'}
             </Button>
           </DialogFooter>
         </DialogContent>
