@@ -5,10 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Users, ShoppingCart, Wallet, 
   Search, Loader2, RefreshCw, CheckCircle2, Clock, XCircle,
-  Zap, ArrowDownLeft, LogOut, LayoutDashboard, AlertCircle, Save, Settings2
+  Zap, ArrowDownLeft, LogOut, LayoutDashboard, AlertCircle, Save, Settings2, History, TrendingUp
 } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -43,6 +44,7 @@ export default function AdminDashboard() {
     systemStatus: { enabled: boolean; message: string };
     users: any[];
     liveStream: any[];
+    recentTransactions: any[];
   } | null>(null);
 
   const [localSystemEnabled, setLocalSystemEnabled] = useState(true);
@@ -191,92 +193,65 @@ export default function AdminDashboard() {
       </header>
 
       <div className="p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto space-y-8">
-        <Card className="bg-[#111111] border-white/5 overflow-hidden">
-          <CardHeader className="border-b border-white/5 flex flex-row items-center justify-between py-4">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-[#FFD700]" />
-              <CardTitle className="text-base font-black uppercase tracking-tight">System Status</CardTitle>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className={cn("text-[10px] font-bold uppercase tracking-widest", localSystemEnabled ? "text-emerald-400" : "text-red-400")}>
-                {localSystemEnabled ? "LIVE" : "RESTRICTED"}
-              </span>
-              <Switch checked={localSystemEnabled} onCheckedChange={setLocalSystemEnabled} className="data-[state=checked]:bg-emerald-500" />
-            </div>
-          </CardHeader>
-          <CardContent className="p-6 space-y-4">
-            {!localSystemEnabled && (
-              <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                <label className="text-[10px] font-bold uppercase text-zinc-500 tracking-widest">Restriction Message</label>
-                <Textarea 
-                  placeholder="e.g. Packages are out of stock. Please wait for a while." 
-                  value={localSystemMessage}
-                  onChange={(e) => setLocalSystemMessage(e.target.value)}
-                  className="bg-[#0d0d0d] border-white/5 text-sm min-h-[80px]"
-                />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="lg:col-span-1 bg-[#111111] border-white/5 overflow-hidden">
+            <CardHeader className="border-b border-white/5 flex flex-row items-center justify-between py-4">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-[#FFD700]" />
+                <CardTitle className="text-base font-black uppercase tracking-tight">Status</CardTitle>
               </div>
-            )}
-            <Button 
-              className="w-full bg-[#FFD700] hover:bg-[#FFD700]/90 text-black font-black uppercase tracking-widest text-xs h-12"
-              onClick={handleUpdateStatus}
-              disabled={updatingStatus}
-            >
-              {updatingStatus ? <Loader2 className="animate-spin w-4 h-4" /> : <><Save className="w-4 h-4 mr-2" /> Save System Settings</>}
-            </Button>
-          </CardContent>
-        </Card>
+              <Switch checked={localSystemEnabled} onCheckedChange={setLocalSystemEnabled} className="data-[state=checked]:bg-emerald-500" />
+            </CardHeader>
+            <CardContent className="p-6 space-y-4">
+              <Textarea 
+                placeholder="Restriction message..." 
+                value={localSystemMessage}
+                onChange={(e) => setLocalSystemMessage(e.target.value)}
+                className="bg-[#0d0d0d] border-white/5 text-sm min-h-[60px]"
+              />
+              <Button 
+                className="w-full bg-[#FFD700] hover:bg-[#FFD700]/90 text-black font-black uppercase tracking-widest text-[10px] h-10"
+                onClick={handleUpdateStatus}
+                disabled={updatingStatus}
+              >
+                {updatingStatus ? <Loader2 className="animate-spin w-4 h-4" /> : "Save Status"}
+              </Button>
+            </CardContent>
+          </Card>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <StatCard icon={Users} iconColor="text-[#FFD700]" iconBg="bg-[#FFD700]/10" value={data?.stats.totalUsers ?? 0} label="Total Users" loading={loading} />
-          <StatCard icon={ArrowDownLeft} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" value={`GHS ${(data?.stats.todayDeposits ?? 0).toFixed(2)}`} label="Today's Deposits" loading={loading} />
-          <StatCard icon={ShoppingCart} iconColor="text-blue-400" iconBg="bg-blue-500/10" value={data?.stats.todayOrders ?? 0} label="Orders Today" loading={loading} />
-          <StatCard icon={Wallet} iconColor="text-black" iconBg="bg-[#FFD700]" value={`GHS ${(data?.stats.rahitaluBalance ?? 0).toFixed(2)}`} label="Rahitalu Balance" loading={loading} highlight />
+          <div className="lg:col-span-2 grid grid-cols-2 gap-3 sm:gap-4">
+            <StatCard icon={Users} iconColor="text-[#FFD700]" iconBg="bg-[#FFD700]/10" value={data?.stats.totalUsers ?? 0} label="Total Users" loading={loading} />
+            <StatCard icon={ArrowDownLeft} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" value={`GHS ${(data?.stats.todayDeposits ?? 0).toFixed(2)}`} label="Today's Deposits" loading={loading} />
+            <StatCard icon={ShoppingCart} iconColor="text-blue-400" iconBg="bg-blue-500/10" value={data?.stats.todayOrders ?? 0} label="Orders Today" loading={loading} />
+            <StatCard icon={Wallet} iconColor="text-black" iconBg="bg-[#FFD700]" value={`GHS ${(data?.stats.rahitaluBalance ?? 0).toFixed(2)}`} label="Rahitalu Balance" loading={loading} highlight />
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <div className="xl:col-span-2 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <h2 className="text-lg font-black tracking-tight">Customer Directory</h2>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
-                <Input placeholder="Search name or reference…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9 bg-[#111111] border-white/5 text-white placeholder:text-zinc-700 h-9 w-full sm:w-64 text-sm" />
-              </div>
-            </div>
+        <Tabs defaultValue="activity" className="space-y-6">
+          <TabsList className="bg-[#111111] border border-white/5 p-1">
+            <TabsTrigger value="activity" className="data-[state=active]:bg-[#FFD700] data-[state=active]:text-black text-xs font-bold uppercase tracking-widest px-6">Live Activity</TabsTrigger>
+            <TabsTrigger value="deposits" className="data-[state=active]:bg-[#FFD700] data-[state=active]:text-black text-xs font-bold uppercase tracking-widest px-6">Deposits</TabsTrigger>
+            <TabsTrigger value="users" className="data-[state=active]:bg-[#FFD700] data-[state=active]:text-black text-xs font-bold uppercase tracking-widest px-6">Users</TabsTrigger>
+          </TabsList>
 
+          <TabsContent value="activity">
             <div className="rounded-2xl border border-white/5 bg-[#111111] overflow-hidden">
               {loading ? (
                 <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 text-zinc-600 animate-spin" /></div>
-              ) : filteredUsers.length === 0 ? (
-                <div className="text-center py-16 text-zinc-600 text-sm">No customers found.</div>
+              ) : !data?.liveStream?.length ? (
+                <div className="text-center py-16 text-zinc-600 text-sm">No recent data orders.</div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
-                    <TableHeader>
-                      <TableRow className="border-white/5 hover:bg-transparent">
-                        <TableHead className="text-[11px] uppercase font-bold text-zinc-600 py-4 pl-5">Customer</TableHead>
-                        <TableHead className="text-[11px] uppercase font-bold text-zinc-600 py-4">Reference</TableHead>
-                        <TableHead className="text-[11px] uppercase font-bold text-zinc-600 py-4">Balance</TableHead>
-                        <TableHead className="text-[11px] uppercase font-bold text-zinc-600 py-4 hidden sm:table-cell">Joined</TableHead>
-                        <TableHead className="text-[11px] uppercase font-bold text-zinc-600 py-4 pr-5 text-right">Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow className="border-white/5 hover:bg-transparent"><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pl-5">Time</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Phone</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Plan</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Price</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pr-5 text-right">Status</TableHead></TableRow></TableHeader>
                     <TableBody>
-                      {filteredUsers.map(user => (
-                        <TableRow key={user.id} className="border-white/5 hover:bg-white/3">
-                          <TableCell className="py-4 pl-5">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-8 h-8 rounded-full bg-[#FFD700]/10 border border-[#FFD700]/20 flex items-center justify-center shrink-0">
-                                <span className="text-[11px] font-black text-[#FFD700]">{user.full_name?.charAt(0).toUpperCase()}</span>
-                              </div>
-                              <span className="text-sm font-semibold">{user.full_name}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell><code className="bg-white/5 px-2 py-1 rounded-lg text-xs font-mono text-[#FFD700]">{user.reference_code}</code></TableCell>
-                          <TableCell className="font-bold text-sm">GHS {parseFloat(user.wallet_balance).toFixed(2)}</TableCell>
-                          <TableCell className="text-xs text-zinc-500 hidden sm:table-cell">{new Date(user.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</TableCell>
-                          <TableCell className="text-right pr-5">
-                            <Button size="sm" onClick={() => openAdjustment(user)} className="h-7 text-[10px] font-black uppercase bg-[#FFD700]/10 text-[#FFD700] hover:bg-[#FFD700] hover:text-black border-0 px-3">Adjust</Button>
-                          </TableCell>
+                      {data.liveStream.map((item) => (
+                        <TableRow key={item.id} className="border-white/5 hover:bg-white/3">
+                          <TableCell className="pl-5 text-[11px] text-zinc-500 whitespace-nowrap">{safeTime(item.timestamp)}</TableCell>
+                          <TableCell className="font-mono text-sm font-bold">{item.phone}</TableCell>
+                          <TableCell className="text-[11px] font-black text-[#FFD700]">{item.plan}</TableCell>
+                          <TableCell className="text-[11px] font-bold">GHS {item.price ?? '—'}</TableCell>
+                          <TableCell className="pr-5 text-right"><StatusPill status={item.status} /></TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -284,54 +259,61 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
-          </div>
+          </TabsContent>
 
-          <div className="space-y-4">
-            <h2 className="text-lg font-black tracking-tight">Live Activity</h2>
+          <TabsContent value="deposits">
             <div className="rounded-2xl border border-white/5 bg-[#111111] overflow-hidden">
               {loading ? (
                 <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 text-zinc-600 animate-spin" /></div>
-              ) : !data?.liveStream?.length ? (
-                <div className="text-center py-16 text-zinc-600 text-sm">No recent activity.</div>
+              ) : !data?.recentTransactions?.length ? (
+                <div className="text-center py-16 text-zinc-600 text-sm">No recent deposits found.</div>
               ) : (
-                <div className="divide-y divide-white/5">
-                  {data.liveStream.map((item) => (
-                    <div key={item.id} className="p-4 hover:bg-white/3 transition-colors">
-                      <div className="flex items-start gap-3">
-                        <div className={cn(
-                          "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5",
-                          item.status === 'delivered' ? 'bg-emerald-500/10' :
-                          item.status === 'processing' ? 'bg-[#FFD700]/10' :
-                          item.status === 'failed' ? 'bg-red-500/10' : 'bg-zinc-500/10'
-                        )}>
-                          {item.status === 'delivered' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-                          {item.status === 'processing' && <Zap className="w-4 h-4 text-[#FFD700]" />}
-                          {item.status === 'pending' && <Clock className="w-4 h-4 text-zinc-400" />}
-                          {item.status === 'failed' && <XCircle className="w-4 h-4 text-red-400" />}
-                        </div>
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-mono text-sm font-bold text-white truncate">{item.phone}</span>
-                            <StatusPill status={item.status} />
-                          </div>
-                          <div className="flex items-center gap-2 text-[11px]">
-                            <span className="text-[#FFD700] font-black">{item.plan}</span>
-                            <span className="text-zinc-500">·</span>
-                            <span className="text-white font-bold">GHS {item.price ?? '—'}</span>
-                          </div>
-                          <div className="text-[10px] text-zinc-600">{safeTime(item.timestamp)}</div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader><TableRow className="border-white/5 hover:bg-transparent"><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pl-5">Date</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Customer</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Amount</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Reference</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pr-5 text-right">Status</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {data.recentTransactions.map((tx) => (
+                        <TableRow key={tx.id} className="border-white/5 hover:bg-white/3">
+                          <TableCell className="pl-5 text-[11px] text-zinc-500 whitespace-nowrap">{new Date(tx.created_at).toLocaleString()}</TableCell>
+                          <TableCell className="text-sm font-semibold">{tx.profiles?.full_name || 'System'}</TableCell>
+                          <TableCell className="text-sm font-black text-emerald-400">GHS {parseFloat(tx.amount).toFixed(2)}</TableCell>
+                          <TableCell className="font-mono text-[10px] text-zinc-400">{tx.reference}</TableCell>
+                          <TableCell className="pr-5 text-right"><StatusPill status={tx.status} /></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </div>
-          </div>
-        </div>
+          </TabsContent>
+
+          <TabsContent value="users">
+            <div className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
+                <Input placeholder="Search name or reference…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9 bg-[#111111] border-white/5 text-white h-10 w-full sm:w-80" />
+              </div>
+              <div className="rounded-2xl border border-white/5 bg-[#111111] overflow-hidden">
+                <Table>
+                  <TableHeader><TableRow className="border-white/5 hover:bg-transparent"><TableHead className="pl-5">User</TableHead><TableHead>Reference</TableHead><TableHead>Balance</TableHead><TableHead className="text-right pr-5">Action</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {filteredUsers.map(user => (
+                      <TableRow key={user.id} className="border-white/5 hover:bg-white/3">
+                        <TableCell className="pl-5"><span className="text-sm font-semibold">{user.full_name}</span></TableCell>
+                        <TableCell><code className="text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-[#FFD700]">{user.reference_code}</code></TableCell>
+                        <TableCell className="font-bold">GHS {parseFloat(user.wallet_balance).toFixed(2)}</TableCell>
+                        <TableCell className="text-right pr-5"><Button size="sm" onClick={() => openAdjustment(user)} className="h-7 text-[9px] bg-[#FFD700]/10 text-[#FFD700] hover:bg-[#FFD700] hover:text-black">Adjust</Button></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
-      {/* Adjustment Dialog */}
       <Dialog open={isAdjOpen} onOpenChange={setIsAdjOpen}>
         <DialogContent className="bg-[#111111] border-white/5 text-white sm:max-w-md">
           <DialogHeader>
@@ -339,61 +321,21 @@ export default function AdminDashboard() {
               <Settings2 className="w-5 h-5 text-[#FFD700]" />
               Adjust Wallet
             </DialogTitle>
-            <DialogDescription className="text-zinc-500 text-xs">
-              Manually credit or debit {adjUser?.full_name}'s wallet balance.
-            </DialogDescription>
           </DialogHeader>
-
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Adjustment Type</label>
-                <Select value={adjType} onValueChange={(v: any) => setAdjType(v)}>
-                  <SelectTrigger className="bg-[#0d0d0d] border-white/5 h-11">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#111111] border-white/5 text-white">
-                    <SelectItem value="credit">CREDIT (+)</SelectItem>
-                    <SelectItem value="debit">DEBIT (-)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Amount (GHS)</label>
-                <Input 
-                  type="number" 
-                  placeholder="0.00" 
-                  className="bg-[#0d0d0d] border-white/5 h-11 font-bold"
-                  value={adjAmount}
-                  onChange={(e) => setAdjAmount(e.target.value)}
-                />
-              </div>
+              <Select value={adjType} onValueChange={(v: any) => setAdjType(v)}>
+                <SelectTrigger className="bg-[#0d0d0d] border-white/5 h-11"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-[#111111] border-white/5 text-white"><SelectItem value="credit">CREDIT (+)</SelectItem><SelectItem value="debit">DEBIT (-)</SelectItem></SelectContent>
+              </Select>
+              <Input type="number" placeholder="0.00" className="bg-[#0d0d0d] border-white/5 h-11 font-bold" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Reason / Description</label>
-              <Textarea 
-                placeholder="e.g. Compensation for failed order" 
-                className="bg-[#0d0d0d] border-white/5 text-sm min-h-[80px]"
-                value={adjReason}
-                onChange={(e) => setAdjReason(e.target.value)}
-              />
-            </div>
-            {adjUser && (
-              <div className="bg-[#FFD700]/5 border border-[#FFD700]/10 p-3 rounded-xl flex justify-between items-center">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Current Balance</span>
-                <span className="text-sm font-black text-[#FFD700]">GHS {parseFloat(adjUser.wallet_balance).toFixed(2)}</span>
-              </div>
-            )}
+            <Textarea placeholder="Reason..." className="bg-[#0d0d0d] border-white/5 text-sm" value={adjReason} onChange={(e) => setAdjReason(e.target.value)} />
           </div>
-
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsAdjOpen(false)} className="text-zinc-500 hover:text-white font-bold">Cancel</Button>
-            <Button 
-              className="bg-[#FFD700] hover:bg-[#FFD700]/90 text-black font-black uppercase tracking-widest text-xs px-8 h-11"
-              onClick={handleAdjustBalance}
-              disabled={adjLoading}
-            >
-              {adjLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Apply Adjustment"}
+            <Button variant="ghost" onClick={() => setIsAdjOpen(false)}>Cancel</Button>
+            <Button className="bg-[#FFD700] text-black font-black" onClick={handleAdjustBalance} disabled={adjLoading}>
+              {adjLoading ? <Loader2 className="animate-spin" /> : "Apply"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -404,17 +346,13 @@ export default function AdminDashboard() {
 
 function StatCard({ icon: Icon, iconColor, iconBg, value, label, loading, highlight }: any) {
   return (
-    <Card className={cn("border-white/5 overflow-hidden", highlight ? "bg-[#FFD700]" : "bg-[#111111]")}>
+    <Card className={cn("border-white/5 overflow-hidden shadow-xl", highlight ? "bg-[#FFD700]" : "bg-[#111111]")}>
       <CardContent className="p-4 sm:p-5">
-        <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center mb-4", iconBg)}>
+        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center mb-3", iconBg)}>
           <Icon className={cn("w-4 h-4", iconColor)} />
         </div>
-        {loading ? (
-          <div className="h-7 w-20 bg-white/5 rounded-lg animate-pulse mb-1" />
-        ) : (
-          <div className={cn("text-xl sm:text-2xl font-black leading-none mb-1", highlight ? "text-black" : "text-white")}>{value}</div>
-        )}
-        <div className={cn("text-[10px] font-bold uppercase tracking-widest", highlight ? "text-black/60" : "text-zinc-600")}>{label}</div>
+        {loading ? <div className="h-6 w-20 bg-white/5 rounded animate-pulse" /> : <div className={cn("text-xl font-black", highlight ? "text-black" : "text-white")}>{value}</div>}
+        <div className={cn("text-[9px] font-bold uppercase tracking-widest mt-1", highlight ? "text-black/60" : "text-zinc-500")}>{label}</div>
       </CardContent>
     </Card>
   );
@@ -423,6 +361,7 @@ function StatCard({ icon: Icon, iconColor, iconBg, value, label, loading, highli
 function StatusPill({ status }: { status: string }) {
   const styles: Record<string, string> = {
     delivered:  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    success:    'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     processing: 'bg-[#FFD700]/10  text-[#FFD700]  border-[#FFD700]/20',
     pending:    'bg-zinc-500/10   text-zinc-400   border-zinc-500/20',
     failed:     'bg-red-500/10    text-red-400    border-red-500/20',

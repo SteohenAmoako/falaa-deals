@@ -39,14 +39,14 @@ export async function getAdminDashboardData() {
 
     const today = new Date().toISOString().split('T')[0];
     
-    const { data: deposits } = await supabaseAdmin
+    const { data: depositsToday } = await supabaseAdmin
       .from('wallet_transactions')
       .select('amount')
       .eq('type', 'credit')
       .eq('status', 'success')
       .gte('created_at', today);
 
-    const todayDeposits = (deposits || []).reduce((sum, tx) => sum + parseFloat(tx.amount.toString()), 0);
+    const todayDepositsAmount = (depositsToday || []).reduce((sum, tx) => sum + parseFloat(tx.amount.toString()), 0);
 
     const { count: todayOrders } = await supabaseAdmin
       .from('rahitalu_orders')
@@ -62,17 +62,24 @@ export async function getAdminDashboardData() {
       .order('created_at', { ascending: false })
       .limit(100);
 
+    const { data: recentTransactions } = await supabaseAdmin
+      .from('wallet_transactions')
+      .select('*, profiles(full_name)')
+      .order('created_at', { ascending: false })
+      .limit(20);
+
     const systemStatus = await getSystemStatus();
 
     return {
       stats: {
         totalUsers: totalUsers || 0,
-        todayDeposits,
+        todayDeposits: todayDepositsAmount,
         todayOrders: todayOrders || 0,
         rahitaluBalance: upstreamDash?.wallet?.balance || 0
       },
       systemStatus,
       users: users || [],
+      recentTransactions: recentTransactions || [],
       liveStream: (upstreamOrders || []).map((order: any) => ({
         id: order._id || order.id || Math.random().toString(),
         reference: order.reference || 'N/A',
