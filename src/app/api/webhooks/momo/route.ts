@@ -10,11 +10,15 @@ const supabaseAdmin = createClient(
  * Expected incoming text format (from MoMo SMS via iPhone Shortcut):
  *
  *   "Reference: FD-A3X9. Payment received for GHS 15.00 Transaction ID: 83297704110"
+ * 
+ * Note: The regex is now more flexible to handle variations in punctuation.
  */
-
 function parseMomoMessage(rawText: string) {
-  const referenceMatch = rawText.match(/Reference:\s*([A-Za-z0-9\-]+)\./i);
+  // Matches "Reference: FD-XXXX" (ignores trailing dots or spaces)
+  const referenceMatch = rawText.match(/Reference:\s*([A-Za-z0-9\-]+)/i);
+  // Matches "GHS 15.00" or similar
   const amountMatch = rawText.match(/GHS\s*([\d,]+\.?\d*)/i);
+  // Matches "Transaction ID: 12345"
   const transactionIdMatch = rawText.match(/Transaction ID:\s*(\w+)/i);
 
   if (!referenceMatch || !amountMatch || !transactionIdMatch) {
@@ -60,6 +64,7 @@ export async function POST(req: NextRequest) {
 
     const { reference, amount, transactionId } = parsed;
 
+    // Check if transaction already exists
     const { data: existingTx } = await supabaseAdmin
       .from('wallet_transactions')
       .select('id')
@@ -74,6 +79,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Find the profile by reference code
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('id, user_id, wallet_balance, full_name')
@@ -90,6 +96,7 @@ export async function POST(req: NextRequest) {
     const currentBalance = parseFloat(profile.wallet_balance.toString());
     const newBalance = currentBalance + amount;
 
+    // Credit the wallet
     const { error: updateError } = await supabaseAdmin
       .from('profiles')
       .update({ wallet_balance: newBalance })
@@ -97,6 +104,7 @@ export async function POST(req: NextRequest) {
 
     if (updateError) throw updateError;
 
+    // Log the transaction
     await supabaseAdmin.from('wallet_transactions').insert({
       user_id: profile.user_id,
       amount,
