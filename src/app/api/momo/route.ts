@@ -59,8 +59,7 @@ export async function POST(req: NextRequest) {
         amount = body.amount;
       }
       
-      // Support transactionId (lowercase i) as seen in user image, or transactionID
-      transactionId = body.transactionId || body.transactionID || body.transactionId;
+      transactionId = body.transactionId || body.transactionID;
 
       // Fallback for wrapped text inside JSON (message/text)
       if (!reference && (body.text || body.message)) {
