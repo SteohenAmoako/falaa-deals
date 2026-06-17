@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { placeDataOrder, getUpstreamOrderHistory } from '@/lib/rahitalu';
 import { PLANS } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
+import { sendNtfy } from '@/lib/notifications';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,7 +35,6 @@ export async function fulfillDirectOrder(reference: string, planId: string, phon
     const orderRef = rahitaluResponse.reference || rahitaluResponse._id || reference;
 
     // 3. Record the transaction in Supabase
-    // We log two entries for direct Paystack: a credit (deposit) and a debit (purchase)
     await supabaseAdmin.from('wallet_transactions').insert({
       user_id: userId,
       amount: plan.price,
@@ -64,6 +64,20 @@ export async function fulfillDirectOrder(reference: string, planId: string, phon
       status: rahitaluResponse.upstreamStatus || rahitaluResponse.status || 'processing',
       upstream_status: rahitaluResponse.upstreamStatus || rahitaluResponse.status || 'pending',
       delivered_gb: 0,
+    });
+
+    // 5. Notify ntfy
+    await sendNtfy({
+      title: "Data Purchase (Paystack)",
+      tags: ["paystack", "purchase", "data"],
+      data: {
+        userId,
+        bundleSize: plan.size,
+        phone,
+        amount: plan.price,
+        reference: orderRef,
+        timestamp: new Date().toISOString()
+      }
     });
 
     revalidatePath('/dashboard');
@@ -130,6 +144,21 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
       status: rahitaluResponse.upstreamStatus || rahitaluResponse.status || 'processing',
       upstream_status: rahitaluResponse.upstreamStatus || rahitaluResponse.status || 'pending',
       delivered_gb: 0,
+    });
+
+    // 6. Notify ntfy
+    await sendNtfy({
+      title: "Wallet Purchase Completed",
+      tags: ["wallet", "purchase", "data"],
+      data: {
+        userId,
+        bundleSize: plan.size,
+        phone,
+        reference: orderRef,
+        previousBalance: currentBalance,
+        newBalance: newBalance,
+        timestamp: new Date().toISOString()
+      }
     });
 
     revalidatePath('/dashboard');

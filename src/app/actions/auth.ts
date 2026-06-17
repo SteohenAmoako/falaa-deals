@@ -2,6 +2,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { createClient } from '@supabase/supabase-js';
+import { sendNtfy } from '@/lib/notifications';
 
 // Use Service Role Key for profile creation to ensure it always succeeds
 const supabaseAdmin = createClient(
@@ -44,6 +45,18 @@ export async function signUp(formData: { email: string; password: string; fullNa
       console.error('Profile Creation Error:', profileError);
       throw new Error('User created but profile setup failed: ' + profileError.message);
     }
+
+    // 3. Send Notification
+    await sendNtfy({
+      title: "New User Registration",
+      tags: ["user", "signup"],
+      data: {
+        userId: authData.user.id,
+        email: formData.email,
+        phone: formData.phone,
+        timestamp: new Date().toISOString()
+      }
+    });
 
     return { success: true };
   } catch (error: any) {

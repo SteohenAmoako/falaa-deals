@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { sendNtfy } from '@/lib/notifications';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,7 +9,6 @@ const supabaseAdmin = createClient(
 
 /**
  * Clean up inputs in case the iPhone Shortcut sends labels instead of just values.
- * e.g. "Reference: F3" -> "F3", "GHS 10" -> 10
  */
 function sanitizeInput(value: any): string {
   if (typeof value !== 'string') return String(value || '');
@@ -21,27 +21,17 @@ function sanitizeInput(value: any): string {
 
 /**
  * Enhanced MoMo Message Parser
- * Specifically optimized for the format: "Payment received for GHS 1.00 from ... Reference: F3. Transaction ID: 83489530846."
  */
 function parseMomoMessage(rawText: string) {
-  // 1. Amount: Look specifically for "received for GHS [amount]"
   const amountMatch = rawText.match(/received for GHS\s*([\d,]+\.?\d*)/i) || 
                       rawText.match(/GHS\s*([\d,]+\.?\d*)/i);
   
-  // 2. Reference: Look for "Reference: F[number]" or just "Reference: [code]"
   const referenceMatch = rawText.match(/Reference:\s*([A-Z0-9]+)/i);
   
-  // 3. Transaction ID: Look for digits after "Transaction ID:"
   const transactionIdMatch = rawText.match(/Transaction ID:\s*(\d+)/i) || 
                              rawText.match(/ID:\s*(\w+)/i);
 
   if (!referenceMatch || !amountMatch || !transactionIdMatch) {
-    console.warn('[Webhook Parsing Failed]', {
-      hasRef: !!referenceMatch,
-      hasAmount: !!amountMatch,
-      hasId: !!transactionIdMatch,
-      text: rawText
-    });
     return null;
   }
 
@@ -73,19 +63,13 @@ export async function POST(req: NextRequest) {
 
     if (contentType.includes('application/json')) {
       const body = await req.json();
-      
-      // Extract and SANITIZE values from JSON fields
-      // Supports both camelCase and snake_case for maximum compatibility
       reference = sanitizeInput(body.reference || body.ref);
-      
       const rawAmount = body.amount;
       amount = typeof rawAmount === 'string' 
         ? parseFloat(rawAmount.replace(/[^0-9.]/g, '')) 
         : rawAmount;
-
       transactionId = sanitizeInput(body.transactionId || body.transactionID || body.transaction_id || body.txid);
 
-      // If fields are missing but text is provided, fallback to regex parsing
       if (!reference && (body.text || body.message)) {
         const parsed = parseMomoMessage(body.text || body.message);
         if (parsed) {
@@ -107,11 +91,10 @@ export async function POST(req: NextRequest) {
     if (!reference || amount === null || isNaN(amount) || !transactionId) {
       return NextResponse.json({ 
         success: false, 
-        message: 'Could not extract payment data. Ensure reference, amount, and transactionId are sent.' 
+        message: 'Data parsing failed. Ensure reference, amount, and transactionId are correctly sent.' 
       }, { status: 400 });
     }
 
-    // Idempotency: Prevent duplicate credits
     const { data: existingTx } = await supabaseAdmin
       .from('wallet_transactions')
       .select('id')
@@ -122,10 +105,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: 'Already processed' });
     }
 
-    // Locate User (Now using the sanitized reference)
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('id, user_id, wallet_balance')
+      .select('id, user_id, wallet_balance, phone')
       .eq('reference_code', reference)
       .maybeSingle();
 
@@ -138,7 +120,6 @@ export async function POST(req: NextRequest) {
 
     const newBalance = parseFloat(profile.wallet_balance.toString()) + amount;
 
-    // Update Balance & Log
     const { error: updateError } = await supabaseAdmin
       .from('profiles')
       .update({ wallet_balance: newBalance })
@@ -153,6 +134,19 @@ export async function POST(req: NextRequest) {
       reference: transactionId,
       description: `MoMo Deposit (Ref: ${reference})`,
       status: 'success'
+    });
+
+    // Notify ntfy
+    await sendNtfy({
+      title: "Wallet Deposit Successful",
+      tags: ["momo", "deposit", "wallet"],
+      data: {
+        userId: profile.user_id,
+        amount,
+        reference,
+        transactionId,
+        timestamp: new Date().toISOString()
+      }
     });
 
     return NextResponse.json({ success: true, message: 'Wallet credited successfully', newBalance });
