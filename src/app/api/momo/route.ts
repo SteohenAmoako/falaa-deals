@@ -7,11 +7,24 @@ const supabaseAdmin = createClient(
 );
 
 /**
+ * Clean up inputs in case the iPhone Shortcut sends labels instead of just values.
+ * e.g. "Reference: F3" -> "F3", "GHS 10" -> 10
+ */
+function sanitizeInput(value: any): string {
+  if (typeof value !== 'string') return String(value || '');
+  return value
+    .replace(/Reference:\s*/i, '')
+    .replace(/GHS\s*/i, '')
+    .replace(/Transaction ID:\s*/i, '')
+    .trim();
+}
+
+/**
  * Enhanced MoMo Message Parser
  * Specifically optimized for the format: "Payment received for GHS 1.00 from ... Reference: F3. Transaction ID: 83489530846."
  */
 function parseMomoMessage(rawText: string) {
-  // 1. Amount: Look specifically for "received for GHS [amount]" to avoid balance confusion
+  // 1. Amount: Look specifically for "received for GHS [amount]"
   const amountMatch = rawText.match(/received for GHS\s*([\d,]+\.?\d*)/i) || 
                       rawText.match(/GHS\s*([\d,]+\.?\d*)/i);
   
@@ -61,12 +74,18 @@ export async function POST(req: NextRequest) {
     if (contentType.includes('application/json')) {
       const body = await req.json();
       
-      // Try direct values first (if user passed them manually)
-      reference = body.reference;
-      amount = typeof body.amount === 'string' ? parseFloat(body.amount.replace(/[^0-9.]/g, '')) : body.amount;
-      transactionId = body.transactionId || body.transactionID;
+      // Extract and SANITIZE values from JSON fields
+      // Supports both camelCase and snake_case for maximum compatibility
+      reference = sanitizeInput(body.reference || body.ref);
+      
+      const rawAmount = body.amount;
+      amount = typeof rawAmount === 'string' 
+        ? parseFloat(rawAmount.replace(/[^0-9.]/g, '')) 
+        : rawAmount;
 
-      // If text is provided instead, parse it
+      transactionId = sanitizeInput(body.transactionId || body.transactionID || body.transaction_id || body.txid);
+
+      // If fields are missing but text is provided, fallback to regex parsing
       if (!reference && (body.text || body.message)) {
         const parsed = parseMomoMessage(body.text || body.message);
         if (parsed) {
@@ -86,7 +105,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (!reference || amount === null || isNaN(amount) || !transactionId) {
-      return NextResponse.json({ success: false, message: 'Could not extract payment data' }, { status: 400 });
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Could not extract payment data. Ensure reference, amount, and transactionId are sent.' 
+      }, { status: 400 });
     }
 
     // Idempotency: Prevent duplicate credits
@@ -100,7 +122,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: 'Already processed' });
     }
 
-    // Locate User
+    // Locate User (Now using the sanitized reference)
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('id, user_id, wallet_balance')
@@ -108,7 +130,10 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (profileError || !profile) {
-      return NextResponse.json({ success: false, message: `No user with reference ${reference}` }, { status: 404 });
+      return NextResponse.json({ 
+        success: false, 
+        message: `Account not found for reference: ${reference}` 
+      }, { status: 404 });
     }
 
     const newBalance = parseFloat(profile.wallet_balance.toString()) + amount;
@@ -130,7 +155,7 @@ export async function POST(req: NextRequest) {
       status: 'success'
     });
 
-    return NextResponse.json({ success: true, newBalance });
+    return NextResponse.json({ success: true, message: 'Wallet credited successfully', newBalance });
   } catch (error: any) {
     console.error('MoMo Webhook Fatal Error:', error);
     return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
@@ -144,7 +169,7 @@ export async function GET() {
     message: 'MoMo Webhook Active',
     diagnostics: {
       secretIsConfigured: isSecretSet,
-      supportedFormat: "JSON with 'text' field OR raw SMS text"
+      supportedFormat: "POST JSON with fields 'reference', 'amount', 'transactionId'"
     }
   });
 }
