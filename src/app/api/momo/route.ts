@@ -7,14 +7,28 @@ const supabaseAdmin = createClient(
 );
 
 /**
- * Robust parser for MoMo transactions.
+ * Enhanced MoMo Message Parser
+ * Specifically optimized for the format: "Payment received for GHS 1.00 from ... Reference: F3. Transaction ID: 83489530846."
  */
 function parseMomoMessage(rawText: string) {
-  const referenceMatch = rawText.match(/Reference:\s*([A-Za-z0-9\-]+)/i);
-  const amountMatch = rawText.match(/GHS\s*([\d,]+\.?\d*)/i);
-  const transactionIdMatch = rawText.match(/Transaction ID:\s*(\w+)/i);
+  // 1. Amount: Look specifically for "received for GHS [amount]" to avoid balance confusion
+  const amountMatch = rawText.match(/received for GHS\s*([\d,]+\.?\d*)/i) || 
+                      rawText.match(/GHS\s*([\d,]+\.?\d*)/i);
+  
+  // 2. Reference: Look for "Reference: F[number]" or just "Reference: [code]"
+  const referenceMatch = rawText.match(/Reference:\s*([A-Z0-9]+)/i);
+  
+  // 3. Transaction ID: Look for digits after "Transaction ID:"
+  const transactionIdMatch = rawText.match(/Transaction ID:\s*(\d+)/i) || 
+                             rawText.match(/ID:\s*(\w+)/i);
 
   if (!referenceMatch || !amountMatch || !transactionIdMatch) {
+    console.warn('[Webhook Parsing Failed]', {
+      hasRef: !!referenceMatch,
+      hasAmount: !!amountMatch,
+      hasId: !!transactionIdMatch,
+      text: rawText
+    });
     return null;
   }
 
@@ -30,14 +44,11 @@ export async function POST(req: NextRequest) {
     const secret = req.nextUrl.searchParams.get('secret');
     const expectedSecret = process.env.MOMO_WEBHOOK_SECRET;
 
-    // Security Check
     if (!expectedSecret) {
-      console.error('CRITICAL: MOMO_WEBHOOK_SECRET is not set in environment variables.');
       return NextResponse.json({ success: false, message: 'Server configuration error' }, { status: 500 });
     }
 
     if (!secret || secret !== expectedSecret) {
-      console.error('Unauthorized MoMo webhook attempt. Received:', secret);
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -50,18 +61,12 @@ export async function POST(req: NextRequest) {
     if (contentType.includes('application/json')) {
       const body = await req.json();
       
+      // Try direct values first (if user passed them manually)
       reference = body.reference;
-      
-      // Handle amount if passed as string "GHS 10.00" or number
-      if (typeof body.amount === 'string') {
-        amount = parseFloat(body.amount.replace(/[^0-9.]/g, ''));
-      } else {
-        amount = body.amount;
-      }
-      
-      transactionId = body.transactionId || body.transactionID || body.transactionId;
+      amount = typeof body.amount === 'string' ? parseFloat(body.amount.replace(/[^0-9.]/g, '')) : body.amount;
+      transactionId = body.transactionId || body.transactionID;
 
-      // Fallback for wrapped text inside JSON
+      // If text is provided instead, parse it
       if (!reference && (body.text || body.message)) {
         const parsed = parseMomoMessage(body.text || body.message);
         if (parsed) {
@@ -81,16 +86,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (!reference || amount === null || isNaN(amount) || !transactionId) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          message: 'Data parsing failed. Ensure reference, amount, and transactionId are correctly sent.' 
-        },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, message: 'Could not extract payment data' }, { status: 400 });
     }
 
-    // 1. Idempotency Check
+    // Idempotency: Prevent duplicate credits
     const { data: existingTx } = await supabaseAdmin
       .from('wallet_transactions')
       .select('id')
@@ -98,56 +97,40 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (existingTx) {
-      return NextResponse.json({ success: true, message: 'Transaction already processed', transactionId });
+      return NextResponse.json({ success: true, message: 'Already processed' });
     }
 
-    // 2. Locate User Profile
+    // Locate User
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('id, user_id, wallet_balance, full_name')
+      .select('id, user_id, wallet_balance')
       .eq('reference_code', reference)
       .maybeSingle();
 
     if (profileError || !profile) {
-      console.warn(`Profile not found for reference: ${reference}`);
-      return NextResponse.json(
-        { success: false, message: `Account not found for reference: ${reference}` },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, message: `No user with reference ${reference}` }, { status: 404 });
     }
 
-    const currentBalance = parseFloat(profile.wallet_balance.toString());
-    const newBalance = currentBalance + amount;
+    const newBalance = parseFloat(profile.wallet_balance.toString()) + amount;
 
-    // 3. Update Balance
+    // Update Balance & Log
     const { error: updateError } = await supabaseAdmin
       .from('profiles')
       .update({ wallet_balance: newBalance })
       .eq('id', profile.id);
 
-    if (updateError) {
-      console.error('Failed to update balance:', updateError);
-      throw updateError;
-    }
+    if (updateError) throw updateError;
 
-    // 4. Log Transaction
     await supabaseAdmin.from('wallet_transactions').insert({
       user_id: profile.user_id,
       amount,
       type: 'credit',
       reference: transactionId,
-      description: `Automatic MoMo deposit (Ref: ${reference})`,
+      description: `MoMo Deposit (Ref: ${reference})`,
       status: 'success'
     });
 
-    return NextResponse.json({
-      success: true,
-      message: `Wallet for ${profile.full_name} credited with GHS ${amount.toFixed(2)}`,
-      data: {
-        newBalance: newBalance.toFixed(2),
-        transactionId
-      }
-    });
+    return NextResponse.json({ success: true, newBalance });
   } catch (error: any) {
     console.error('MoMo Webhook Fatal Error:', error);
     return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
@@ -160,8 +143,8 @@ export async function GET() {
     success: true, 
     message: 'MoMo Webhook Active',
     diagnostics: {
-      environmentSecretConfigured: isSecretSet,
-      endpoint: '/api/momo'
+      secretIsConfigured: isSecretSet,
+      supportedFormat: "JSON with 'text' field OR raw SMS text"
     }
   });
 }
