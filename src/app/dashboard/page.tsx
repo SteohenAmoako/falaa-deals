@@ -141,6 +141,56 @@ export default function DashboardPage() {
     loadDashboardData();
   }, [loadDashboardData]);
 
+  // Real-time synchronization
+  useEffect(() => {
+    if (!profile?.user_id) return;
+
+    // Listen for profile updates (balance changes)
+    const profileSubscription = supabase
+      .channel('profile-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `user_id=eq.${profile.user_id}`
+        },
+        (payload) => {
+          setProfile(payload.new as Profile);
+          toast({
+            title: "Balance Updated",
+            description: `Your new balance is GHS ${Number((payload.new as Profile).wallet_balance).toFixed(2)}`,
+          });
+          // Refresh transactions to show the new deposit
+          loadDashboardData();
+        }
+      )
+      .subscribe();
+
+    // Listen for new transactions
+    const txSubscription = supabase
+      .channel('transaction-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'wallet_transactions',
+          filter: `user_id=eq.${profile.user_id}`
+        },
+        () => {
+          loadDashboardData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(profileSubscription);
+      supabase.removeChannel(txSubscription);
+    };
+  }, [profile?.user_id, loadDashboardData, toast]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push('/');
