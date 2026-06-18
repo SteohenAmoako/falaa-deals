@@ -9,6 +9,11 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const PLAN_COSTS: Record<string, number> = {
+  '6a282f0167c07f8445745e7b': 6.5, // 3.4GB
+  '6a282eb267c07f8445745dcc': 12.5, // 5.1GB
+};
+
 /**
  * Fetches the maintenance mode status.
  */
@@ -42,6 +47,7 @@ export async function getAdminDashboardData() {
 
     const today = new Date().toISOString().split('T')[0];
     
+    // Fetch successful deposits
     const { data: depositsToday } = await supabaseAdmin
       .from('wallet_transactions')
       .select('amount')
@@ -51,17 +57,36 @@ export async function getAdminDashboardData() {
 
     const todayDepositsAmount = (depositsToday || []).reduce((sum, tx) => sum + parseFloat(tx.amount.toString()), 0);
 
-    const { count: todayOrders } = await supabaseAdmin
+    // Fetch orders to calculate profit
+    const { data: allSuccessfulOrders } = await supabaseAdmin
+      .from('rahitalu_orders')
+      .select('plan_id, sell_price_ghs, created_at')
+      .not('status', 'eq', 'failed');
+
+    let totalProfit = 0;
+    let todayProfit = 0;
+
+    (allSuccessfulOrders || []).forEach(order => {
+      const cost = PLAN_COSTS[order.plan_id] || 0;
+      const profit = parseFloat(order.sell_price_ghs.toString()) - cost;
+      
+      totalProfit += profit;
+      if (order.created_at.startsWith(today)) {
+        todayProfit += profit;
+      }
+    });
+
+    const { count: todayOrdersCount } = await supabaseAdmin
       .from('rahitalu_orders')
       .select('*', { count: 'exact', head: true })
       .gte('created_at', today);
 
     const upstreamDash = await getUpstreamDashboard();
-    const upstreamOrders = await getUpstreamOrderHistory(20);
+    const upstreamOrders = await getUpstreamOrderHistory(50);
 
     const { data: users } = await supabaseAdmin
       .from('profiles')
-      .select('id, full_name, reference_code, wallet_balance, created_at, user_id')
+      .select('id, full_name, phone, reference_code, wallet_balance, created_at, user_id')
       .order('created_at', { ascending: false })
       .limit(100);
 
@@ -70,7 +95,7 @@ export async function getAdminDashboardData() {
       .select('*, profiles(full_name)')
       .eq('type', 'credit')
       .order('created_at', { ascending: false })
-      .limit(30);
+      .limit(50);
 
     const systemStatus = await getSystemStatus();
 
@@ -78,8 +103,10 @@ export async function getAdminDashboardData() {
       stats: {
         totalUsers: totalUsers || 0,
         todayDeposits: todayDepositsAmount,
-        todayOrders: todayOrders || 0,
-        rahitaluBalance: upstreamDash?.wallet?.balance || 0
+        todayOrders: todayOrdersCount || 0,
+        rahitaluBalance: upstreamDash?.wallet?.balance || 0,
+        totalProfit: totalProfit,
+        todayProfit: todayProfit
       },
       systemStatus,
       users: users || [],
@@ -95,7 +122,7 @@ export async function getAdminDashboardData() {
       }))
     };
   } catch (error: any) {
-    console.error('Admin Data Fetch Failed');
+    console.error('Admin Data Fetch Failed:', error);
     throw new Error('Could not retrieve administrative data');
   }
 }

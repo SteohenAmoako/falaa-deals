@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Users, ShoppingCart, Wallet, 
   Search, Loader2, RefreshCw, CheckCircle2, Clock, XCircle,
-  Zap, ArrowDownLeft, LogOut, LayoutDashboard, AlertCircle, Save, Settings2, History, TrendingUp, Download
+  Zap, ArrowDownLeft, LogOut, LayoutDashboard, AlertCircle, Save, Settings2, History, TrendingUp, Download, BarChart3, Coins
 } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -40,7 +40,14 @@ export default function AdminDashboard() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [search, setSearch]         = useState('');
   const [data, setData] = useState<{
-    stats: { totalUsers: number; todayDeposits: number; todayOrders: number; rahitaluBalance: number };
+    stats: { 
+      totalUsers: number; 
+      todayDeposits: number; 
+      todayOrders: number; 
+      rahitaluBalance: number;
+      totalProfit: number;
+      todayProfit: number;
+    };
     systemStatus: { enabled: boolean; message: string };
     users: any[];
     liveStream: any[];
@@ -230,7 +237,7 @@ export default function AdminDashboard() {
       </header>
 
       <div className="p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto space-y-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
           <Card className="lg:col-span-1 bg-[#111111] border-white/5 overflow-hidden">
             <CardHeader className="border-b border-white/5 flex flex-row items-center justify-between py-4">
               <div className="flex items-center gap-2">
@@ -256,10 +263,13 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
 
-          <div className="lg:col-span-2 grid grid-cols-2 gap-3 sm:gap-4">
+          <div className="lg:col-span-3 grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             <StatCard icon={Users} iconColor="text-[#FFD700]" iconBg="bg-[#FFD700]/10" value={data?.stats.totalUsers ?? 0} label="Total Users" loading={loading} />
             <StatCard icon={ArrowDownLeft} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" value={`GHS ${(data?.stats.todayDeposits ?? 0).toFixed(2)}`} label="Today's Deposits" loading={loading} />
             <StatCard icon={ShoppingCart} iconColor="text-blue-400" iconBg="bg-blue-500/10" value={data?.stats.todayOrders ?? 0} label="Orders Today" loading={loading} />
+            
+            <StatCard icon={TrendingUp} iconColor="text-amber-500" iconBg="bg-amber-500/10" value={`GHS ${(data?.stats.todayProfit ?? 0).toFixed(2)}`} label="Today's Profit" loading={loading} />
+            <StatCard icon={Coins} iconColor="text-emerald-500" iconBg="bg-emerald-500/10" value={`GHS ${(data?.stats.totalProfit ?? 0).toFixed(2)}`} label="All-Time Profit" loading={loading} />
             <StatCard icon={Wallet} iconColor="text-black" iconBg="bg-[#FFD700]" value={`GHS ${(data?.stats.rahitaluBalance ?? 0).toFixed(2)}`} label="Rahitalu Balance" loading={loading} highlight />
           </div>
         </div>
