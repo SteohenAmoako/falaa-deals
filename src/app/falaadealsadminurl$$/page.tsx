@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Users, ShoppingCart, Wallet, 
   Search, Loader2, RefreshCw, CheckCircle2, Clock, XCircle,
-  Zap, ArrowDownLeft, LogOut, LayoutDashboard, AlertCircle, Save, Settings2, History, TrendingUp, Download, BarChart3, Coins
+  Zap, ArrowDownLeft, LogOut, LayoutDashboard, AlertCircle, Save, Settings2, History, TrendingUp, Download, BarChart3, Coins, Filter, ChevronLeft, ChevronRight, ArrowUpDown
 } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -34,11 +34,21 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 
+const PAGE_SIZE = 15;
+
 export default function AdminDashboard() {
   const [loading, setLoading]       = useState(true);
   const [authLoading, setAuthLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [search, setSearch]         = useState('');
+  
+  // Search States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('activity');
+  
+  // Sorting & Pagination States
+  const [currentPage, setCurrentPage] = useState(1);
+  const [userSortField, setUserSortField] = useState<string>('recent');
+
   const [data, setData] = useState<{
     stats: { 
       totalUsers: number; 
@@ -50,6 +60,7 @@ export default function AdminDashboard() {
     };
     systemStatus: { enabled: boolean; message: string };
     users: any[];
+    orders: any[];
     liveStream: any[];
     recentTransactions: any[];
   } | null>(null);
@@ -96,6 +107,94 @@ export default function AdminDashboard() {
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
+
+  // Advanced User Processing
+  const processedUsers = useMemo(() => {
+    if (!data) return [];
+
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    return data.users.map(user => {
+      const userOrders = data.orders.filter(o => o.user_id === user.user_id);
+      const userTxs = data.recentTransactions.filter(t => t.user_id === user.user_id);
+      
+      const lifetimeSpend = userOrders.reduce((sum, o) => sum + Number(o.sell_price_ghs), 0);
+      const purchases7Days = userOrders.filter(o => new Date(o.created_at) >= sevenDaysAgo).length;
+      const purchases30Days = userOrders.filter(o => new Date(o.created_at) >= thirtyDaysAgo).length;
+      
+      const lastTxDate = userTxs.length > 0 ? new Date(userTxs[0].created_at) : new Date(user.created_at);
+
+      return {
+        ...user,
+        lifetimeSpend,
+        purchases7Days,
+        purchases30Days,
+        lastActivity: lastTxDate.toISOString()
+      };
+    });
+  }, [data]);
+
+  // Filtering Logic
+  const filteredData = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    
+    if (activeTab === 'activity') {
+      return (data?.liveStream || []).filter(item => 
+        item.phone?.includes(query) || 
+        item.plan?.toLowerCase().includes(query) ||
+        item.reference?.toLowerCase().includes(query)
+      );
+    }
+    
+    if (activeTab === 'deposits') {
+      return (data?.recentTransactions || []).filter(tx => 
+        tx.profiles?.full_name?.toLowerCase().includes(query) ||
+        tx.reference?.toLowerCase().includes(query) ||
+        tx.amount?.toString().includes(query)
+      );
+    }
+    
+    if (activeTab === 'users') {
+      let result = processedUsers.filter(u =>
+        u.full_name?.toLowerCase().includes(query) ||
+        u.reference_code?.toLowerCase().includes(query) ||
+        u.phone?.includes(query)
+      );
+
+      // Advanced Sorting
+      switch (userSortField) {
+        case 'balance':
+          result.sort((a, b) => Number(b.wallet_balance) - Number(a.wallet_balance));
+          break;
+        case 'spend':
+          result.sort((a, b) => b.lifetimeSpend - a.lifetimeSpend);
+          break;
+        case 'purchases-7':
+          result.sort((a, b) => b.purchases7Days - a.purchases7Days);
+          break;
+        case 'purchases-30':
+          result.sort((a, b) => b.purchases30Days - a.purchases30Days);
+          break;
+        case 'recent':
+        default:
+          result.sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime());
+          break;
+      }
+      return result;
+    }
+    
+    return [];
+  }, [activeTab, searchQuery, data, processedUsers, userSortField]);
+
+  // Pagination Helper
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredData.slice(start, start + PAGE_SIZE);
+  }, [filteredData, currentPage]);
+
+  const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
 
   const handleUpdateStatus = async () => {
     setUpdatingStatus(true);
@@ -149,54 +248,31 @@ export default function AdminDashboard() {
     router.push('/');
   };
 
-  const safeTime = (ts: string) => {
-    try {
-      const d = new Date(ts);
-      if (isNaN(d.getTime())) return '—';
-      return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    } catch { return '—'; }
-  };
-
-  const filteredUsers = (data?.users || []).filter(u =>
-    u.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-    u.reference_code?.toLowerCase().includes(search.toLowerCase()) ||
-    u.phone?.includes(search)
-  );
-
   const handleExportUsers = () => {
-    if (!filteredUsers.length) {
+    if (!filteredData.length) {
       toast({ title: "No data", description: "No users to export.", variant: "destructive" });
       return;
     }
 
-    // CSV Headers
-    const headers = ["Full Name", "Phone Number"];
-    
-    // Prepare rows
-    const rows = filteredUsers.map(user => [
-      `"${user.full_name?.replace(/"/g, '""')}"`, // Escape quotes in names
-      `"${user.phone || ''}"`
+    const headers = ["Full Name", "Phone Number", "Reference", "Balance", "Lifetime Spend"];
+    const rows = filteredData.map(user => [
+      `"${user.full_name?.replace(/"/g, '""')}"`,
+      `"${user.phone || ''}"`,
+      `"${user.reference_code}"`,
+      user.wallet_balance,
+      user.lifetimeSpend || 0
     ]);
 
-    // Create CSV content
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.join(","))
-    ].join("\n");
-
-    // Create blob and download
+    const csvContent = [headers.join(","), ...rows.map(row => row.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    const date = new Date().toISOString().split('T')[0];
-    
     link.setAttribute("href", url);
-    link.setAttribute("download", `falaadeals_customers_${date}.csv`);
+    link.setAttribute("download", `customers_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
-    toast({ title: "Export Started", description: "Your customer list is being downloaded." });
+    toast({ title: "Export Started" });
   };
 
   if (authLoading) return (
@@ -267,121 +343,192 @@ export default function AdminDashboard() {
             <StatCard icon={Users} iconColor="text-[#FFD700]" iconBg="bg-[#FFD700]/10" value={data?.stats.totalUsers ?? 0} label="Total Users" loading={loading} />
             <StatCard icon={ArrowDownLeft} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" value={`GHS ${(data?.stats.todayDeposits ?? 0).toFixed(2)}`} label="Today's Deposits" loading={loading} />
             <StatCard icon={ShoppingCart} iconColor="text-blue-400" iconBg="bg-blue-500/10" value={data?.stats.todayOrders ?? 0} label="Orders Today" loading={loading} />
-            
             <StatCard icon={TrendingUp} iconColor="text-amber-500" iconBg="bg-amber-500/10" value={`GHS ${(data?.stats.todayProfit ?? 0).toFixed(2)}`} label="Today's Profit" loading={loading} />
             <StatCard icon={Coins} iconColor="text-emerald-500" iconBg="bg-emerald-500/10" value={`GHS ${(data?.stats.totalProfit ?? 0).toFixed(2)}`} label="All-Time Profit" loading={loading} />
             <StatCard icon={Wallet} iconColor="text-black" iconBg="bg-[#FFD700]" value={`GHS ${(data?.stats.rahitaluBalance ?? 0).toFixed(2)}`} label="Rahitalu Balance" loading={loading} highlight />
           </div>
         </div>
 
-        <Tabs defaultValue="activity" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setCurrentPage(1); setSearchQuery(''); }} className="space-y-6">
           <TabsList className="bg-[#111111] border border-white/5 p-1">
             <TabsTrigger value="activity" className="data-[state=active]:bg-[#FFD700] data-[state=active]:text-black text-xs font-bold uppercase tracking-widest px-6">Live Activity</TabsTrigger>
             <TabsTrigger value="deposits" className="data-[state=active]:bg-[#FFD700] data-[state=active]:text-black text-xs font-bold uppercase tracking-widest px-6">Deposits</TabsTrigger>
             <TabsTrigger value="users" className="data-[state=active]:bg-[#FFD700] data-[state=active]:text-black text-xs font-bold uppercase tracking-widest px-6">Users</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="activity">
-            <div className="rounded-2xl border border-white/5 bg-[#111111] overflow-hidden">
-              {loading ? (
-                <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 text-zinc-600 animate-spin" /></div>
-              ) : !data?.liveStream?.length ? (
-                <div className="text-center py-16 text-zinc-600 text-sm">No recent data orders.</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader><TableRow className="border-white/5 hover:bg-transparent"><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pl-5">Time</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Phone</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Plan</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Price</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pr-5 text-right">Status</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {data.liveStream.map((item) => (
-                        <TableRow key={item.id} className="border-white/5 hover:bg-white/3">
-                          <TableCell className="pl-5 text-[11px] text-zinc-500 whitespace-nowrap">{safeTime(item.timestamp)}</TableCell>
-                          <TableCell className="font-mono text-sm font-bold">{item.phone}</TableCell>
-                          <TableCell className="text-[11px] font-black text-[#FFD700]">{item.plan}</TableCell>
-                          <TableCell className="text-[11px] font-bold">GHS {item.price ?? '—'}</TableCell>
-                          <TableCell className="pr-5 text-right"><StatusPill status={item.status} /></TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
+          <div className="flex flex-col md:flex-row md:items-center gap-4 justify-between">
+            <div className="relative w-full max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
+              <Input 
+                placeholder={`Search ${activeTab}...`} 
+                value={searchQuery} 
+                onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }} 
+                className="pl-9 bg-[#111111] border-white/5 text-white h-10 w-full" 
+              />
             </div>
-          </TabsContent>
-
-          <TabsContent value="deposits">
-            <div className="rounded-2xl border border-white/5 bg-[#111111] overflow-hidden">
-              {loading ? (
-                <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 text-zinc-600 animate-spin" /></div>
-              ) : !data?.recentTransactions?.length ? (
-                <div className="text-center py-16 text-zinc-600 text-sm">No recent deposits found.</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader><TableRow className="border-white/5 hover:bg-transparent"><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pl-5">Date</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Customer</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Amount</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Reference</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pr-5 text-right">Status</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {data.recentTransactions.map((tx) => (
-                        <TableRow key={tx.id} className="border-white/5 hover:bg-white/3">
-                          <TableCell className="pl-5 text-[11px] text-zinc-500 whitespace-nowrap">{new Date(tx.created_at).toLocaleString()}</TableCell>
-                          <TableCell className="text-sm font-semibold">{tx.profiles?.full_name || 'System'}</TableCell>
-                          <TableCell className="text-sm font-black text-emerald-400">GHS {parseFloat(tx.amount).toFixed(2)}</TableCell>
-                          <TableCell className="font-mono text-[10px] text-zinc-400">{tx.reference}</TableCell>
-                          <TableCell className="pr-5 text-right"><StatusPill status={tx.status} /></TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+            
+            {activeTab === 'users' && (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 bg-[#111111] px-3 py-1.5 rounded-lg border border-white/5">
+                  <Filter className="w-3.5 h-3.5 text-zinc-500" />
+                  <Select value={userSortField} onValueChange={setUserSortField}>
+                    <SelectTrigger className="w-[180px] h-7 bg-transparent border-none text-[10px] font-bold uppercase text-[#FFD700]">
+                      <SelectValue placeholder="Sort By" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#111111] border-white/5 text-white">
+                      <SelectItem value="recent">Recent Activity</SelectItem>
+                      <SelectItem value="balance">Highest Balance</SelectItem>
+                      <SelectItem value="spend">Lifetime Spend</SelectItem>
+                      <SelectItem value="purchases-7">Purchases (7 Days)</SelectItem>
+                      <SelectItem value="purchases-30">Purchases (30 Days)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="users">
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
-                  <Input 
-                    placeholder="Search name, phone or reference…" 
-                    value={search} 
-                    onChange={e => setSearch(e.target.value)} 
-                    className="pl-9 bg-[#111111] border-white/5 text-white h-10 w-full" 
-                  />
-                </div>
-                <Button 
-                  onClick={handleExportUsers} 
-                  variant="outline" 
-                  className="h-10 bg-[#111111] border-white/5 text-zinc-400 hover:text-white gap-2 font-bold text-xs uppercase tracking-widest"
-                >
-                  <Download className="w-4 h-4" />
-                  Export Excel
+                <Button onClick={handleExportUsers} variant="outline" className="h-10 bg-[#111111] border-white/5 text-zinc-400 hover:text-white gap-2 font-bold text-xs uppercase tracking-widest">
+                  <Download className="w-4 h-4" /> Export CSV
                 </Button>
               </div>
-              <div className="rounded-2xl border border-white/5 bg-[#111111] overflow-hidden">
+            )}
+          </div>
+
+          <TabsContent value="activity">
+            <div className="rounded-2xl border border-white/5 bg-[#111111] overflow-hidden">
+              <div className="overflow-x-auto">
                 <Table>
-                  <TableHeader><TableRow className="border-white/5 hover:bg-transparent"><TableHead className="pl-5">User</TableHead><TableHead>Phone</TableHead><TableHead>Reference</TableHead><TableHead>Balance</TableHead><TableHead className="text-right pr-5">Action</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow className="border-white/5 hover:bg-transparent"><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pl-5">Time</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Phone</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Plan</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Price</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pr-5 text-right">Status</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {filteredUsers.map(user => (
-                      <TableRow key={user.id} className="border-white/5 hover:bg-white/3">
-                        <TableCell className="pl-5">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-semibold">{user.full_name}</span>
-                            <span className="text-[10px] text-zinc-500 font-mono">{user.user_id?.substring(0,8)}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell><span className="text-xs font-mono text-zinc-400">{user.phone || 'N/A'}</span></TableCell>
-                        <TableCell><code className="text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-[#FFD700]">{user.reference_code}</code></TableCell>
-                        <TableCell className="font-bold">GHS {parseFloat(user.wallet_balance).toFixed(2)}</TableCell>
-                        <TableCell className="text-right pr-5"><Button size="sm" onClick={() => openAdjustment(user)} className="h-7 text-[9px] bg-[#FFD700]/10 text-[#FFD700] hover:bg-[#FFD700] hover:text-black">Adjust</Button></TableCell>
+                    {paginatedData.map((item) => (
+                      <TableRow key={item.id} className="border-white/5 hover:bg-white/3">
+                        <TableCell className="pl-5 text-[11px] text-zinc-500 whitespace-nowrap">{new Date(item.timestamp).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</TableCell>
+                        <TableCell className="font-mono text-sm font-bold">{item.phone}</TableCell>
+                        <TableCell className="text-[11px] font-black text-[#FFD700]">{item.plan}</TableCell>
+                        <TableCell className="text-[11px] font-bold">GHS {item.price ?? '—'}</TableCell>
+                        <TableCell className="pr-5 text-right"><StatusPill status={item.status} /></TableCell>
                       </TableRow>
                     ))}
+                    {paginatedData.length === 0 && (
+                      <TableRow><TableCell colSpan={5} className="text-center py-10 text-zinc-600">No activity matches your search.</TableCell></TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </div>
             </div>
           </TabsContent>
+
+          <TabsContent value="deposits">
+            <div className="rounded-2xl border border-white/5 bg-[#111111] overflow-hidden">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader><TableRow className="border-white/5 hover:bg-transparent"><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pl-5">Date</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Customer</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Amount</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Reference</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pr-5 text-right">Status</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {paginatedData.map((tx) => (
+                      <TableRow key={tx.id} className="border-white/5 hover:bg-white/3">
+                        <TableCell className="pl-5 text-[11px] text-zinc-500 whitespace-nowrap">{new Date(tx.created_at).toLocaleString()}</TableCell>
+                        <TableCell className="text-sm font-semibold">{tx.profiles?.full_name || 'System'}</TableCell>
+                        <TableCell className="text-sm font-black text-emerald-400">GHS {parseFloat(tx.amount).toFixed(2)}</TableCell>
+                        <TableCell className="font-mono text-[10px] text-zinc-400">{tx.reference}</TableCell>
+                        <TableCell className="pr-5 text-right"><StatusPill status={tx.status} /></TableCell>
+                      </TableRow>
+                    ))}
+                    {paginatedData.length === 0 && (
+                      <TableRow><TableCell colSpan={5} className="text-center py-10 text-zinc-600">No deposits match your search.</TableCell></TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="users">
+            <div className="rounded-2xl border border-white/5 bg-[#111111] overflow-hidden">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader><TableRow className="border-white/5 hover:bg-transparent"><TableHead className="pl-5 text-[10px] uppercase text-zinc-600">User</TableHead><TableHead className="text-[10px] uppercase text-zinc-600">Phone</TableHead><TableHead className="text-[10px] uppercase text-zinc-600">Balance</TableHead><TableHead className="text-[10px] uppercase text-zinc-600">Spend</TableHead><TableHead className="text-[10px] uppercase text-zinc-600">Activity</TableHead><TableHead className="text-right pr-5 text-[10px] uppercase text-zinc-600">Action</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {paginatedData.map(user => (
+                      <TableRow key={user.id} className="border-white/5 hover:bg-white/3">
+                        <TableCell className="pl-5">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-white">{user.full_name}</span>
+                            <span className="text-[10px] text-[#FFD700] font-black">{user.reference_code}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell><span className="text-xs font-mono text-zinc-400">{user.phone || 'N/A'}</span></TableCell>
+                        <TableCell className="font-black">GHS {parseFloat(user.wallet_balance).toFixed(2)}</TableCell>
+                        <TableCell className="text-xs font-bold text-emerald-400">GHS {user.lifetimeSpend.toFixed(2)}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] text-zinc-500 uppercase font-bold">{new Date(user.lastActivity).toLocaleDateString()}</span>
+                            <span className="text-[9px] text-zinc-600 font-medium">{user.purchases30Days} purchases in 30d</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right pr-5"><Button size="sm" onClick={() => openAdjustment(user)} className="h-7 text-[9px] bg-[#FFD700]/10 text-[#FFD700] hover:bg-[#FFD700] hover:text-black font-black uppercase">Adjust</Button></TableCell>
+                      </TableRow>
+                    ))}
+                    {paginatedData.length === 0 && (
+                      <TableRow><TableCell colSpan={6} className="text-center py-10 text-zinc-600">No users match your criteria.</TableCell></TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between py-4">
+              <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
+                Showing {Math.min(filteredData.length, (currentPage - 1) * PAGE_SIZE + 1)} to {Math.min(filteredData.length, currentPage * PAGE_SIZE)} of {filteredData.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  disabled={currentPage === 1} 
+                  onClick={() => setCurrentPage(p => p - 1)}
+                  className="bg-[#111111] border-white/5 h-8 w-8 p-0"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <div className="flex items-center gap-1">
+                  {[...Array(totalPages)].map((_, i) => {
+                    const pageNum = i + 1;
+                    if (totalPages > 5 && Math.abs(currentPage - pageNum) > 2 && pageNum !== 1 && pageNum !== totalPages) {
+                      if (Math.abs(currentPage - pageNum) === 3) return <span key={pageNum} className="text-zinc-600">...</span>;
+                      return null;
+                    }
+                    return (
+                      <Button
+                        key={pageNum}
+                        size="sm"
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={cn(
+                          "h-8 w-8 p-0 text-[10px] font-black",
+                          currentPage === pageNum ? "bg-[#FFD700] text-black border-none" : "bg-[#111111] border-white/5 text-zinc-500"
+                        )}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  disabled={currentPage === totalPages} 
+                  onClick={() => setCurrentPage(p => p + 1)}
+                  className="bg-[#111111] border-white/5 h-8 w-8 p-0"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </Tabs>
       </div>
 
+      {/* Dialogs remain unchanged */}
       <Dialog open={isAdjOpen} onOpenChange={setIsAdjOpen}>
         <DialogContent className="bg-[#111111] border-white/5 text-white sm:max-w-md">
           <DialogHeader>

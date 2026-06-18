@@ -60,7 +60,7 @@ export async function getAdminDashboardData() {
     // Fetch orders to calculate profit
     const { data: allSuccessfulOrders } = await supabaseAdmin
       .from('rahitalu_orders')
-      .select('plan_id, sell_price_ghs, created_at')
+      .select('user_id, plan_id, sell_price_ghs, created_at, status')
       .not('status', 'eq', 'failed');
 
     let totalProfit = 0;
@@ -82,20 +82,20 @@ export async function getAdminDashboardData() {
       .gte('created_at', today);
 
     const upstreamDash = await getUpstreamDashboard();
-    const upstreamOrders = await getUpstreamOrderHistory(50);
+    const upstreamOrders = await getUpstreamOrderHistory(100);
 
     const { data: users } = await supabaseAdmin
       .from('profiles')
       .select('id, full_name, phone, reference_code, wallet_balance, created_at, user_id')
       .order('created_at', { ascending: false })
-      .limit(100);
+      .limit(500);
 
     const { data: recentTransactions } = await supabaseAdmin
       .from('wallet_transactions')
       .select('*, profiles(full_name)')
       .eq('type', 'credit')
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(200);
 
     const systemStatus = await getSystemStatus();
 
@@ -110,6 +110,7 @@ export async function getAdminDashboardData() {
       },
       systemStatus,
       users: users || [],
+      orders: allSuccessfulOrders || [],
       recentTransactions: recentTransactions || [],
       liveStream: (upstreamOrders || []).map((order: any) => ({
         id: order._id || order.id || Math.random().toString(),
