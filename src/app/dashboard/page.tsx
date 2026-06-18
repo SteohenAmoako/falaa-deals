@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import PlanCard from '@/components/dashboard/PlanCard';
 import ForecastTool from '@/components/dashboard/ForecastTool';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { PLANS, type Profile, type RahitaluOrder, type WalletTransaction } from '@/lib/types';
 import {
   LayoutDashboard, History, ShoppingBag, LogOut,
-  BarChart3, User, Loader2, ArrowUpRight, ArrowDownLeft, Menu, X, CheckCircle2, CreditCard, TrendingUp, AlertTriangle, ExternalLink, Copy, Wallet, Info, Plus
+  BarChart3, User, Loader2, ArrowUpRight, ArrowDownLeft, Menu, X, CheckCircle2, CreditCard, TrendingUp, AlertTriangle, ExternalLink, Copy, Wallet, Info, Plus, Search, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -36,6 +37,8 @@ const NAV_ITEMS = [
   { id: 'usage',    label: 'Usage Stats',  icon: BarChart3 },
 ] as const;
 
+const PAGE_SIZE = 10;
+
 export default function DashboardPage() {
   const [profile, setProfile]           = useState<Profile | null>(null);
   const [orders, setOrders]             = useState<RahitaluOrder[]>([]);
@@ -44,6 +47,13 @@ export default function DashboardPage() {
   const [loading, setLoading]           = useState(true);
   const [activeTab, setActiveTab]       = useState<DashboardTab>('dashboard');
   const [sidebarOpen, setSidebarOpen]   = useState(false);
+  
+  // Filtering and Pagination States
+  const [ordersSearch, setOrdersSearch] = useState('');
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [txSearch, setTxSearch] = useState('');
+  const [txPage, setTxPage] = useState(1);
+
   const { toast }  = useToast();
   const router     = useRouter();
   
@@ -145,7 +155,6 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!profile?.user_id) return;
 
-    // Listen for profile updates (balance changes)
     const profileSubscription = supabase
       .channel('profile-updates')
       .on(
@@ -162,13 +171,11 @@ export default function DashboardPage() {
             title: "Balance Updated",
             description: `Your new balance is GHS ${Number((payload.new as Profile).wallet_balance).toFixed(2)}`,
           });
-          // Refresh transactions to show the new deposit
           loadDashboardData();
         }
       )
       .subscribe();
 
-    // Listen for new transactions
     const txSubscription = supabase
       .channel('transaction-updates')
       .on(
@@ -191,6 +198,35 @@ export default function DashboardPage() {
     };
   }, [profile?.user_id, loadDashboardData, toast]);
 
+  // Filter and Pagination Logic
+  const filteredOrders = useMemo(() => {
+    return orders.filter(o => 
+      o.gig.toLowerCase().includes(ordersSearch.toLowerCase()) || 
+      o.phone.includes(ordersSearch)
+    );
+  }, [orders, ordersSearch]);
+
+  const paginatedOrders = useMemo(() => {
+    const start = (ordersPage - 1) * PAGE_SIZE;
+    return filteredOrders.slice(start, start + PAGE_SIZE);
+  }, [filteredOrders, ordersPage]);
+
+  const totalOrderPages = Math.ceil(filteredOrders.length / PAGE_SIZE);
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => 
+      t.description.toLowerCase().includes(txSearch.toLowerCase()) ||
+      t.amount.toString().includes(txSearch)
+    );
+  }, [transactions, txSearch]);
+
+  const paginatedTransactions = useMemo(() => {
+    const start = (txPage - 1) * PAGE_SIZE;
+    return filteredTransactions.slice(start, start + PAGE_SIZE);
+  }, [filteredTransactions, txPage]);
+
+  const totalTxPages = Math.ceil(filteredTransactions.length / PAGE_SIZE);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push('/');
@@ -199,6 +235,11 @@ export default function DashboardPage() {
   const handleTabChange = (tab: DashboardTab) => {
     setActiveTab(tab);
     setSidebarOpen(false);
+    // Reset pagination when switching tabs
+    setOrdersPage(1);
+    setTxPage(1);
+    setOrdersSearch('');
+    setTxSearch('');
   };
 
   const copyRef = (code: string) => {
@@ -222,7 +263,7 @@ export default function DashboardPage() {
   if (!profile) return null;
 
   const firstName = profile.full_name.split(' ')[0];
-  const totalOrders = orders.length;
+  const totalOrdersCount = orders.length;
   const deliveredOrders = orders.filter(o => ['delivered', 'success'].includes((o.upstream_status || o.status)?.toLowerCase())).length;
   const totalDeposits = transactions.filter(t => t.type === 'credit' && t.status === 'success').reduce((sum, t) => sum + Number(t.amount), 0);
   const totalSalesVolume = orders.filter(o => !['failed'].includes(o.status?.toLowerCase())).reduce((sum, o) => sum + Number(o.sell_price_ghs), 0);
@@ -435,58 +476,142 @@ export default function DashboardPage() {
           )}
 
           {activeTab === 'orders' && (
-            <div className="animate-in fade-in duration-300 rounded-2xl border border-white/5 bg-[#111118] overflow-hidden">
-              {orders.length === 0 ? (
-                <EmptyState icon={ShoppingBag} message="No orders yet. Buy your first bundle above." />
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader><TableRow className="border-white/5"><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Date</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Bundle</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Phone</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Status</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4 text-right">Price</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {orders.map(order => (
-                        <TableRow key={order.id} className="border-white/5 hover:bg-white/3">
-                          <TableCell className="text-sm text-zinc-400 py-4">{new Date(order.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</TableCell>
-                          <TableCell className="font-bold text-white">{order.gig}</TableCell>
-                          <TableCell className="font-mono text-xs text-zinc-400">{order.phone}</TableCell>
-                          <TableCell><StatusBadge status={order.upstream_status || order.status} /></TableCell>
-                          <TableCell className="font-bold text-white text-right">GHS {Number(order.sell_price_ghs).toFixed(2)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
+            <div className="animate-in fade-in duration-300 space-y-4">
+              <div className="relative max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                <Input 
+                  placeholder="Search by bundle or phone..." 
+                  className="pl-10 bg-[#111118] border-white/5 text-white" 
+                  value={ordersSearch}
+                  onChange={(e) => { setOrdersSearch(e.target.value); setOrdersPage(1); }}
+                />
+              </div>
+
+              <div className="rounded-2xl border border-white/5 bg-[#111118] overflow-hidden">
+                {filteredOrders.length === 0 ? (
+                  <EmptyState icon={ShoppingBag} message={ordersSearch ? "No matching orders found." : "No orders yet. Buy your first bundle above."} />
+                ) : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader><TableRow className="border-white/5"><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Date</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Bundle</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Phone</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Status</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4 text-right">Price</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                          {paginatedOrders.map(order => (
+                            <TableRow key={order.id} className="border-white/5 hover:bg-white/3">
+                              <TableCell className="text-sm text-zinc-400 py-4">{new Date(order.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</TableCell>
+                              <TableCell className="font-bold text-white">{order.gig}</TableCell>
+                              <TableCell className="font-mono text-xs text-zinc-400">{order.phone}</TableCell>
+                              <TableCell><StatusBadge status={order.upstream_status || order.status} /></TableCell>
+                              <TableCell className="font-bold text-white text-right">GHS {Number(order.sell_price_ghs).toFixed(2)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {totalOrderPages > 1 && (
+                      <div className="p-4 border-t border-white/5 flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
+                          Page {ordersPage} of {totalOrderPages}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            disabled={ordersPage === 1}
+                            onClick={() => setOrdersPage(p => p - 1)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <ChevronLeft size={16} />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            disabled={ordersPage === totalOrderPages}
+                            onClick={() => setOrdersPage(p => p + 1)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <ChevronRight size={16} />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           )}
 
           {activeTab === 'transactions' && (
-            <div className="animate-in fade-in duration-300 rounded-2xl border border-white/5 bg-[#111118] overflow-hidden">
-              {transactions.length === 0 ? (
-                <EmptyState icon={History} message="No transactions yet. Top up your wallet to get started." />
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader><TableRow className="border-white/5"><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Date</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Type</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Description</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4 text-right">Amount</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {transactions.map(tx => (
-                        <TableRow key={tx.id} className="border-white/5 hover:bg-white/3">
-                          <TableCell className="text-sm text-zinc-400 py-4">{new Date(tx.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</TableCell>
-                          <TableCell><div className="flex items-center gap-1.5">{tx.type === 'credit' ? <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowUpRight className="w-3.5 h-3.5 text-red-400" />}<span className={cn("text-xs font-bold uppercase", tx.type === 'credit' ? 'text-emerald-400' : 'text-red-400')}>{tx.type}</span></div></TableCell>
-                          <TableCell className="text-sm text-zinc-400 max-w-[160px] truncate">{tx.description}</TableCell>
-                          <TableCell className={cn("font-black text-right", tx.type === 'credit' ? 'text-emerald-400' : 'text-white')}>{tx.type === 'credit' ? '+' : '-'} GHS {Number(tx.amount).toFixed(2)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
+            <div className="animate-in fade-in duration-300 space-y-4">
+              <div className="relative max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                <Input 
+                  placeholder="Search transactions..." 
+                  className="pl-10 bg-[#111118] border-white/5 text-white" 
+                  value={txSearch}
+                  onChange={(e) => { setTxSearch(e.target.value); setTxPage(1); }}
+                />
+              </div>
+
+              <div className="rounded-2xl border border-white/5 bg-[#111118] overflow-hidden">
+                {filteredTransactions.length === 0 ? (
+                  <EmptyState icon={History} message={txSearch ? "No matching transactions found." : "No transactions yet. Top up your wallet to get started."} />
+                ) : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader><TableRow className="border-white/5"><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Date</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Type</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Description</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4 text-right">Amount</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                          {paginatedTransactions.map(tx => (
+                            <TableRow key={tx.id} className="border-white/5 hover:bg-white/3">
+                              <TableCell className="text-sm text-zinc-400 py-4">{new Date(tx.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</TableCell>
+                              <TableCell><div className="flex items-center gap-1.5">{tx.type === 'credit' ? <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowUpRight className="w-3.5 h-3.5 text-red-400" />}<span className={cn("text-xs font-bold uppercase", tx.type === 'credit' ? 'text-emerald-400' : 'text-red-400')}>{tx.type}</span></div></TableCell>
+                              <TableCell className="text-sm text-zinc-400 max-w-[160px] truncate">{tx.description}</TableCell>
+                              <TableCell className={cn("font-black text-right", tx.type === 'credit' ? 'text-emerald-400' : 'text-white')}>{tx.type === 'credit' ? '+' : '-'} GHS {Number(tx.amount).toFixed(2)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {totalTxPages > 1 && (
+                      <div className="p-4 border-t border-white/5 flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
+                          Page {txPage} of {totalTxPages}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            disabled={txPage === 1}
+                            onClick={() => setTxPage(p => p - 1)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <ChevronLeft size={16} />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            disabled={txPage === totalTxPages}
+                            onClick={() => setTxPage(p => p + 1)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <ChevronRight size={16} />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           )}
 
           {activeTab === 'usage' && (
             <div className="animate-in fade-in duration-300 space-y-8">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="bg-[#111118] border-white/5 shadow-xl"><CardContent className="p-4 pt-6 text-center space-y-1"><div className="w-8 h-8 rounded-full bg-violet-600/10 flex items-center justify-center mx-auto mb-2"><ShoppingBag className="w-4 h-4 text-violet-400" /></div><div className="text-xl font-black">{totalOrders}</div><div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Total Orders</div></CardContent></Card>
+                <Card className="bg-[#111118] border-white/5 shadow-xl"><CardContent className="p-4 pt-6 text-center space-y-1"><div className="w-8 h-8 rounded-full bg-violet-600/10 flex items-center justify-center mx-auto mb-2"><ShoppingBag className="w-4 h-4 text-violet-400" /></div><div className="text-xl font-black">{totalOrdersCount}</div><div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Total Orders</div></CardContent></Card>
                 <Card className="bg-[#111118] border-white/5 shadow-xl"><CardContent className="p-4 pt-6 text-center space-y-1"><div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /></div><div className="text-xl font-black">{deliveredOrders}</div><div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Delivered</div></CardContent></Card>
                 <Card className="bg-[#111118] border-white/5 shadow-xl"><CardContent className="p-4 pt-6 text-center space-y-1"><div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-2"><CreditCard className="w-4 h-4 text-blue-400" /></div><div className="text-xl font-black">GHS {totalDeposits.toFixed(2)}</div><div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Deposits</div></CardContent></Card>
                 <Card className="bg-violet-600 border-none shadow-xl shadow-violet-600/20"><CardContent className="p-4 pt-6 text-center space-y-1"><div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-2"><TrendingUp className="w-4 h-4 text-white" /></div><div className="text-xl font-black text-white">GHS {totalSalesVolume.toFixed(2)}</div><div className="text-[10px] text-white/60 font-bold uppercase tracking-widest">Sales Vol</div></CardContent></Card>
