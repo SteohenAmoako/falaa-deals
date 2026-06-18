@@ -58,6 +58,19 @@ export default function PlanCard({ plan, userId, walletBalance, disabled }: Plan
       });
       return;
     }
+
+    // MTN Prefix Validation
+    const mtnPrefixes = ['024', '054', '055', '059', '025', '053'];
+    const prefix = phone.substring(0, 3);
+    if (!mtnPrefixes.includes(prefix)) {
+      toast({
+        title: "MTN Number Required",
+        description: "This service is for MTN users only. Use numbers starting with 024, 054, 055, 059, 025, or 053.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setShowConfirm(true);
   };
 
@@ -155,7 +168,7 @@ export default function PlanCard({ plan, userId, walletBalance, disabled }: Plan
             <div className="relative">
               <div className={cn(
                 "absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 transition-colors z-10",
-                isHighlighted ? "text-primary" : "text-muted-foreground/50"
+                isHighlighted ? "text-black" : "text-zinc-400"
               )}>
                 <Smartphone className="w-3 h-3 sm:w-4 sm:h-4" />
               </div>
@@ -166,7 +179,7 @@ export default function PlanCard({ plan, userId, walletBalance, disabled }: Plan
                   "pl-7 sm:pl-11 h-9 sm:h-14 font-bold text-xs sm:text-lg transition-all border-none ring-offset-transparent focus-visible:ring-0",
                   isHighlighted 
                     ? "bg-[#dbeafe] text-black" 
-                    : "bg-black/40 text-white placeholder:text-zinc-800"
+                    : "bg-white/10 text-white placeholder:text-zinc-500"
                 )}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
