@@ -30,8 +30,12 @@ const toastVariants = cva(
     variants: {
       variant: {
         default: "border bg-background text-foreground",
+
         destructive:
-          "destructive group border-destructive bg-destructive text-destructive-foreground",
+          "border-destructive bg-destructive text-destructive-foreground",
+
+        success:
+          "border-green-500 bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-100",
       },
     },
     defaultVariants: {
@@ -49,6 +53,7 @@ const Toast = React.forwardRef<
     <ToastPrimitives.Root
       ref={ref}
       className={cn(toastVariants({ variant }), className)}
+      data-variant={variant}
       {...props}
     />
   )
@@ -90,14 +95,20 @@ ToastClose.displayName = ToastPrimitives.Close.displayName
 
 const ToastTitle = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Title>,
-  React.ComponentPropsWithoutRef<typeof ToastPrimitives.Title>
->(({ className, ...props }, ref) => (
-  <ToastPrimitives.Title
-    ref={ref}
-    className={cn("text-sm font-semibold", className)}
-    {...props}
-  />
-))
+  React.ComponentPropsWithoutRef<typeof ToastPrimitives.Title> & {
+    variant?: "default" | "destructive" | "success"
+  }
+>(({ className, variant, children, ...props }, ref) => {
+  return (
+    <ToastPrimitives.Title
+      ref={ref}
+      className={cn("text-sm font-semibold", className)}
+      {...props}
+    >
+      {variant === "success" ? `🎉 ${children}` : children}
+    </ToastPrimitives.Title>
+  )
+})
 ToastTitle.displayName = ToastPrimitives.Title.displayName
 
 const ToastDescription = React.forwardRef<
@@ -113,7 +124,6 @@ const ToastDescription = React.forwardRef<
 ToastDescription.displayName = ToastPrimitives.Description.displayName
 
 type ToastProps = React.ComponentPropsWithoutRef<typeof Toast>
-
 type ToastActionElement = React.ReactElement<typeof ToastAction>
 
 export {
