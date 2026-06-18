@@ -12,6 +12,7 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   const supabase = createMiddlewareClient({ req, res });
 
+  // This will refresh the session if it's expired
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -23,13 +24,15 @@ export async function middleware(req: NextRequest) {
     }
 
     // Check if user is actually an admin in the database
+    // We fetch this directly from profiles
     const { data: profile } = await supabase
       .from('profiles')
       .select('is_admin')
       .eq('user_id', session.user.id)
-      .single();
+      .maybeSingle();
 
-    if (!profile?.is_admin) {
+    // If no profile found or user is not an admin, send to dashboard
+    if (!profile || profile.is_admin !== true) {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
   }
@@ -38,5 +41,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/falaadealsadminurl$$/:path*'],
+  matcher: ['/falaadealsadminurl$$/:path*', '/falaadealsadminurl$$'],
 };

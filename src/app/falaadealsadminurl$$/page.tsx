@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -83,16 +84,28 @@ export default function AdminDashboard() {
     async function checkAdminAccess() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) { router.push('/'); return; }
+        if (!session) { 
+          router.replace('/'); 
+          return; 
+        }
 
         const { data: profile, error } = await supabase
-          .from('profiles').select('is_admin').eq('user_id', session.user.id).single();
+          .from('profiles')
+          .select('is_admin')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
 
-        if (error || !profile?.is_admin) { router.push('/dashboard'); return; }
+        if (error || !profile?.is_admin) { 
+          router.replace('/dashboard'); 
+          return; 
+        }
 
         setAuthLoading(false);
         fetchData();
-      } catch { router.push('/dashboard'); }
+      } catch (err) { 
+        console.error('Auth check error:', err);
+        router.replace('/dashboard'); 
+      }
     }
     checkAdminAccess();
   }, [router]);
@@ -104,8 +117,12 @@ export default function AdminDashboard() {
       setData(result);
       setLocalSystemEnabled(result.systemStatus.enabled);
       setLocalSystemMessage(result.systemStatus.message);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    } catch (e) { 
+      console.error('Fetch data error:', e); 
+      toast({ title: "Error", description: "Failed to load admin data", variant: "destructive" });
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   // Advanced User Processing
@@ -117,8 +134,8 @@ export default function AdminDashboard() {
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     return data.users.map(user => {
-      const userOrders = data.orders.filter(o => o.user_id === user.user_id);
-      const userTxs = data.recentTransactions.filter(t => t.user_id === user.user_id);
+      const userOrders = (data.orders || []).filter(o => o.user_id === user.user_id);
+      const userTxs = (data.recentTransactions || []).filter(t => t.user_id === user.user_id);
       
       const lifetimeSpend = userOrders.reduce((sum, o) => sum + (Number(o.sell_price_ghs) || 0), 0);
       const purchases7Days = userOrders.filter(o => new Date(o.created_at) >= sevenDaysAgo).length;
@@ -138,29 +155,30 @@ export default function AdminDashboard() {
 
   // Filtering Logic
   const filteredData = useMemo(() => {
+    if (!data) return [];
     const query = searchQuery.toLowerCase();
     
     if (activeTab === 'activity') {
-      return (data?.liveStream || []).filter(item => 
-        item.phone?.includes(query) || 
-        item.plan?.toLowerCase().includes(query) ||
-        item.reference?.toLowerCase().includes(query)
+      return (data.liveStream || []).filter(item => 
+        (item.phone || '').includes(query) || 
+        (item.plan || '').toLowerCase().includes(query) ||
+        (item.reference || '').toLowerCase().includes(query)
       );
     }
     
     if (activeTab === 'deposits') {
-      return (data?.recentTransactions || []).filter(tx => 
-        tx.profiles?.full_name?.toLowerCase().includes(query) ||
-        tx.reference?.toLowerCase().includes(query) ||
-        tx.amount?.toString().includes(query)
+      return (data.recentTransactions || []).filter(tx => 
+        (tx.profiles?.full_name || '').toLowerCase().includes(query) ||
+        (tx.reference || '').toLowerCase().includes(query) ||
+        (tx.amount || '').toString().includes(query)
       );
     }
     
     if (activeTab === 'users') {
       let result = processedUsers.filter(u =>
-        u.full_name?.toLowerCase().includes(query) ||
-        u.reference_code?.toLowerCase().includes(query) ||
-        u.phone?.includes(query)
+        (u.full_name || '').toLowerCase().includes(query) ||
+        (u.reference_code || '').toLowerCase().includes(query) ||
+        (u.phone || '').includes(query)
       );
 
       // Advanced Sorting
