@@ -120,7 +120,7 @@ export default function AdminDashboard() {
       const userOrders = data.orders.filter(o => o.user_id === user.user_id);
       const userTxs = data.recentTransactions.filter(t => t.user_id === user.user_id);
       
-      const lifetimeSpend = userOrders.reduce((sum, o) => sum + Number(o.sell_price_ghs), 0);
+      const lifetimeSpend = userOrders.reduce((sum, o) => sum + (Number(o.sell_price_ghs) || 0), 0);
       const purchases7Days = userOrders.filter(o => new Date(o.created_at) >= sevenDaysAgo).length;
       const purchases30Days = userOrders.filter(o => new Date(o.created_at) >= thirtyDaysAgo).length;
       
@@ -166,10 +166,10 @@ export default function AdminDashboard() {
       // Advanced Sorting
       switch (userSortField) {
         case 'balance':
-          result.sort((a, b) => Number(b.wallet_balance) - Number(a.wallet_balance));
+          result.sort((a, b) => (Number(b.wallet_balance) || 0) - (Number(a.wallet_balance) || 0));
           break;
         case 'spend':
-          result.sort((a, b) => b.lifetimeSpend - a.lifetimeSpend);
+          result.sort((a, b) => (b.lifetimeSpend || 0) - (a.lifetimeSpend || 0));
           break;
         case 'purchases-7':
           result.sort((a, b) => b.purchases7Days - a.purchases7Days);
@@ -397,7 +397,7 @@ export default function AdminDashboard() {
                 <Table>
                   <TableHeader><TableRow className="border-white/5 hover:bg-transparent"><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pl-5">Time</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Phone</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Plan</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Price</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pr-5 text-right">Status</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {paginatedData.map((item) => (
+                    {activeTab === 'activity' && paginatedData.map((item) => (
                       <TableRow key={item.id} className="border-white/5 hover:bg-white/3">
                         <TableCell className="pl-5 text-[11px] text-zinc-500 whitespace-nowrap">{new Date(item.timestamp).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</TableCell>
                         <TableCell className="font-mono text-sm font-bold">{item.phone}</TableCell>
@@ -406,7 +406,7 @@ export default function AdminDashboard() {
                         <TableCell className="pr-5 text-right"><StatusPill status={item.status} /></TableCell>
                       </TableRow>
                     ))}
-                    {paginatedData.length === 0 && (
+                    {activeTab === 'activity' && paginatedData.length === 0 && (
                       <TableRow><TableCell colSpan={5} className="text-center py-10 text-zinc-600">No activity matches your search.</TableCell></TableRow>
                     )}
                   </TableBody>
@@ -421,7 +421,7 @@ export default function AdminDashboard() {
                 <Table>
                   <TableHeader><TableRow className="border-white/5 hover:bg-transparent"><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pl-5">Date</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Customer</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Amount</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Reference</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pr-5 text-right">Status</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {paginatedData.map((tx) => (
+                    {activeTab === 'deposits' && paginatedData.map((tx) => (
                       <TableRow key={tx.id} className="border-white/5 hover:bg-white/3">
                         <TableCell className="pl-5 text-[11px] text-zinc-500 whitespace-nowrap">{new Date(tx.created_at).toLocaleString()}</TableCell>
                         <TableCell className="text-sm font-semibold">{tx.profiles?.full_name || 'System'}</TableCell>
@@ -430,7 +430,7 @@ export default function AdminDashboard() {
                         <TableCell className="pr-5 text-right"><StatusPill status={tx.status} /></TableCell>
                       </TableRow>
                     ))}
-                    {paginatedData.length === 0 && (
+                    {activeTab === 'deposits' && paginatedData.length === 0 && (
                       <TableRow><TableCell colSpan={5} className="text-center py-10 text-zinc-600">No deposits match your search.</TableCell></TableRow>
                     )}
                   </TableBody>
@@ -445,7 +445,7 @@ export default function AdminDashboard() {
                 <Table>
                   <TableHeader><TableRow className="border-white/5 hover:bg-transparent"><TableHead className="pl-5 text-[10px] uppercase text-zinc-600">User</TableHead><TableHead className="text-[10px] uppercase text-zinc-600">Phone</TableHead><TableHead className="text-[10px] uppercase text-zinc-600">Balance</TableHead><TableHead className="text-[10px] uppercase text-zinc-600">Spend</TableHead><TableHead className="text-[10px] uppercase text-zinc-600">Activity</TableHead><TableHead className="text-right pr-5 text-[10px] uppercase text-zinc-600">Action</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {paginatedData.map(user => (
+                    {activeTab === 'users' && paginatedData.map(user => (
                       <TableRow key={user.id} className="border-white/5 hover:bg-white/3">
                         <TableCell className="pl-5">
                           <div className="flex flex-col">
@@ -454,18 +454,18 @@ export default function AdminDashboard() {
                           </div>
                         </TableCell>
                         <TableCell><span className="text-xs font-mono text-zinc-400">{user.phone || 'N/A'}</span></TableCell>
-                        <TableCell className="font-black">GHS {parseFloat(user.wallet_balance).toFixed(2)}</TableCell>
-                        <TableCell className="text-xs font-bold text-emerald-400">GHS {user.lifetimeSpend.toFixed(2)}</TableCell>
+                        <TableCell className="font-black">GHS {parseFloat(user.wallet_balance || 0).toFixed(2)}</TableCell>
+                        <TableCell className="text-xs font-bold text-emerald-400">GHS {(user.lifetimeSpend || 0).toFixed(2)}</TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-[9px] text-zinc-500 uppercase font-bold">{new Date(user.lastActivity).toLocaleDateString()}</span>
-                            <span className="text-[9px] text-zinc-600 font-medium">{user.purchases30Days} purchases in 30d</span>
+                            <span className="text-[9px] text-zinc-500 uppercase font-bold">{new Date(user.lastActivity || user.created_at).toLocaleDateString()}</span>
+                            <span className="text-[9px] text-zinc-600 font-medium">{user.purchases30Days || 0} purchases in 30d</span>
                           </div>
                         </TableCell>
                         <TableCell className="text-right pr-5"><Button size="sm" onClick={() => openAdjustment(user)} className="h-7 text-[9px] bg-[#FFD700]/10 text-[#FFD700] hover:bg-[#FFD700] hover:text-black font-black uppercase">Adjust</Button></TableCell>
                       </TableRow>
                     ))}
-                    {paginatedData.length === 0 && (
+                    {activeTab === 'users' && paginatedData.length === 0 && (
                       <TableRow><TableCell colSpan={6} className="text-center py-10 text-zinc-600">No users match your criteria.</TableCell></TableRow>
                     )}
                   </TableBody>
@@ -528,7 +528,6 @@ export default function AdminDashboard() {
         </Tabs>
       </div>
 
-      {/* Dialogs remain unchanged */}
       <Dialog open={isAdjOpen} onOpenChange={setIsAdjOpen}>
         <DialogContent className="bg-[#111111] border-white/5 text-white sm:max-w-md">
           <DialogHeader>
