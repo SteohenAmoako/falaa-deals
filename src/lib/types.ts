@@ -1,4 +1,6 @@
 
+export type UserRole = 'api_user' | 'falaa' | 'base';
+
 export type Profile = {
   id: string;
   user_id: string;
@@ -7,6 +9,7 @@ export type Profile = {
   reference_code: string;
   wallet_balance: number;
   is_admin: boolean;
+  role: UserRole;
   created_at: string;
 };
 
@@ -19,6 +22,18 @@ export type WalletTransaction = {
   status: 'pending' | 'success' | 'failed';
   description: string;
   created_at: string;
+};
+
+export type Bundle = {
+  id: string;
+  provider: 'skplug' | 'rahitalu';
+  provider_bundle_id: string;
+  network: string;
+  gb_size: number;
+  label: string;
+  cost_price_ghs: number;
+  is_active: boolean;
+  sell_price_ghs?: number; // Populated based on role
 };
 
 export type RahitaluOrder = {
@@ -35,14 +50,7 @@ export type RahitaluOrder = {
   created_at: string;
 };
 
-export type RahitaluToken = {
-  id: string;
-  access_token: string;
-  refresh_token: string;
-  expires_at: string;
-  updated_at: string;
-};
-
+// Legacy hardcoded plans - keeping for temporary compatibility during transition
 export const PLANS = [
   {
     id: '6a282f0167c07f8445745e7b',

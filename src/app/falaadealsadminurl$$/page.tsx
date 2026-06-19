@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -6,68 +7,40 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
+} from '@/components/ui/select';
 import {
   Users, ShoppingCart, Wallet, 
-  Search, Loader2, RefreshCw, CheckCircle2, Clock, XCircle,
-  Zap, ArrowDownLeft, LogOut, LayoutDashboard, AlertCircle, Save, Settings2, History, TrendingUp, Download, BarChart3, Coins, Filter, ChevronLeft, ChevronRight, ArrowUpDown
+  Search, Loader2, RefreshCw,
+  Zap, ArrowDownLeft, LogOut, LayoutDashboard, AlertCircle, Settings2, History, TrendingUp, Download, Coins, Filter, ChevronLeft, ChevronRight, PackageSearch
 } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogFooter, 
-  DialogDescription 
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription 
 } from '@/components/ui/dialog';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select';
-import { getAdminDashboardData, updateSystemStatus, adjustUserBalance } from '@/app/actions/admin';
+import { getAdminDashboardData, updateSystemStatus, adjustUserBalance, assignUserRole } from '@/app/actions/admin';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { UserRole } from '@/lib/types';
 
 const PAGE_SIZE = 15;
 
 export default function AdminDashboard() {
-  const [loading, setLoading]       = useState(true);
+  const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  
-  // Search States
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('activity');
-  
-  // Sorting & Pagination States
   const [currentPage, setCurrentPage] = useState(1);
   const [userSortField, setUserSortField] = useState<string>('recent');
 
-  const [data, setData] = useState<{
-    stats: { 
-      totalUsers: number; 
-      todayDeposits: number; 
-      todayOrders: number; 
-      rahitaluBalance: number;
-      totalProfit: number;
-      todayProfit: number;
-    };
-    systemStatus: { enabled: boolean; message: string };
-    users: any[];
-    orders: any[];
-    liveStream: any[];
-    recentTransactions: any[];
-  } | null>(null);
-
+  const [data, setData] = useState<any>(null);
   const [localSystemEnabled, setLocalSystemEnabled] = useState(true);
   const [localSystemMessage, setLocalSystemMessage] = useState('');
 
-  // Adjustment Dialog State
   const [isAdjOpen, setIsAdjOpen] = useState(false);
   const [adjUser, setAdjUser] = useState<any>(null);
   const [adjType, setAdjType] = useState<'credit' | 'debit'>('credit');
@@ -78,102 +51,41 @@ export default function AdminDashboard() {
   const router = useRouter();
   const { toast } = useToast();
 
-  useEffect(() => {
-    // Unrestricted access: Load data immediately on mount
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     setLoading(true);
-    try {
-      const result = await getAdminDashboardData();
-      if (result) {
-        setData(result);
-        setLocalSystemEnabled(result.systemStatus.enabled);
-        setLocalSystemMessage(result.systemStatus.message);
-      }
-    } catch (e) { 
-      console.error('Fetch data error:', e); 
-      toast({ title: "Error", description: "Failed to load admin data", variant: "destructive" });
-    } finally { 
-      setLoading(false); 
+    const result = await getAdminDashboardData();
+    if (result) {
+      setData(result);
+      setLocalSystemEnabled(result.systemStatus.enabled);
+      setLocalSystemMessage(result.systemStatus.message);
     }
+    setLoading(false);
   };
 
   const processedUsers = useMemo(() => {
     if (!data) return [];
-
-    const now = new Date();
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-    return data.users.map(user => {
-      const userOrders = (data.orders || []).filter(o => o.user_id === user.user_id);
-      const userTxs = (data.recentTransactions || []).filter(t => t.user_id === user.user_id);
-      
-      const lifetimeSpend = userOrders.reduce((sum, o) => sum + (Number(o.sell_price_ghs) || 0), 0);
-      const purchases7Days = userOrders.filter(o => new Date(o.created_at) >= sevenDaysAgo).length;
-      const purchases30Days = userOrders.filter(o => new Date(o.created_at) >= thirtyDaysAgo).length;
-      
-      const lastTxDate = userTxs.length > 0 ? new Date(userTxs[0].created_at) : new Date(user.created_at);
-
-      return {
-        ...user,
-        lifetimeSpend,
-        purchases7Days,
-        purchases30Days,
-        lastActivity: lastTxDate.toISOString()
-      };
-    });
+    return data.users;
   }, [data]);
 
   const filteredData = useMemo(() => {
     if (!data) return [];
     const query = searchQuery.toLowerCase();
     
-    if (activeTab === 'activity') {
-      return (data.liveStream || []).filter(item => 
-        (item.phone || '').includes(query) || 
-        (item.plan || '').toLowerCase().includes(query) ||
-        (item.reference || '').toLowerCase().includes(query)
-      );
-    }
-    
-    if (activeTab === 'deposits') {
-      return (data.recentTransactions || []).filter(tx => 
-        (tx.profiles?.full_name || '').toLowerCase().includes(query) ||
-        (tx.reference || '').toLowerCase().includes(query) ||
-        (tx.amount || '').toString().includes(query)
-      );
-    }
-    
     if (activeTab === 'users') {
-      let result = processedUsers.filter(u =>
+      return processedUsers.filter((u: any) =>
         (u.full_name || '').toLowerCase().includes(query) ||
         (u.reference_code || '').toLowerCase().includes(query) ||
         (u.phone || '').includes(query)
-      );
-
-      switch (userSortField) {
-        case 'balance':
-          result.sort((a, b) => (Number(b.wallet_balance) || 0) - (Number(a.wallet_balance) || 0));
-          break;
-        case 'spend':
-          result.sort((a, b) => (b.lifetimeSpend || 0) - (a.lifetimeSpend || 0));
-          break;
-        case 'purchases-7':
-          result.sort((a, b) => b.purchases7Days - a.purchases7Days);
-          break;
-        case 'purchases-30':
-          result.sort((a, b) => b.purchases30Days - a.purchases30Days);
-          break;
-        case 'recent':
-        default:
-          result.sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime());
-          break;
-      }
-      return result;
+      ).sort((a: any, b: any) => {
+        if (userSortField === 'balance') return b.wallet_balance - a.wallet_balance;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
     }
+    
+    if (activeTab === 'activity') return data.liveStream.filter((i: any) => (i.phone || '').includes(query));
+    if (activeTab === 'deposits') return data.recentTransactions.filter((t: any) => (t.profiles?.full_name || '').toLowerCase().includes(query));
     
     return [];
   }, [activeTab, searchQuery, data, processedUsers, userSortField]);
@@ -185,328 +97,153 @@ export default function AdminDashboard() {
 
   const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
 
+  const handleUpdateRole = async (userId: string, role: UserRole) => {
+    try {
+      await assignUserRole(userId, role);
+      toast({ variant: "success", title: "Role Updated", description: `User promoted to ${role}.` });
+      fetchData();
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Update Failed", description: e.message });
+    }
+  };
+
   const handleUpdateStatus = async () => {
     setUpdatingStatus(true);
-    try {
-      const result = await updateSystemStatus(localSystemEnabled, localSystemMessage);
-      if (result.success) {
-        toast({ title: "System Updated", description: `Shop is now ${localSystemEnabled ? 'LIVE' : 'RESTRICTED'}.` });
-        fetchData();
-      } else {
-        toast({ title: "Update Failed", description: result.message, variant: "destructive" });
-      }
-    } catch (e) {
-      toast({ title: "Update Failed", description: "Internal error occurred", variant: "destructive" });
-    } finally {
-      setUpdatingStatus(false);
+    const result = await updateSystemStatus(localSystemEnabled, localSystemMessage);
+    if (result.success) {
+      toast({ variant: "success", title: "System Updated" });
+      fetchData();
     }
+    setUpdatingStatus(false);
   };
 
   const handleAdjustBalance = async () => {
-    if (!adjUser || !adjAmount || parseFloat(adjAmount) <= 0 || !adjReason) {
-      toast({ title: "Validation Error", description: "Please fill all adjustment fields.", variant: "destructive" });
-      return;
-    }
-
+    if (!adjUser || !adjAmount) return;
     setAdjLoading(true);
-    try {
-      const result = await adjustUserBalance(adjUser.id, parseFloat(adjAmount), adjType, adjReason);
-      if (result.success) {
-        toast({ title: "Balance Adjusted", description: `Successfully ${adjType}ed GHS ${adjAmount} for ${adjUser.full_name}.` });
-        setIsAdjOpen(false);
-        setAdjAmount('');
-        setAdjReason('');
-        fetchData();
-      } else {
-        toast({ title: "Adjustment Failed", description: result.message, variant: "destructive" });
-      }
-    } catch (e) {
-      toast({ title: "Adjustment Failed", description: "An internal error occurred", variant: "destructive" });
-    } finally {
-      setAdjLoading(false);
+    const result = await adjustUserBalance(adjUser.id, parseFloat(adjAmount), adjType, adjReason);
+    if (result.success) {
+      toast({ variant: "success", title: "Balance Adjusted" });
+      setIsAdjOpen(false);
+      fetchData();
     }
+    setAdjLoading(false);
   };
 
-  const openAdjustment = (user: any) => {
-    setAdjUser(user);
-    setIsAdjOpen(true);
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push('/');
-  };
-
-  const handleExportUsers = () => {
-    if (!filteredData.length) {
-      toast({ title: "No data", description: "No users to export.", variant: "destructive" });
-      return;
-    }
-
-    const headers = ["Full Name", "Phone Number", "Reference", "Balance", "Lifetime Spend"];
-    const rows = filteredData.map(user => [
-      `"${user.full_name?.replace(/"/g, '""')}"`,
-      `"${user.phone || ''}"`,
-      `"${user.reference_code}"`,
-      user.wallet_balance,
-      user.lifetimeSpend || 0
-    ]);
-
-    const csvContent = [headers.join(","), ...rows.map(row => row.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `customers_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast({ title: "Export Started" });
-  };
-
-  if (loading && !data) return (
-    <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-12 h-12 rounded-2xl bg-[#FFD700] flex items-center justify-center">
-          <Loader2 className="w-6 h-6 text-black animate-spin" />
-        </div>
-        <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">Loading Dashboard…</p>
-      </div>
-    </div>
-  );
+  if (loading && !data) return <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center"><Loader2 className="animate-spin text-[#FFD700]" /></div>;
 
   return (
     <div className="min-h-screen bg-[#0d0d0d] text-white">
-      <header className="sticky top-0 z-20 bg-[#0d0d0d]/90 backdrop-blur border-b border-white/5 px-4 sm:px-8 py-4 flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-20 bg-[#0d0d0d]/90 backdrop-blur border-b border-white/5 px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#FFD700] flex items-center justify-center font-black text-black text-sm shrink-0">FD</div>
-          <div>
-            <h1 className="text-base font-black tracking-tight leading-none">FalaaData</h1>
-            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Admin Console (Unrestricted)</p>
-          </div>
+          <div className="w-9 h-9 rounded-xl bg-[#FFD700] flex items-center justify-center font-black text-black text-sm">FD</div>
+          <h1 className="text-base font-black tracking-tight">FalaaData Admin</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="ghost" onClick={fetchData} disabled={loading} className="text-zinc-400 hover:text-white border border-white/5 h-9 px-3">
-            <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
-            <span className="hidden sm:inline ml-2 text-xs font-bold">Refresh</span>
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => router.push('/dashboard')} className="text-zinc-400 hover:text-white border border-white/5 h-9 px-3">
-            <LayoutDashboard className="w-4 h-4" />
-            <span className="hidden sm:inline ml-2 text-xs font-bold">Dashboard</span>
-          </Button>
-          <Button size="sm" variant="ghost" onClick={handleLogout} className="text-zinc-400 hover:text-red-400 border border-white/5 h-9 px-3">
-            <LogOut className="w-4 h-4" />
-            <span className="hidden sm:inline ml-2 text-xs font-bold">Logout</span>
-          </Button>
+          <Button size="sm" variant="ghost" onClick={() => router.push('/falaadealsadminurl$$/pricing')} className="text-zinc-400 border border-white/5"><PackageSearch size={16} className="mr-2" /> Pricing & Bundles</Button>
+          <Button size="sm" variant="ghost" onClick={fetchData} className="text-zinc-400 border border-white/5"><RefreshCw size={16} className={cn(loading && "animate-spin")} /></Button>
+          <Button size="sm" variant="ghost" onClick={() => router.push('/dashboard')} className="text-zinc-400 border border-white/5"><LayoutDashboard size={16} /></Button>
+          <Button size="sm" variant="ghost" onClick={() => supabase.auth.signOut().then(() => router.push('/'))} className="text-red-400 border border-white/5"><LogOut size={16} /></Button>
         </div>
       </header>
 
-      <div className="p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto space-y-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
-          <Card className="lg:col-span-1 bg-[#111111] border-white/5 overflow-hidden">
-            <CardHeader className="border-b border-white/5 flex flex-row items-center justify-between py-4">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-[#FFD700]" />
-                <CardTitle className="text-base font-black uppercase tracking-tight">Status</CardTitle>
-              </div>
-              <Switch checked={localSystemEnabled} onCheckedChange={setLocalSystemEnabled} className="data-[state=checked]:bg-emerald-500" />
+      <div className="p-10 max-w-7xl mx-auto space-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <Card className="lg:col-span-1 bg-[#111111] border-white/5">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 p-4">
+              <CardTitle className="text-sm font-black uppercase tracking-widest text-zinc-500">System Status</CardTitle>
+              <Switch checked={localSystemEnabled} onCheckedChange={setLocalSystemEnabled} />
             </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <Textarea 
-                placeholder="Restriction message..." 
-                value={localSystemMessage}
-                onChange={(e) => setLocalSystemMessage(e.target.value)}
-                className="bg-[#0d0d0d] border-white/5 text-sm min-h-[60px]"
-              />
-              <Button 
-                className="w-full bg-[#FFD700] hover:bg-[#FFD700]/90 text-black font-black uppercase tracking-widest text-[10px] h-10"
-                onClick={handleUpdateStatus}
-                disabled={updatingStatus}
-              >
-                {updatingStatus ? <Loader2 className="animate-spin w-4 h-4" /> : "Save Status"}
-              </Button>
+            <CardContent className="p-4 space-y-4">
+              <Textarea placeholder="Maintenance message..." value={localSystemMessage} onChange={e => setLocalSystemMessage(e.target.value)} className="bg-[#0d0d0d] border-white/5" />
+              <Button onClick={handleUpdateStatus} disabled={updatingStatus} className="w-full bg-[#FFD700] text-black font-black uppercase text-[10px] h-9">Update System</Button>
             </CardContent>
           </Card>
 
-          <div className="lg:col-span-3 grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-            <StatCard icon={Users} iconColor="text-[#FFD700]" iconBg="bg-[#FFD700]/10" value={data?.stats.totalUsers ?? 0} label="Total Users" loading={loading} />
-            <StatCard icon={ArrowDownLeft} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" value={`GHS ${(data?.stats.todayDeposits ?? 0).toFixed(2)}`} label="Today's Deposits" loading={loading} />
-            <StatCard icon={ShoppingCart} iconColor="text-blue-400" iconBg="bg-blue-500/10" value={data?.stats.todayOrders ?? 0} label="Orders Today" loading={loading} />
-            <StatCard icon={TrendingUp} iconColor="text-amber-500" iconBg="bg-amber-500/10" value={`GHS ${(data?.stats.todayProfit ?? 0).toFixed(2)}`} label="Today's Profit" loading={loading} />
-            <StatCard icon={Coins} iconColor="text-emerald-500" iconBg="bg-emerald-500/10" value={`GHS ${(data?.stats.totalProfit ?? 0).toFixed(2)}`} label="All-Time Profit" loading={loading} />
-            <StatCard icon={Wallet} iconColor="text-black" iconBg="bg-[#FFD700]" value={`GHS ${(data?.stats.rahitaluBalance ?? 0).toFixed(2)}`} label="Rahitalu Balance" loading={loading} highlight />
+          <div className="lg:col-span-3 grid grid-cols-2 md:grid-cols-3 gap-4">
+            <StatCard icon={Users} label="Total Users" value={data?.stats.totalUsers} />
+            <StatCard icon={ArrowDownLeft} label="Deposits Today" value={`GHS ${data?.stats.todayDeposits.toFixed(2)}`} color="text-emerald-400" />
+            <StatCard icon={ShoppingCart} label="Orders Today" value={data?.stats.todayOrders} color="text-blue-400" />
+            <StatCard icon={TrendingUp} label="Total Profit" value={`GHS ${data?.stats.totalProfit.toFixed(2)}`} color="text-amber-500" />
+            <StatCard icon={Wallet} label="Upstream Balance" value={`GHS ${data?.stats.rahitaluBalance.toFixed(2)}`} highlight />
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setCurrentPage(1); setSearchQuery(''); }} className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="bg-[#111111] border border-white/5 p-1">
-            <TabsTrigger value="activity" className="data-[state=active]:bg-[#FFD700] data-[state=active]:text-black text-xs font-bold uppercase tracking-widest px-6">Live Activity</TabsTrigger>
-            <TabsTrigger value="deposits" className="data-[state=active]:bg-[#FFD700] data-[state=active]:text-black text-xs font-bold uppercase tracking-widest px-6">Deposits</TabsTrigger>
-            <TabsTrigger value="users" className="data-[state=active]:bg-[#FFD700] data-[state=active]:text-black text-xs font-bold uppercase tracking-widest px-6">Users</TabsTrigger>
+            <TabsTrigger value="activity">Live Stream</TabsTrigger>
+            <TabsTrigger value="deposits">Recent Deposits</TabsTrigger>
+            <TabsTrigger value="users">Customers & Roles</TabsTrigger>
           </TabsList>
 
-          <div className="flex flex-col md:flex-row md:items-center gap-4 justify-between">
-            <div className="relative w-full max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
-              <Input 
-                placeholder={`Search ${activeTab}...`} 
-                value={searchQuery} 
-                onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }} 
-                className="pl-9 bg-[#111111] border-white/5 text-white h-10 w-full" 
-              />
-            </div>
-            
-            {activeTab === 'users' && (
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 bg-[#111111] px-3 py-1.5 rounded-lg border border-white/5">
-                  <Filter className="w-3.5 h-3.5 text-zinc-500" />
-                  <Select value={userSortField} onValueChange={setUserSortField}>
-                    <SelectTrigger className="w-[180px] h-7 bg-transparent border-none text-[10px] font-bold uppercase text-[#FFD700]">
-                      <SelectValue placeholder="Sort By" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#111111] border-white/5 text-white">
-                      <SelectItem value="recent">Recent Activity</SelectItem>
-                      <SelectItem value="balance">Highest Balance</SelectItem>
-                      <SelectItem value="spend">Lifetime Spend</SelectItem>
-                      <SelectItem value="purchases-7">Purchases (7 Days)</SelectItem>
-                      <SelectItem value="purchases-30">Purchases (30 Days)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button onClick={handleExportUsers} variant="outline" className="h-10 bg-[#111111] border-white/5 text-zinc-400 hover:text-white gap-2 font-bold text-xs uppercase tracking-widest">
-                  <Download className="w-4 h-4" /> Export CSV
-                </Button>
-              </div>
-            )}
+          <div className="relative w-full max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
+            <Input placeholder={`Filter ${activeTab}...`} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9 bg-[#111111] border-white/5" />
           </div>
 
-          <TabsContent value="activity">
-            <div className="rounded-2xl border border-white/5 bg-[#111111] overflow-hidden">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader><TableRow className="border-white/5 hover:bg-transparent"><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pl-5">Time</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Phone</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Plan</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Price</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pr-5 text-right">Status</TableHead></TableRow></TableHeader>
+          <div className="rounded-2xl border border-white/5 bg-[#111111] overflow-hidden">
+            <Table>
+              {activeTab === 'users' && (
+                <>
+                  <TableHeader><TableRow className="border-white/5"><TableHead className="pl-6">Name</TableHead><TableHead>Reference</TableHead><TableHead>Balance</TableHead><TableHead>Role</TableHead><TableHead className="text-right pr-6">Action</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {activeTab === 'activity' && paginatedData.map((item) => (
-                      <TableRow key={item.id} className="border-white/5 hover:bg-white/3">
-                        <TableCell className="pl-5 text-[11px] text-zinc-500 whitespace-nowrap">{new Date(item.timestamp).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</TableCell>
-                        <TableCell className="font-mono text-sm font-bold">{item.phone}</TableCell>
-                        <TableCell className="text-[11px] font-black text-[#FFD700]">{item.plan}</TableCell>
-                        <TableCell className="text-[11px] font-bold">GHS {item.price ?? '—'}</TableCell>
-                        <TableCell className="pr-5 text-right"><StatusPill status={item.status} /></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="deposits">
-            <div className="rounded-2xl border border-white/5 bg-[#111111] overflow-hidden">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader><TableRow className="border-white/5 hover:bg-transparent"><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pl-5">Date</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Customer</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Amount</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600">Reference</TableHead><TableHead className="text-[10px] uppercase font-bold text-zinc-600 pr-5 text-right">Status</TableHead></TableRow></TableHeader>
-                  <TableBody>
-                    {activeTab === 'deposits' && paginatedData.map((tx) => (
-                      <TableRow key={tx.id} className="border-white/5 hover:bg-white/3">
-                        <TableCell className="pl-5 text-[11px] text-zinc-500 whitespace-nowrap">{new Date(tx.created_at).toLocaleString()}</TableCell>
-                        <TableCell className="text-sm font-semibold">{tx.profiles?.full_name || 'System'}</TableCell>
-                        <TableCell className="text-sm font-black text-emerald-400">GHS {parseFloat(tx.amount).toFixed(2)}</TableCell>
-                        <TableCell className="font-mono text-[10px] text-zinc-400">{tx.reference}</TableCell>
-                        <TableCell className="pr-5 text-right"><StatusPill status={tx.status} /></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="users">
-            <div className="rounded-2xl border border-white/5 bg-[#111111] overflow-hidden">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader><TableRow className="border-white/5 hover:bg-transparent"><TableHead className="pl-5 text-[10px] uppercase text-zinc-600">User</TableHead><TableHead className="text-[10px] uppercase text-zinc-600">Phone</TableHead><TableHead className="text-[10px] uppercase text-zinc-600">Balance</TableHead><TableHead className="text-[10px] uppercase text-zinc-600">Spend</TableHead><TableHead className="text-[10px] uppercase text-zinc-600">Activity</TableHead><TableHead className="text-right pr-5 text-[10px] uppercase text-zinc-600">Action</TableHead></TableRow></TableHeader>
-                  <TableBody>
-                    {activeTab === 'users' && paginatedData.map(user => (
-                      <TableRow key={user.id} className="border-white/5 hover:bg-white/3">
-                        <TableCell className="pl-5">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-white">{user.full_name}</span>
-                            <span className="text-[10px] text-[#FFD700] font-black">{user.reference_code}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell><span className="text-xs font-mono text-zinc-400">{user.phone || 'N/A'}</span></TableCell>
-                        <TableCell className="font-black">GHS {parseFloat(user.wallet_balance || 0).toFixed(2)}</TableCell>
-                        <TableCell className="text-xs font-bold text-emerald-400">GHS {(user.lifetimeSpend || 0).toFixed(2)}</TableCell>
+                    {paginatedData.map((u: any) => (
+                      <TableRow key={u.id} className="border-white/5">
+                        <TableCell className="pl-6 font-bold">{u.full_name}</TableCell>
+                        <TableCell className="font-mono text-zinc-500">{u.reference_code}</TableCell>
+                        <TableCell className="font-black">GHS {parseFloat(u.wallet_balance).toFixed(2)}</TableCell>
                         <TableCell>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-[9px] text-zinc-500 uppercase font-bold">{new Date(user.lastActivity || user.created_at).toLocaleDateString()}</span>
-                            <span className="text-[9px] text-zinc-600 font-medium">{user.purchases30Days || 0} purchases in 30d</span>
-                          </div>
+                          <Select value={u.role || 'base'} onValueChange={(v: UserRole) => handleUpdateRole(u.user_id, v)}>
+                            <SelectTrigger className="h-7 text-[10px] font-black uppercase bg-black/40 border-white/5 w-28">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#111111] border-white/5 text-white">
+                              <SelectItem value="base">BASE (Retail)</SelectItem>
+                              <SelectItem value="falaa">FALAA (VIP)</SelectItem>
+                              <SelectItem value="api_user">API USER</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </TableCell>
-                        <TableCell className="text-right pr-5"><Button size="sm" onClick={() => openAdjustment(user)} className="h-7 text-[9px] bg-[#FFD700]/10 text-[#FFD700] hover:bg-[#FFD700] hover:text-black font-black uppercase">Adjust</Button></TableCell>
+                        <TableCell className="text-right pr-6"><Button size="sm" onClick={() => { setAdjUser(u); setIsAdjOpen(true); }} className="h-7 text-[9px] font-black uppercase bg-[#FFD700]/10 text-[#FFD700]">Adjust</Button></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
-                </Table>
-              </div>
-            </div>
-          </TabsContent>
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between py-4">
-              <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
-                Showing {Math.min(filteredData.length, (currentPage - 1) * PAGE_SIZE + 1)} to {Math.min(filteredData.length, currentPage * PAGE_SIZE)} of {filteredData.length}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  disabled={currentPage === 1} 
-                  onClick={() => setCurrentPage(p => p - 1)}
-                  className="bg-[#111111] border-white/5 h-8 w-8 p-0"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  disabled={currentPage === totalPages} 
-                  onClick={() => setCurrentPage(p => p + 1)}
-                  className="bg-[#111111] border-white/5 h-8 w-8 p-0"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          )}
+                </>
+              )}
+              {activeTab === 'activity' && (
+                <>
+                  <TableHeader><TableRow className="border-white/5"><TableHead className="pl-6">Time</TableHead><TableHead>Phone</TableHead><TableHead>Plan</TableHead><TableHead className="text-right pr-6">Status</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {paginatedData.map((i: any) => (
+                      <TableRow key={i.id} className="border-white/5">
+                        <TableCell className="pl-6 text-[11px] text-zinc-500">{new Date(i.timestamp).toLocaleString()}</TableCell>
+                        <TableCell className="font-mono">{i.phone}</TableCell>
+                        <TableCell className="font-black text-[#FFD700]">{i.plan}</TableCell>
+                        <TableCell className="text-right pr-6"><StatusPill status={i.status} /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </>
+              )}
+            </Table>
+          </div>
         </Tabs>
       </div>
 
       <Dialog open={isAdjOpen} onOpenChange={setIsAdjOpen}>
-        <DialogContent className="bg-[#111111] border-white/5 text-white sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-black uppercase tracking-tight flex items-center gap-2">
-              <Settings2 className="w-5 h-5 text-[#FFD700]" />
-              Adjust Wallet
-            </DialogTitle>
-          </DialogHeader>
+        <DialogContent className="bg-[#111111] border-white/5 text-white">
+          <DialogHeader><DialogTitle>Adjust Wallet: {adjUser?.full_name}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <Select value={adjType} onValueChange={(v: any) => setAdjType(v)}>
-                <SelectTrigger className="bg-[#0d0d0d] border-white/5 h-11"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-[#111111] border-white/5 text-white"><SelectItem value="credit">CREDIT (+)</SelectItem><SelectItem value="debit">DEBIT (-)</SelectItem></SelectContent>
+                <SelectTrigger className="bg-[#0d0d0d] border-white/5"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-[#111111] text-white"><SelectItem value="credit">CREDIT (+)</SelectItem><SelectItem value="debit">DEBIT (-)</SelectItem></SelectContent>
               </Select>
-              <Input type="number" placeholder="0.00" className="bg-[#0d0d0d] border-white/5 h-11 font-bold" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} />
+              <Input type="number" placeholder="0.00" value={adjAmount} onChange={e => setAdjAmount(e.target.value)} className="bg-[#0d0d0d] border-white/5" />
             </div>
-            <Textarea placeholder="Reason..." className="bg-[#0d0d0d] border-white/5 text-sm" value={adjReason} onChange={(e) => setAdjReason(e.target.value)} />
+            <Textarea placeholder="Adjustment reason..." value={adjReason} onChange={e => setAdjReason(e.target.value)} className="bg-[#0d0d0d] border-white/5" />
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsAdjOpen(false)}>Cancel</Button>
-            <Button className="bg-[#FFD700] text-black font-black" onClick={handleAdjustBalance} disabled={adjLoading}>
-              {adjLoading ? <Loader2 className="animate-spin" /> : "Apply"}
-            </Button>
+            <Button onClick={handleAdjustBalance} disabled={adjLoading} className="bg-[#FFD700] text-black font-black">{adjLoading ? <Loader2 className="animate-spin" /> : "Apply"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -514,27 +251,21 @@ export default function AdminDashboard() {
   );
 }
 
-function StatCard({ icon: Icon, iconColor, iconBg, value, label, loading, highlight }: any) {
+function StatCard({ icon: Icon, label, value, color = "text-white", highlight }: any) {
   return (
-    <Card className={cn("border-white/5 overflow-hidden shadow-xl", highlight ? "bg-[#FFD700]" : "bg-[#111111]")}>
-      <CardContent className="p-4 sm:p-5">
-        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center mb-3", iconBg)}>
-          <Icon className={cn("w-4 h-4", iconColor)} />
-        </div>
-        {loading ? <div className="h-6 w-20 bg-white/5 rounded animate-pulse" /> : <div className={cn("text-xl font-black", highlight ? "text-black" : "text-white")}>{value}</div>}
-        <div className={cn("text-[9px] font-bold uppercase tracking-widest mt-1", highlight ? "text-black/60" : "text-zinc-500")}>{label}</div>
-      </CardContent>
+    <Card className={cn("bg-[#111111] border-white/5 p-5", highlight && "bg-[#FFD700]")}>
+      <Icon className={cn("w-4 h-4 mb-2", highlight ? "text-black" : "text-zinc-500")} />
+      <div className={cn("text-xl font-black", highlight ? "text-black" : color)}>{value}</div>
+      <div className={cn("text-[9px] font-bold uppercase tracking-widest", highlight ? "text-black/60" : "text-zinc-600")}>{label}</div>
     </Card>
   );
 }
 
 function StatusPill({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    delivered:  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    success:    'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    processing: 'bg-[#FFD700]/10  text-[#FFD700]  border-[#FFD700]/20',
-    pending:    'bg-zinc-500/10   text-zinc-400   border-zinc-500/20',
-    failed:     'bg-red-500/10    text-red-400    border-red-500/20',
+    delivered: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    processing: 'bg-[#FFD700]/10 text-[#FFD700] border-[#FFD700]/20',
+    failed: 'bg-red-500/10 text-red-400 border-red-500/20',
   };
-  return <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase border shrink-0", styles[status?.toLowerCase()] ?? 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20')}>{status || 'pending'}</span>;
+  return <span className={cn("px-2 py-0.5 rounded-full text-[9px] font-black uppercase border", styles[status?.toLowerCase()] || 'bg-zinc-500/10')}>{status}</span>;
 }

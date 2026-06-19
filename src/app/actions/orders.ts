@@ -1,8 +1,9 @@
+
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
-import { placeDataOrder, getUpstreamOrderHistory } from '@/lib/rahitalu';
-import { PLANS } from '@/lib/types';
+import { placeDataOrder } from '@/lib/rahitalu';
+import { skPlugClient } from '@/lib/skplug/client';
 import { revalidatePath } from 'next/cache';
 import { sendNtfy } from '@/lib/notifications';
 
@@ -12,91 +13,12 @@ const supabaseAdmin = createClient(
 );
 
 /**
- * Fulfills a direct order after Paystack verification.
+ * Common order logic for any bundle from any provider.
+ * Price is ALWAYS re-calculated server-side based on user role.
  */
-export async function fulfillDirectOrder(reference: string, planId: string, phone: string, userId: string) {
+export async function buyBundle(userId: string, bundleId: string, phone: string) {
   try {
-    const plan = PLANS.find(p => p.id === planId);
-    if (!plan) throw new Error('Invalid plan selected');
-
-    // 1. Verify Paystack Payment
-    const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
-    const paystackResponse = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
-      headers: { Authorization: `Bearer ${paystackSecret}` },
-    });
-    const paystackData = await paystackResponse.json();
-
-    if (!paystackData.status || paystackData.data.status !== 'success') {
-      throw new Error('Payment verification failed');
-    }
-
-    // 2. Initiate Rahitalu purchase
-    const rahitaluResponse = await placeDataOrder(plan.id, phone, plan.price);
-    const orderRef = rahitaluResponse.reference || rahitaluResponse._id || reference;
-
-    // 3. Record the transaction in Supabase
-    await supabaseAdmin.from('wallet_transactions').insert({
-      user_id: userId,
-      amount: plan.price,
-      type: 'credit',
-      status: 'success',
-      reference: reference,
-      description: `Payment for ${plan.size} Bundle (${phone})`,
-    });
-
-    await supabaseAdmin.from('wallet_transactions').insert({
-      user_id: userId,
-      amount: plan.price,
-      type: 'debit',
-      status: 'success',
-      reference: orderRef,
-      description: `Bought ${plan.size} Bundle for ${phone}`,
-    });
-
-    // 4. Record the data order details
-    await supabaseAdmin.from('rahitalu_orders').insert({
-      user_id: userId,
-      phone,
-      plan_id: plan.id,
-      gig: plan.size,
-      sell_price_ghs: plan.price,
-      reference: orderRef,
-      status: rahitaluResponse.upstreamStatus || rahitaluResponse.status || 'processing',
-      upstream_status: rahitaluResponse.upstreamStatus || rahitaluResponse.status || 'pending',
-      delivered_gb: 0,
-    });
-
-    // 5. Notify ntfy
-    await sendNtfy({
-      title: "Data Purchase (Paystack)",
-      tags: ["paystack", "purchase", "data"],
-      data: {
-        userId,
-        bundleSize: plan.size,
-        phone,
-        amount: plan.price,
-        reference: orderRef,
-        timestamp: new Date().toISOString()
-      }
-    });
-
-    revalidatePath('/dashboard');
-    return { success: true, message: 'Bundle activated successfully!' };
-  } catch (error: any) {
-    console.error('Fulfillment Error:', error);
-    return { success: false, message: error.message || 'Fulfillment failed' };
-  }
-}
-
-/**
- * Buys a bundle using the user's wallet balance.
- */
-export async function buyBundle(userId: string, planId: string, phone: string) {
-  try {
-    const plan = PLANS.find(p => p.id === planId);
-    if (!plan) throw new Error('Invalid plan selected');
-
-    // 1. Fetch current profile
+    // 1. Fetch user profile for role and balance
     const { data: profile, error: profileErr } = await supabaseAdmin
       .from('profiles')
       .select('*')
@@ -105,105 +27,82 @@ export async function buyBundle(userId: string, planId: string, phone: string) {
 
     if (profileErr || !profile) throw new Error('User profile not found');
 
+    // 2. Fetch bundle and re-verify price for user's specific role
+    const { data: bundleData, error: bundleErr } = await supabaseAdmin
+      .from('bundles')
+      .select(`
+        *,
+        bundle_role_prices!inner(sell_price_ghs)
+      `)
+      .eq('id', bundleId)
+      .eq('bundle_role_prices.role', profile.role)
+      .single();
+
+    if (bundleErr || !bundleData) throw new Error('Bundle pricing not found for your role');
+
+    const actualPrice = parseFloat(bundleData.bundle_role_prices[0].sell_price_ghs);
     const currentBalance = parseFloat(profile.wallet_balance.toString());
-    if (currentBalance < plan.price) {
+
+    if (currentBalance < actualPrice) {
       return { success: false, message: 'Insufficient wallet balance.' };
     }
 
-    // 2. Initiate Rahitalu purchase
-    const rahitaluResponse = await placeDataOrder(plan.id, phone, plan.price);
-    const orderRef = rahitaluResponse.reference || rahitaluResponse._id || `WB-${Math.random().toString(36).substring(7).toUpperCase()}`;
+    // 3. Dispatch to Upstream Provider
+    let upstreamResponse;
+    if (bundleData.provider === 'rahitalu') {
+      upstreamResponse = await placeDataOrder(bundleData.provider_bundle_id, phone, actualPrice);
+    } else {
+      upstreamResponse = await skPlugClient.placeOrder(phone, bundleData.network, bundleData.gb_size.toString());
+    }
 
-    // 3. Deduct balance
-    const newBalance = currentBalance - plan.price;
-    const { error: updateErr } = await supabaseAdmin
-      .from('profiles')
-      .update({ wallet_balance: newBalance })
-      .eq('id', profile.id);
+    const orderRef = upstreamResponse.reference || upstreamResponse.order_id || upstreamResponse._id || `ORD-${Math.random().toString(36).substring(7).toUpperCase()}`;
 
-    if (updateErr) throw new Error('Failed to update balance');
+    // 4. Update Balance & Record Transaction
+    const newBalance = currentBalance - actualPrice;
+    await supabaseAdmin.from('profiles').update({ wallet_balance: newBalance }).eq('id', profile.id);
 
-    // 4. Record Transaction
     await supabaseAdmin.from('wallet_transactions').insert({
       user_id: userId,
-      amount: plan.price,
+      amount: actualPrice,
       type: 'debit',
       status: 'success',
       reference: orderRef,
-      description: `Wallet Purchase: ${plan.size} Bundle for ${phone}`,
+      description: `Bought ${bundleData.label} for ${phone} (${bundleData.provider})`,
     });
 
     // 5. Record Order
-    await supabaseAdmin.from('rahitalu_orders').insert({
+    const orderTable = bundleData.provider === 'rahitalu' ? 'rahitalu_orders' : 'skplug_orders';
+    const orderData = bundleData.provider === 'rahitalu' ? {
       user_id: userId,
       phone,
-      plan_id: plan.id,
-      gig: plan.size,
-      sell_price_ghs: plan.price,
+      plan_id: bundleData.provider_bundle_id,
+      gig: bundleData.label,
+      sell_price_ghs: actualPrice,
       reference: orderRef,
-      status: rahitaluResponse.upstreamStatus || rahitaluResponse.status || 'processing',
-      upstream_status: rahitaluResponse.upstreamStatus || rahitaluResponse.status || 'pending',
-      delivered_gb: 0,
-    });
+      status: 'processing'
+    } : {
+      user_id: userId,
+      recipient: phone,
+      network: bundleData.network,
+      gb_size: bundleData.gb_size.toString(),
+      sell_price_ghs: actualPrice,
+      order_id: orderRef,
+      status: 'processing'
+    };
 
-    // 6. Notify ntfy
+    await supabaseAdmin.from(orderTable).insert(orderData);
+
+    // 6. Notify
     await sendNtfy({
-      title: "Wallet Purchase Completed",
-      tags: ["wallet", "purchase", "data"],
-      data: {
-        userId,
-        bundleSize: plan.size,
-        phone,
-        reference: orderRef,
-        previousBalance: currentBalance,
-        newBalance: newBalance,
-        timestamp: new Date().toISOString()
-      }
+      title: "New Data Order",
+      tags: ["order", bundleData.provider],
+      data: { userId, bundle: bundleData.label, phone, price: actualPrice, role: profile.role }
     });
 
     revalidatePath('/dashboard');
-    return { success: true, message: 'Bundle activated via wallet!' };
+    return { success: true, message: `🎉 ${bundleData.label} activated successfully!` };
   } catch (error: any) {
-    console.error('Wallet Purchase Error:', error);
-    return { success: false, message: error.message || 'An error occurred during wallet purchase.' };
-  }
-}
-
-/**
- * Synchronizes local order statuses with the upstream Rahitalu API.
- */
-export async function syncUserOrders(userId: string) {
-  try {
-    const upstreamOrders = await getUpstreamOrderHistory(50);
-    const { data: localOrders } = await supabaseAdmin
-      .from('rahitalu_orders')
-      .select('id, reference, status, phone')
-      .eq('user_id', userId)
-      .in('status', ['pending', 'processing']);
-
-    if (!localOrders || localOrders.length === 0) return;
-
-    for (const local of localOrders) {
-      const match = upstreamOrders.find((u: any) => 
-        u.reference === local.reference || 
-        u._id === local.reference || 
-        u.id === local.reference
-      );
-
-      if (match) {
-        const upstreamStatus = match.upstreamStatus || match.status;
-        if (upstreamStatus && upstreamStatus !== local.status) {
-          await supabaseAdmin
-            .from('rahitalu_orders')
-            .update({ 
-              status: upstreamStatus, 
-              upstream_status: upstreamStatus 
-            })
-            .eq('id', local.id);
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Order Sync Error:', error);
+    console.error('Buy Bundle Error:', error);
+    return { success: false, message: error.message || 'An error occurred during purchase.' };
   }
 }

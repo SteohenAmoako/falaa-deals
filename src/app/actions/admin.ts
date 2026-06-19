@@ -1,8 +1,10 @@
+
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
 import { getUpstreamDashboard, getUpstreamOrderHistory } from '@/lib/rahitalu';
 import { revalidatePath } from 'next/cache';
+import { UserRole } from '@/lib/types';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -25,14 +27,9 @@ export async function checkIsAdmin(userId: string) {
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (error) {
-      console.error('[Action: checkIsAdmin] DB Error:', error.message);
-      return false;
-    }
-
+    if (error) return false;
     return profile?.is_admin === true;
   } catch (err) {
-    console.error('[Action: checkIsAdmin] Fatal Error:', err);
     return false;
   }
 }
@@ -42,18 +39,13 @@ export async function checkIsAdmin(userId: string) {
  */
 export async function getSystemStatus() {
   try {
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return { enabled: true, message: '' };
-    
     const { data, error } = await supabaseAdmin
       .from('system_configs')
       .select('value')
       .eq('key', 'maintenance_mode')
       .maybeSingle();
 
-    if (error) {
-      return { enabled: true, message: '' };
-    }
-
+    if (error) return { enabled: true, message: '' };
     return data?.value || { enabled: true, message: '' };
   } catch (error) {
     return { enabled: true, message: '' };
@@ -71,7 +63,6 @@ export async function getAdminDashboardData() {
 
     const today = new Date().toISOString().split('T')[0];
     
-    // Fetch successful deposits
     const { data: depositsToday } = await supabaseAdmin
       .from('wallet_transactions')
       .select('amount')
@@ -81,7 +72,6 @@ export async function getAdminDashboardData() {
 
     const todayDepositsAmount = (depositsToday || []).reduce((sum, tx) => sum + parseFloat(tx.amount.toString()), 0);
 
-    // Fetch orders to calculate profit
     const { data: allSuccessfulOrders } = await supabaseAdmin
       .from('rahitalu_orders')
       .select('user_id, plan_id, sell_price_ghs, created_at, status')
@@ -93,11 +83,8 @@ export async function getAdminDashboardData() {
     (allSuccessfulOrders || []).forEach(order => {
       const cost = PLAN_COSTS[order.plan_id] || 0;
       const profit = parseFloat(order.sell_price_ghs.toString()) - cost;
-      
       totalProfit += profit;
-      if (order.created_at.startsWith(today)) {
-        todayProfit += profit;
-      }
+      if (order.created_at.startsWith(today)) todayProfit += profit;
     });
 
     const { count: todayOrdersCount } = await supabaseAdmin
@@ -110,7 +97,7 @@ export async function getAdminDashboardData() {
 
     const { data: users } = await supabaseAdmin
       .from('profiles')
-      .select('id, full_name, phone, reference_code, wallet_balance, created_at, user_id')
+      .select('id, full_name, phone, reference_code, wallet_balance, created_at, user_id, role')
       .order('created_at', { ascending: false })
       .limit(500);
 
@@ -146,29 +133,25 @@ export async function getAdminDashboardData() {
         timestamp: order.upstreamUpdatedAt || order.createdAt || order.created_at || new Date().toISOString(),
       }))
     };
-  } catch (error: any) {
-    console.error('Admin Data Fetch Failed:', error);
-    return {
-      stats: {
-        totalUsers: 0,
-        todayDeposits: 0,
-        todayOrders: 0,
-        rahitaluBalance: 0,
-        totalProfit: 0,
-        todayProfit: 0
-      },
-      systemStatus: { enabled: true, message: 'Data unavailable' },
-      users: [],
-      orders: [],
-      recentTransactions: [],
-      liveStream: []
-    };
+  } catch (error) {
+    return null;
   }
+}
+
+export async function assignUserRole(userId: string, role: UserRole) {
+  const { error } = await supabaseAdmin
+    .from('profiles')
+    .update({ role })
+    .eq('user_id', userId);
+
+  if (error) throw error;
+  revalidatePath('/falaadealsadminurl$$');
+  return { success: true };
 }
 
 export async function updateSystemStatus(enabled: boolean, message: string) {
   try {
-    const { error } = await supabaseAdmin
+    await supabaseAdmin
       .from('system_configs')
       .upsert({ 
         key: 'maintenance_mode', 
@@ -176,39 +159,31 @@ export async function updateSystemStatus(enabled: boolean, message: string) {
         updated_at: new Date().toISOString()
       }, { onConflict: 'key' });
 
-    if (error) throw error;
     return { success: true };
   } catch (error: any) {
     return { success: false, message: error.message };
   }
 }
 
-/**
- * Manually adjusts a user's wallet balance.
- */
 export async function adjustUserBalance(profileId: string, amount: number, type: 'credit' | 'debit', reason: string) {
   try {
-    const { data: profile, error: profileError } = await supabaseAdmin
+    const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('id, user_id, wallet_balance')
       .eq('id', profileId)
       .single();
 
-    if (profileError || !profile) throw new Error('User profile not found');
+    if (!profile) throw new Error('User profile not found');
 
     const currentBalance = parseFloat(profile.wallet_balance.toString());
     const newBalance = type === 'credit' ? currentBalance + amount : currentBalance - amount;
 
-    if (newBalance < 0 && type === 'debit') {
-      throw new Error('Insufficient funds for this debit operation');
-    }
+    if (newBalance < 0 && type === 'debit') throw new Error('Insufficient funds');
 
-    const { error: updateError } = await supabaseAdmin
+    await supabaseAdmin
       .from('profiles')
       .update({ wallet_balance: newBalance })
       .eq('id', profileId);
-
-    if (updateError) throw updateError;
 
     await supabaseAdmin.from('wallet_transactions').insert({
       user_id: profile.user_id,
@@ -222,7 +197,6 @@ export async function adjustUserBalance(profileId: string, amount: number, type:
     revalidatePath('/dashboard');
     return { success: true, newBalance };
   } catch (error: any) {
-    console.error('Adjust Balance Error:', error);
     return { success: false, message: error.message };
   }
 }
