@@ -5,8 +5,8 @@ import { getUpstreamDashboard, getUpstreamOrderHistory } from '@/lib/rahitalu';
 import { revalidatePath } from 'next/cache';
 
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
 const PLAN_COSTS: Record<string, number> = {
@@ -19,6 +19,8 @@ const PLAN_COSTS: Record<string, number> = {
  */
 export async function getSystemStatus() {
   try {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return { enabled: true, message: '' };
+    
     const { data, error } = await supabaseAdmin
       .from('system_configs')
       .select('value')
@@ -26,7 +28,6 @@ export async function getSystemStatus() {
       .maybeSingle();
 
     if (error) {
-      console.error('Error fetching system status:', error.message);
       return { enabled: true, message: '' };
     }
 
@@ -124,7 +125,7 @@ export async function getAdminDashboardData() {
     };
   } catch (error: any) {
     console.error('Admin Data Fetch Failed:', error);
-    throw new Error('Could not retrieve administrative data');
+    return null; // Return null instead of throwing to prevent Next.js "unexpected response"
   }
 }
 
