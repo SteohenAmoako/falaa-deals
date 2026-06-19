@@ -7,11 +7,11 @@ import ForecastTool from '@/components/dashboard/ForecastTool';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type Profile, type WalletTransaction, type Bundle } from '@/lib/types';
 import {
   LayoutDashboard, History, ShoppingBag, LogOut, Code2,
-  BarChart3, User, Loader2, Menu, X, CreditCard, Wallet, Info, Plus, Search, Zap, AlertTriangle
+  BarChart3, User, Loader2, Menu, X, CreditCard, Wallet, Plus, Search, Zap, AlertTriangle, Smartphone
 } from "lucide-react";
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -74,12 +74,30 @@ export default function DashboardPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const bundlesByNetwork = useMemo(() => {
-    const groups: Record<string, Bundle[]> = {};
+  // Group bundles by the requested display categories
+  const groupedBundles = useMemo(() => {
+    const groups: Record<string, Bundle[]> = {
+      'MTN': [],
+      'AirtelTigo': [],
+      'Telecel': []
+    };
+    
     bundles.forEach(b => {
-      if (!groups[b.network]) groups[b.network] = [];
-      groups[b.network].push(b);
+      const net = b.network.toUpperCase();
+      if (net === 'MTN') {
+        groups['MTN'].push(b);
+      } else if (net === 'TELECEL') {
+        groups['Telecel'].push(b);
+      } else if (net.startsWith('AT_')) {
+        groups['AirtelTigo'].push(b);
+      }
     });
+
+    // Sort within groups by GB size
+    Object.keys(groups).forEach(key => {
+      groups[key].sort((a, b) => a.gb_size - b.gb_size);
+    });
+
     return groups;
   }, [bundles]);
 
@@ -106,24 +124,24 @@ export default function DashboardPage() {
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex items-center gap-3 mb-10">
-          <div className="w-9 h-9 rounded-xl bg-violet-600 flex items-center justify-center font-black italic text-white">FD</div>
+          <div className="w-9 h-9 rounded-xl bg-violet-600 flex items-center justify-center font-black italic text-white shadow-lg shadow-violet-600/20">FD</div>
           <span className="text-lg font-black tracking-tight">Falaa Deals</span>
         </div>
 
         <nav className="flex-1 space-y-1">
-          <button onClick={() => setActiveTab('dashboard')} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold", activeTab === 'dashboard' ? "bg-violet-600" : "text-zinc-400")}>
+          <button onClick={() => setActiveTab('dashboard')} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all", activeTab === 'dashboard' ? "bg-violet-600 shadow-lg shadow-violet-600/20" : "text-zinc-400 hover:bg-white/5")}>
             <LayoutDashboard size={17} /> Dashboard
           </button>
-          <button onClick={() => setActiveTab('orders')} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold", activeTab === 'orders' ? "bg-violet-600" : "text-zinc-400")}>
+          <button onClick={() => setActiveTab('orders')} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all", activeTab === 'orders' ? "bg-violet-600 shadow-lg shadow-violet-600/20" : "text-zinc-400 hover:bg-white/5")}>
             <ShoppingBag size={17} /> Orders
           </button>
-          <button onClick={() => setActiveTab('transactions')} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold", activeTab === 'transactions' ? "bg-violet-600" : "text-zinc-400")}>
+          <button onClick={() => setActiveTab('transactions')} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all", activeTab === 'transactions' ? "bg-violet-600 shadow-lg shadow-violet-600/20" : "text-zinc-400 hover:bg-white/5")}>
             <History size={17} /> History
           </button>
-          <button onClick={() => setActiveTab('usage')} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold", activeTab === 'usage' ? "bg-violet-600" : "text-zinc-400")}>
+          <button onClick={() => setActiveTab('usage')} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all", activeTab === 'usage' ? "bg-violet-600 shadow-lg shadow-violet-600/20" : "text-zinc-400 hover:bg-white/5")}>
             <BarChart3 size={17} /> Insights
           </button>
-          <button onClick={() => router.push('/dashboard/api-docs')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-zinc-400">
+          <button onClick={() => router.push('/dashboard/api-docs')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-zinc-400 hover:bg-white/5">
             <Code2 size={17} /> API Docs
           </button>
         </nav>
@@ -136,7 +154,7 @@ export default function DashboardPage() {
               <p className="text-[10px] text-zinc-500 uppercase font-black tracking-widest">{profile.role}</p>
             </div>
           </div>
-          <button onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-zinc-400 hover:text-red-400">
+          <button onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-zinc-400 hover:text-red-400 transition-colors">
             <LogOut size={16} /> Sign out
           </button>
         </div>
@@ -144,47 +162,81 @@ export default function DashboardPage() {
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-20 bg-[#0a0a0f]/80 backdrop-blur border-b border-white/5 px-6 py-4 flex items-center justify-between">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden"><Menu /></button>
+          <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 text-zinc-400"><Menu /></button>
           <div className="flex items-center gap-4 ml-auto">
             <Dialog>
-              <DialogTrigger asChild><Button size="sm" className="bg-violet-600"><Plus size={16} className="mr-1" /> Top Up</Button></DialogTrigger>
+              <DialogTrigger asChild><Button size="sm" className="bg-violet-600 hover:bg-violet-700 font-bold"><Plus size={16} className="mr-1" /> Top Up</Button></DialogTrigger>
               <DialogContent className="bg-[#111118] border-white/5 text-white">
-                <DialogHeader><DialogTitle>Manual Deposit</DialogTitle></DialogHeader>
-                <div className="p-4 bg-black/40 rounded-xl space-y-4">
-                  <div><p className="text-xs text-zinc-500 font-bold uppercase">Send MoMo To</p><p className="text-2xl font-black">0595919802</p></div>
-                  <div><p className="text-xs text-zinc-500 font-bold uppercase">Use Reference</p><p className="text-2xl font-black text-violet-400 font-mono">{profile.reference_code}</p></div>
+                <DialogHeader><DialogTitle className="text-xl font-black italic">MANUAL DEPOSIT</DialogTitle></DialogHeader>
+                <div className="p-6 bg-black/40 rounded-2xl space-y-6 border border-white/5">
+                  <div>
+                    <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-1">Send MoMo To</p>
+                    <p className="text-3xl font-black text-white">0595919802</p>
+                    <p className="text-[10px] text-violet-400 font-bold mt-1">Merchant: Falaa Deals</p>
+                  </div>
+                  <div className="pt-6 border-t border-white/5">
+                    <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-1">Use Reference</p>
+                    <p className="text-3xl font-black text-[#FFD700] font-mono tracking-tighter">{profile.reference_code}</p>
+                    <p className="text-[10px] text-zinc-400 mt-2 font-medium">Wallet is credited automatically within seconds of payment.</p>
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>
-            <div className="px-4 py-2 bg-white/5 rounded-2xl border border-white/5 flex items-center gap-2">
+            <div className="px-4 py-2 bg-white/5 rounded-2xl border border-white/5 flex items-center gap-3">
               <Wallet size={16} className="text-violet-400" />
-              <span className="font-black">GHS {profile.wallet_balance.toFixed(2)}</span>
+              <div className="flex flex-col">
+                <span className="text-[8px] font-black uppercase text-zinc-500 tracking-widest leading-none mb-0.5">Wallet</span>
+                <span className="font-black text-sm">GHS {profile.wallet_balance.toFixed(2)}</span>
+              </div>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 p-6 lg:p-10 max-w-5xl w-full mx-auto space-y-8">
+        <main className="flex-1 p-6 lg:p-10 max-w-6xl w-full mx-auto space-y-8">
           {!systemStatus.enabled && (
-            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 flex gap-3">
+            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 flex gap-3 animate-pulse">
               <AlertTriangle className="shrink-0" />
-              <div><p className="text-xs font-black uppercase">System Restricted</p><p className="text-sm">{systemStatus.message}</p></div>
+              <div><p className="text-xs font-black uppercase tracking-widest">Maintenance Mode</p><p className="text-sm font-medium">{systemStatus.message}</p></div>
             </div>
           )}
 
           {activeTab === 'dashboard' && (
-            <div className="space-y-6">
-              <Accordion type="multiple" defaultValue={Object.keys(bundlesByNetwork)} className="space-y-4">
-                {Object.entries(bundlesByNetwork).map(([network, networkBundles]) => (
-                  <AccordionItem key={network} value={network} className="border-none bg-[#111118] rounded-2xl overflow-hidden">
-                    <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-white/5">
-                      <div className="flex items-center gap-3">
-                        <Zap className="text-violet-400" />
-                        <span className="font-black uppercase tracking-tight">{network} Data Bundles</span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-6 pb-6 pt-2">
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {networkBundles.map(bundle => (
+            <div className="space-y-8">
+              <div className="space-y-1">
+                <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
+                  <Zap className="text-[#FFD700]" />
+                  Buy Data Bundles
+                </h2>
+                <p className="text-zinc-500 text-sm">Select your network to view available packages.</p>
+              </div>
+
+              <Tabs defaultValue="MTN" className="space-y-8">
+                <TabsList className="bg-[#111118] border border-white/5 p-1.5 h-auto grid grid-cols-3 gap-2 max-w-md">
+                  <TabsTrigger 
+                    value="MTN" 
+                    className="py-3 font-black text-xs uppercase tracking-widest data-[state=active]:bg-violet-600 data-[state=active]:text-white transition-all"
+                  >
+                    MTN
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="AirtelTigo" 
+                    className="py-3 font-black text-xs uppercase tracking-widest data-[state=active]:bg-violet-600 data-[state=active]:text-white transition-all"
+                  >
+                    AirtelTigo
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="Telecel" 
+                    className="py-3 font-black text-xs uppercase tracking-widest data-[state=active]:bg-violet-600 data-[state=active]:text-white transition-all"
+                  >
+                    Telecel
+                  </TabsTrigger>
+                </TabsList>
+
+                {Object.entries(groupedBundles).map(([network, networkBundles]) => (
+                  <TabsContent key={network} value={network} className="mt-0 focus-visible:outline-none focus-visible:ring-0">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {networkBundles.length > 0 ? (
+                        networkBundles.map(bundle => (
                           <PlanCard 
                             key={bundle.id} 
                             bundle={bundle} 
@@ -192,27 +244,56 @@ export default function DashboardPage() {
                             walletBalance={profile.wallet_balance} 
                             disabled={!systemStatus.enabled} 
                           />
-                        ))}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
+                        ))
+                      ) : (
+                        <div className="col-span-full py-20 flex flex-col items-center justify-center opacity-20 space-y-4">
+                          <Smartphone size={48} />
+                          <p className="font-bold">No bundles available for {network}</p>
+                        </div>
+                      )}
+                    </div>
+                  </TabsContent>
                 ))}
-              </Accordion>
+              </Tabs>
             </div>
           )}
 
           {activeTab === 'orders' && (
-            <div className="space-y-4">
-              <Input placeholder="Search phone or bundle..." value={ordersSearch} onChange={e => setOrdersSearch(e.target.value)} className="bg-[#111118] border-white/5" />
+            <div className="space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <h2 className="text-2xl font-black tracking-tight">Order History</h2>
+                <div className="relative w-full max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  <Input 
+                    placeholder="Search phone or bundle size..." 
+                    value={ordersSearch} 
+                    onChange={e => setOrdersSearch(e.target.value)} 
+                    className="bg-[#111118] border-white/5 pl-10 h-10" 
+                  />
+                </div>
+              </div>
+              
               <div className="rounded-2xl border border-white/5 bg-[#111118] overflow-hidden">
                 <Table>
-                  <TableHeader><TableRow className="border-white/5"><TableHead>Date</TableHead><TableHead>Bundle</TableHead><TableHead>Phone</TableHead><TableHead className="text-right">Status</TableHead></TableRow></TableHeader>
+                  <TableHeader>
+                    <TableRow className="border-white/5 bg-white/5 hover:bg-white/5">
+                      <TableHead className="font-black uppercase text-[10px] tracking-widest">Date</TableHead>
+                      <TableHead className="font-black uppercase text-[10px] tracking-widest">Bundle</TableHead>
+                      <TableHead className="font-black uppercase text-[10px] tracking-widest">Phone</TableHead>
+                      <TableHead className="text-right font-black uppercase text-[10px] tracking-widest">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
                   <TableBody>
-                    {orders.filter(o => (o.gig || o.gb_size || '').includes(ordersSearch) || (o.phone || o.recipient || '').includes(ordersSearch)).map(order => (
-                      <TableRow key={order.id} className="border-white/5">
-                        <TableCell className="text-zinc-500">{new Date(order.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell className="font-bold">{order.gig || `${order.gb_size}GB`}</TableCell>
-                        <TableCell className="font-mono">{order.phone || order.recipient}</TableCell>
+                    {orders
+                      .filter(o => 
+                        (o.gig || o.gb_size || '').toLowerCase().includes(ordersSearch.toLowerCase()) || 
+                        (o.phone || o.recipient || '').includes(ordersSearch)
+                      )
+                      .map(order => (
+                      <TableRow key={order.id} className="border-white/5 hover:bg-white/5 transition-colors">
+                        <TableCell className="text-zinc-400 text-xs font-medium">{new Date(order.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="font-black text-sm">{order.gig || `${order.gb_size}GB`}</TableCell>
+                        <TableCell className="font-mono text-zinc-300 font-bold">{order.phone || order.recipient}</TableCell>
                         <TableCell className="text-right"><StatusBadge status={order.status} /></TableCell>
                       </TableRow>
                     ))}
@@ -223,21 +304,30 @@ export default function DashboardPage() {
           )}
 
           {activeTab === 'transactions' && (
-            <div className="rounded-2xl border border-white/5 bg-[#111118] overflow-hidden">
-              <Table>
-                <TableHeader><TableRow className="border-white/5"><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {transactions.map(tx => (
-                    <TableRow key={tx.id} className="border-white/5">
-                      <TableCell className="text-zinc-500">{new Date(tx.created_at).toLocaleDateString()}</TableCell>
-                      <TableCell>{tx.description}</TableCell>
-                      <TableCell className={cn("font-bold text-right", tx.type === 'credit' ? 'text-emerald-400' : 'text-white')}>
-                        {tx.type === 'credit' ? '+' : '-'} GHS {tx.amount.toFixed(2)}
-                      </TableCell>
+            <div className="space-y-6">
+              <h2 className="text-2xl font-black tracking-tight">Wallet Transactions</h2>
+              <div className="rounded-2xl border border-white/5 bg-[#111118] overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-white/5 bg-white/5 hover:bg-white/5">
+                      <TableHead className="font-black uppercase text-[10px] tracking-widest">Date</TableHead>
+                      <TableHead className="font-black uppercase text-[10px] tracking-widest">Description</TableHead>
+                      <TableHead className="text-right font-black uppercase text-[10px] tracking-widest">Amount</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {transactions.map(tx => (
+                      <TableRow key={tx.id} className="border-white/5 hover:bg-white/5 transition-colors">
+                        <TableCell className="text-zinc-400 text-xs font-medium">{new Date(tx.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-sm font-medium">{tx.description}</TableCell>
+                        <TableCell className={cn("font-black text-right text-sm", tx.type === 'credit' ? 'text-emerald-400' : 'text-white')}>
+                          {tx.type === 'credit' ? '+' : '-'} GHS {tx.amount.toFixed(2)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           )}
 
@@ -255,5 +345,5 @@ function StatusBadge({ status }: { status: string }) {
     pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     failed: 'bg-red-500/10 text-red-400 border-red-500/20',
   };
-  return <span className={cn("px-3 py-1 rounded-full text-[10px] font-black uppercase border", styles[status?.toLowerCase()] || 'bg-zinc-500/10')}>{status}</span>;
+  return <span className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase border tracking-tighter", styles[status?.toLowerCase()] || 'bg-zinc-500/10 text-zinc-400')}>{status}</span>;
 }
