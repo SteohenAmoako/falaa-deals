@@ -29,7 +29,18 @@ export default function LandingPage() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          router.replace('/dashboard');
+          // Check user role for redirection
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('is_admin')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+
+          if (profile?.is_admin) {
+            router.replace('/falaadealsadminurl$$');
+          } else {
+            router.replace('/dashboard');
+          }
         } else {
           setCheckingSession(false);
         }
@@ -61,7 +72,18 @@ export default function LandingPage() {
         return;
       }
 
-      router.push('/dashboard');
+      // Check user role for redirection
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('user_id', data.session.user.id)
+        .maybeSingle();
+
+      if (profile?.is_admin) {
+        router.push('/falaadealsadminurl$$');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err: any) {
       toast({
         title: "Login Failed",
@@ -107,7 +129,18 @@ export default function LandingPage() {
         return;
       }
 
-      router.push('/dashboard');
+      // Check user role for redirection
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('user_id', data.session.user.id)
+        .maybeSingle();
+
+      if (profile?.is_admin) {
+        router.push('/falaadealsadminurl$$');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err: any) {
       toast({
         title: "Signup Failed",
