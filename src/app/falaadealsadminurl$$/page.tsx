@@ -96,8 +96,13 @@ export default function AdminDashboard() {
           .maybeSingle();
 
         if (error || !profile?.is_admin) { 
-          router.replace('/dashboard'); 
-          return; 
+          // If profile check fails but they got past middleware, we do a re-check
+          // to ensure local RLS isn't just being slow
+          const checkAgain = await supabase.from('profiles').select('is_admin').eq('user_id', session.user.id).maybeSingle();
+          if (!checkAgain.data?.is_admin) {
+            router.replace('/dashboard'); 
+            return;
+          }
         }
 
         setAuthLoading(false);
@@ -125,7 +130,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // Advanced User Processing
   const processedUsers = useMemo(() => {
     if (!data) return [];
 
@@ -153,7 +157,6 @@ export default function AdminDashboard() {
     });
   }, [data]);
 
-  // Filtering Logic
   const filteredData = useMemo(() => {
     if (!data) return [];
     const query = searchQuery.toLowerCase();
@@ -181,7 +184,6 @@ export default function AdminDashboard() {
         (u.phone || '').includes(query)
       );
 
-      // Advanced Sorting
       switch (userSortField) {
         case 'balance':
           result.sort((a, b) => (Number(b.wallet_balance) || 0) - (Number(a.wallet_balance) || 0));
@@ -206,7 +208,6 @@ export default function AdminDashboard() {
     return [];
   }, [activeTab, searchQuery, data, processedUsers, userSortField]);
 
-  // Pagination Helper
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
     return filteredData.slice(start, start + PAGE_SIZE);
@@ -492,7 +493,6 @@ export default function AdminDashboard() {
             </div>
           </TabsContent>
 
-          {/* Pagination Controls */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between py-4">
               <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
