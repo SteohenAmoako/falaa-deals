@@ -14,8 +14,8 @@ import {
   Search, Loader2, RefreshCw,
   Zap, ArrowDownLeft, LogOut, LayoutDashboard, AlertCircle, Settings2, History, TrendingUp, Download, Coins, Filter, ChevronLeft, ChevronRight, PackageSearch, Bell
 } from "lucide-react";
-import { Input } from '@/input';
-import { Textarea } from '@/textarea';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription 
 } from '@/components/ui/dialog';
