@@ -28,7 +28,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { getAdminDashboardData, updateSystemStatus, adjustUserBalance, checkIsAdmin } from '@/app/actions/admin';
+import { getAdminDashboardData, updateSystemStatus, adjustUserBalance } from '@/app/actions/admin';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
@@ -38,7 +38,6 @@ const PAGE_SIZE = 15;
 
 export default function AdminDashboard() {
   const [loading, setLoading]       = useState(true);
-  const [authLoading, setAuthLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   
   // Search States
@@ -80,32 +79,9 @@ export default function AdminDashboard() {
   const { toast } = useToast();
 
   useEffect(() => {
-    async function verifyAdmin() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session) { 
-          router.replace('/'); 
-          return; 
-        }
-
-        const isAdmin = await checkIsAdmin(session.user.id);
-
-        if (!isAdmin) { 
-          console.warn('[AdminPage] Non-admin access rejected.');
-          router.replace('/dashboard'); 
-          return;
-        }
-
-        setAuthLoading(false);
-        fetchData();
-      } catch (err: any) { 
-        console.error('[AdminPage] Auth verification error:', err.message);
-        router.replace('/dashboard'); 
-      }
-    }
-    verifyAdmin();
-  }, [router]);
+    // Unrestricted access: Load data immediately on mount
+    fetchData();
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
@@ -288,13 +264,13 @@ export default function AdminDashboard() {
     toast({ title: "Export Started" });
   };
 
-  if (authLoading) return (
+  if (loading && !data) return (
     <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
         <div className="w-12 h-12 rounded-2xl bg-[#FFD700] flex items-center justify-center">
           <Loader2 className="w-6 h-6 text-black animate-spin" />
         </div>
-        <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">Verifying access…</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">Loading Dashboard…</p>
       </div>
     </div>
   );
@@ -306,7 +282,7 @@ export default function AdminDashboard() {
           <div className="w-9 h-9 rounded-xl bg-[#FFD700] flex items-center justify-center font-black text-black text-sm shrink-0">FD</div>
           <div>
             <h1 className="text-base font-black tracking-tight leading-none">FalaaData</h1>
-            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Admin Console</p>
+            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Admin Console (Unrestricted)</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -419,9 +395,6 @@ export default function AdminDashboard() {
                         <TableCell className="pr-5 text-right"><StatusPill status={item.status} /></TableCell>
                       </TableRow>
                     ))}
-                    {activeTab === 'activity' && paginatedData.length === 0 && (
-                      <TableRow><TableCell colSpan={5} className="text-center py-10 text-zinc-600">No activity matches your search.</TableCell></TableRow>
-                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -443,9 +416,6 @@ export default function AdminDashboard() {
                         <TableCell className="pr-5 text-right"><StatusPill status={tx.status} /></TableCell>
                       </TableRow>
                     ))}
-                    {activeTab === 'deposits' && paginatedData.length === 0 && (
-                      <TableRow><TableCell colSpan={5} className="text-center py-10 text-zinc-600">No deposits match your search.</TableCell></TableRow>
-                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -478,9 +448,6 @@ export default function AdminDashboard() {
                         <TableCell className="text-right pr-5"><Button size="sm" onClick={() => openAdjustment(user)} className="h-7 text-[9px] bg-[#FFD700]/10 text-[#FFD700] hover:bg-[#FFD700] hover:text-black font-black uppercase">Adjust</Button></TableCell>
                       </TableRow>
                     ))}
-                    {activeTab === 'users' && paginatedData.length === 0 && (
-                      <TableRow><TableCell colSpan={6} className="text-center py-10 text-zinc-600">No users match your criteria.</TableCell></TableRow>
-                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -502,29 +469,6 @@ export default function AdminDashboard() {
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
-                <div className="flex items-center gap-1">
-                  {[...Array(totalPages)].map((_, i) => {
-                    const pageNum = i + 1;
-                    if (totalPages > 5 && Math.abs(currentPage - pageNum) > 2 && pageNum !== 1 && pageNum !== totalPages) {
-                      if (Math.abs(currentPage - pageNum) === 3) return <span key={pageNum} className="text-zinc-600">...</span>;
-                      return null;
-                    }
-                    return (
-                      <Button
-                        key={pageNum}
-                        size="sm"
-                        variant={currentPage === pageNum ? "default" : "outline"}
-                        onClick={() => setCurrentPage(pageNum)}
-                        className={cn(
-                          "h-8 w-8 p-0 text-[10px] font-black",
-                          currentPage === pageNum ? "bg-[#FFD700] text-black border-none" : "bg-[#111111] border-white/5 text-zinc-500"
-                        )}
-                      >
-                        {pageNum}
-                      </Button>
-                    );
-                  })}
-                </div>
                 <Button 
                   size="sm" 
                   variant="outline" 
