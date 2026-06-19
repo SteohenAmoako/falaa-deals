@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -95,10 +94,14 @@ export default function AdminDashboard() {
           .eq('user_id', session.user.id)
           .maybeSingle();
 
+        // If no profile found or user is not an admin, perform a secondary rigorous check
         if (error || !profile?.is_admin) { 
-          // If profile check fails but they got past middleware, we do a re-check
-          // to ensure local RLS isn't just being slow
-          const checkAgain = await supabase.from('profiles').select('is_admin').eq('user_id', session.user.id).maybeSingle();
+          const checkAgain = await supabase
+            .from('profiles')
+            .select('is_admin')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+
           if (!checkAgain.data?.is_admin) {
             router.replace('/dashboard'); 
             return;
@@ -119,9 +122,11 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       const result = await getAdminDashboardData();
-      setData(result);
-      setLocalSystemEnabled(result.systemStatus.enabled);
-      setLocalSystemMessage(result.systemStatus.message);
+      if (result) {
+        setData(result);
+        setLocalSystemEnabled(result.systemStatus.enabled);
+        setLocalSystemMessage(result.systemStatus.message);
+      }
     } catch (e) { 
       console.error('Fetch data error:', e); 
       toast({ title: "Error", description: "Failed to load admin data", variant: "destructive" });

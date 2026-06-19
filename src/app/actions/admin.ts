@@ -125,7 +125,22 @@ export async function getAdminDashboardData() {
     };
   } catch (error: any) {
     console.error('Admin Data Fetch Failed:', error);
-    return null; // Return null instead of throwing to prevent Next.js "unexpected response"
+    // Return a default structure instead of null to prevent UI crashes and TS errors
+    return {
+      stats: {
+        totalUsers: 0,
+        todayDeposits: 0,
+        todayOrders: 0,
+        rahitaluBalance: 0,
+        totalProfit: 0,
+        todayProfit: 0
+      },
+      systemStatus: { enabled: true, message: 'Data unavailable' },
+      users: [],
+      orders: [],
+      recentTransactions: [],
+      liveStream: []
+    };
   }
 }
 
