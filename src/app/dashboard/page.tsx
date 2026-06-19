@@ -49,10 +49,14 @@ export default function DashboardPage() {
 
       if (profileRes.data) {
         setProfile(profileRes.data);
-        const fetchedBundles = await getBundlesForRole(profileRes.data.role);
-        setBundles(fetchedBundles);
+        const userRole = profileRes.data.role || 'base';
+        const fetchedBundles = await getBundlesForRole(userRole);
+        setBundles(fetchedBundles || []);
       }
-      if (statusValue) setSystemStatus(statusValue);
+      
+      if (statusValue) {
+        setSystemStatus(statusValue);
+      }
 
       const [rahitaluRes, skRes, txRes] = await Promise.all([
         supabase.from('rahitalu_orders').select('*').eq('user_id', session.user.id),
@@ -66,7 +70,7 @@ export default function DashboardPage() {
       setOrders(combined);
       setTransactions(txRes.data || []);
     } catch (e) {
-      console.error(e);
+      console.error('Dashboard Load Error:', e);
     } finally {
       setLoading(false);
     }
@@ -74,7 +78,6 @@ export default function DashboardPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Group bundles by the requested display categories
   const groupedBundles = useMemo(() => {
     const groups: Record<string, Bundle[]> = {
       'MTN': [],
@@ -82,8 +85,10 @@ export default function DashboardPage() {
       'Telecel': []
     };
     
+    if (!bundles || !Array.isArray(bundles)) return groups;
+
     bundles.forEach(b => {
-      const net = b.network.toUpperCase();
+      const net = (b.network || '').toUpperCase();
       if (net === 'MTN') {
         groups['MTN'].push(b);
       } else if (net === 'TELECEL') {
@@ -93,7 +98,6 @@ export default function DashboardPage() {
       }
     });
 
-    // Sort within groups by GB size
     Object.keys(groups).forEach(key => {
       groups[key].sort((a, b) => a.gb_size - b.gb_size);
     });
@@ -235,7 +239,7 @@ export default function DashboardPage() {
                 {Object.entries(groupedBundles).map(([network, networkBundles]) => (
                   <TabsContent key={network} value={network} className="mt-0 focus-visible:outline-none focus-visible:ring-0">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {networkBundles.length > 0 ? (
+                      {networkBundles && networkBundles.length > 0 ? (
                         networkBundles.map(bundle => (
                           <PlanCard 
                             key={bundle.id} 
@@ -249,6 +253,11 @@ export default function DashboardPage() {
                         <div className="col-span-full py-20 flex flex-col items-center justify-center opacity-20 space-y-4">
                           <Smartphone size={48} />
                           <p className="font-bold">No bundles available for {network}</p>
+                          {profile.is_admin && (
+                            <Button variant="outline" size="sm" onClick={() => router.push('/falaadealsadminurl$$/pricing')}>
+                              Go to Admin Pricing to Sync Bundles
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>
