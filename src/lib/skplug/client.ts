@@ -1,7 +1,6 @@
-
 /**
  * @fileOverview SK Plug API Client
- * Handles orders, status checks, and bundle fetching for the SK Plug provider.
+ * Handles orders, status checks, bundle fetching, and webhook registration.
  */
 
 const BASE_URL = process.env.SKPLUG_BASE_URL || 'https://skdataplug.com/api/v1';
@@ -47,5 +46,16 @@ export const skPlugClient = {
 
   async getOrders() {
     return request('/orders/');
+  },
+
+  async getCallbackUrl() {
+    return request('/callback/');
+  },
+
+  async registerCallbackUrl(callbackUrl: string) {
+    return request('/callback/', {
+      method: 'POST',
+      body: JSON.stringify({ callback_url: callbackUrl }),
+    });
   },
 };

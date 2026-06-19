@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -13,14 +12,14 @@ import {
 import {
   Users, ShoppingCart, Wallet, 
   Search, Loader2, RefreshCw,
-  Zap, ArrowDownLeft, LogOut, LayoutDashboard, AlertCircle, Settings2, History, TrendingUp, Download, Coins, Filter, ChevronLeft, ChevronRight, PackageSearch
+  Zap, ArrowDownLeft, LogOut, LayoutDashboard, AlertCircle, Settings2, History, TrendingUp, Download, Coins, Filter, ChevronLeft, ChevronRight, PackageSearch, Bell
 } from "lucide-react";
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/input';
+import { Textarea } from '@/textarea';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription 
 } from '@/components/ui/dialog';
-import { getAdminDashboardData, updateSystemStatus, adjustUserBalance, assignUserRole } from '@/app/actions/admin';
+import { getAdminDashboardData, updateSystemStatus, adjustUserBalance, assignUserRole, registerSkPlugWebhook } from '@/app/actions/admin';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
@@ -32,6 +31,7 @@ const PAGE_SIZE = 15;
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [registeringWebhook, setRegisteringWebhook] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('activity');
   const [currentPage, setCurrentPage] = useState(1);
@@ -117,6 +117,18 @@ export default function AdminDashboard() {
     setUpdatingStatus(false);
   };
 
+  const handleRegisterWebhook = async () => {
+    setRegisteringWebhook(true);
+    const appUrl = window.location.origin;
+    const result = await registerSkPlugWebhook(appUrl);
+    if (result.success) {
+      toast({ variant: "success", title: "Webhook Registered", description: result.message });
+    } else {
+      toast({ variant: "destructive", title: "Registration Failed", description: result.message });
+    }
+    setRegisteringWebhook(false);
+  };
+
   const handleAdjustBalance = async () => {
     if (!adjUser || !adjAmount) return;
     setAdjLoading(true);
@@ -139,6 +151,10 @@ export default function AdminDashboard() {
           <h1 className="text-base font-black tracking-tight">FalaaData Admin</h1>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="ghost" onClick={handleRegisterWebhook} disabled={registeringWebhook} className="text-zinc-400 border border-white/5">
+            {registeringWebhook ? <Loader2 size={16} className="animate-spin" /> : <Bell size={16} className="mr-2" />} 
+            Webhook Setup
+          </Button>
           <Button size="sm" variant="ghost" onClick={() => router.push('/falaadealsadminurl$$/pricing')} className="text-zinc-400 border border-white/5"><PackageSearch size={16} className="mr-2" /> Pricing & Bundles</Button>
           <Button size="sm" variant="ghost" onClick={fetchData} className="text-zinc-400 border border-white/5"><RefreshCw size={16} className={cn(loading && "animate-spin")} /></Button>
           <Button size="sm" variant="ghost" onClick={() => router.push('/dashboard')} className="text-zinc-400 border border-white/5"><LayoutDashboard size={16} /></Button>

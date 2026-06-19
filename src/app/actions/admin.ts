@@ -1,8 +1,8 @@
-
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
 import { getUpstreamDashboard, getUpstreamOrderHistory } from '@/lib/rahitalu';
+import { skPlugClient } from '@/lib/skplug/client';
 import { revalidatePath } from 'next/cache';
 import { UserRole } from '@/lib/types';
 
@@ -196,6 +196,16 @@ export async function adjustUserBalance(profileId: string, amount: number, type:
 
     revalidatePath('/dashboard');
     return { success: true, newBalance };
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+}
+
+export async function registerSkPlugWebhook(appUrl: string) {
+  try {
+    const callbackUrl = `${appUrl.replace(/\/+$/, '')}/api/webhooks/skplug`;
+    const res = await skPlugClient.registerCallbackUrl(callbackUrl);
+    return { success: true, message: res.message };
   } catch (error: any) {
     return { success: false, message: error.message };
   }
