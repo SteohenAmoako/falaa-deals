@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -82,11 +83,16 @@ export default function AdminDashboard() {
   useEffect(() => {
     async function checkAdminAccess() {
       try {
+        console.log('[AdminPage] Starting Admin Access Check...');
         const { data: { session } } = await supabase.auth.getSession();
+        
         if (!session) { 
+          console.warn('[AdminPage] No session found. Redirecting to home.');
           router.replace('/'); 
           return; 
         }
+
+        console.log('[AdminPage] Session found for user:', session.user.id);
 
         const { data: profile, error } = await supabase
           .from('profiles')
@@ -94,24 +100,21 @@ export default function AdminDashboard() {
           .eq('user_id', session.user.id)
           .maybeSingle();
 
-        // If no profile found or user is not an admin, perform a secondary rigorous check
-        if (error || !profile?.is_admin) { 
-          const checkAgain = await supabase
-            .from('profiles')
-            .select('is_admin')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-
-          if (!checkAgain.data?.is_admin) {
-            router.replace('/dashboard'); 
-            return;
-          }
+        if (error) {
+          console.error('[AdminPage] Database error checking admin status:', error.message);
         }
 
+        if (!profile?.is_admin) { 
+          console.warn('[AdminPage] User is not an admin or profile missing. profile:', profile);
+          router.replace('/dashboard'); 
+          return;
+        }
+
+        console.log('[AdminPage] Admin access confirmed.');
         setAuthLoading(false);
         fetchData();
-      } catch (err) { 
-        console.error('Auth check error:', err);
+      } catch (err: any) { 
+        console.error('[AdminPage] Unexpected auth check error:', err.message);
         router.replace('/dashboard'); 
       }
     }

@@ -13,18 +13,21 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   const supabase = createMiddlewareClient({ req, res });
 
-  // Refresh session if it exists
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
   const path = req.nextUrl.pathname;
+  
+  // Refresh session if it exists
+  const { data: { session } } = await supabase.auth.getSession();
 
   // If trying to access the secret admin URL
   if (path.startsWith('/falaadealsadminurl$$')) {
+    console.log('[Middleware] Admin Route Access Attempt:', path);
+
     if (!session) {
+      console.log('[Middleware] No session found. Redirecting to home.');
       return NextResponse.redirect(new URL('/', req.url));
     }
+
+    console.log('[Middleware] Session found for user:', session.user.id);
 
     try {
       // Use Service Role client to check admin status (bypasses RLS)
@@ -44,12 +47,24 @@ export async function middleware(req: NextRequest) {
         .eq('user_id', session.user.id)
         .maybeSingle();
 
-      // If no profile found or user is not an admin, send to dashboard
-      if (error || !profile || profile.is_admin !== true) {
+      if (error) {
+        console.error('[Middleware] Database error checking admin status:', error.message);
         return NextResponse.redirect(new URL('/dashboard', req.url));
       }
-    } catch (e) {
-      // If error during check, fallback to dashboard for safety
+
+      if (!profile) {
+        console.warn('[Middleware] No profile found for user:', session.user.id);
+        return NextResponse.redirect(new URL('/dashboard', req.url));
+      }
+
+      if (profile.is_admin !== true) {
+        console.warn('[Middleware] User is not an admin. is_admin:', profile.is_admin);
+        return NextResponse.redirect(new URL('/dashboard', req.url));
+      }
+
+      console.log('[Middleware] Admin status verified. Access granted.');
+    } catch (e: any) {
+      console.error('[Middleware] Unexpected error during admin check:', e.message);
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
   }
