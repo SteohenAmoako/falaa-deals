@@ -1,0 +1,54 @@
+
+{
+  "entities": {
+    "Profile": {
+      "title": "Profile",
+      "description": "User profile with wallet and admin status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "user_id": { "type": "string", "format": "uuid" },
+        "full_name": { "type": "string" },
+        "phone": { "type": "string" },
+        "reference_code": { "type": "string" },
+        "wallet_balance": { "type": "number" },
+        "is_admin": { "type": "boolean" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "SKPlugOrder": {
+      "title": "SK Plug Order",
+      "description": "Orders placed through the SK Plug provider",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "user_id": { "type": "string", "format": "uuid" },
+        "recipient": { "type": "string" },
+        "network": { "type": "string" },
+        "gb_size": { "type": "string" },
+        "sell_price_ghs": { "type": "number" },
+        "order_id": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "processing", "delivered", "failed"] },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "ApiKey": {
+      "title": "API Key",
+      "description": "Public API keys for reseller automation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "user_id": { "type": "string", "format": "uuid" },
+        "api_key": { "type": "string" },
+        "is_active": { "type": "boolean" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "last_used_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "auth": {
+    "providers": ["email"]
+  },
+  "firestore": {}
+}

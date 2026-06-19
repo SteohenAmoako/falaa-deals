@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -10,8 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PLANS, type Profile, type RahitaluOrder, type WalletTransaction } from '@/lib/types';
 import {
-  LayoutDashboard, History, ShoppingBag, LogOut,
-  BarChart3, User, Loader2, ArrowUpRight, ArrowDownLeft, Menu, X, CheckCircle2, CreditCard, TrendingUp, AlertTriangle, ExternalLink, Copy, Wallet, Info, Plus, Search, ChevronLeft, ChevronRight
+  LayoutDashboard, History, ShoppingBag, LogOut, Code2,
+  BarChart3, User, Loader2, ArrowUpRight, ArrowDownLeft, Menu, X, CheckCircle2, CreditCard, TrendingUp, AlertTriangle, ExternalLink, Copy, Wallet, Info, Plus, Search, ChevronLeft, ChevronRight, Zap
 } from "lucide-react";
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -41,7 +42,7 @@ const PAGE_SIZE = 10;
 
 export default function DashboardPage() {
   const [profile, setProfile]           = useState<Profile | null>(null);
-  const [orders, setOrders]             = useState<RahitaluOrder[]>([]);
+  const [orders, setOrders]             = useState<any[]>([]);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [systemStatus, setSystemStatus] = useState<{ enabled: boolean, message: string }>({ enabled: true, message: '' });
   const [loading, setLoading]           = useState(true);
@@ -81,64 +82,36 @@ export default function DashboardPage() {
         setSystemStatus(statusValue);
       }
 
-      const [ordersRes, txRes] = await Promise.all([
-        supabase
-          .from('rahitalu_orders')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('wallet_transactions')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false })
+      const [ordersRes, skOrdersRes, txRes] = await Promise.all([
+        supabase.from('rahitalu_orders').select('*').eq('user_id', session.user.id),
+        supabase.from('skplug_orders').select('*').eq('user_id', session.user.id),
+        supabase.from('wallet_transactions').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false })
       ]);
 
-      const currentOrders = ordersRes.data || [];
-      const currentTxs = txRes.data || [];
+      const combinedOrders = [
+        ...(ordersRes.data || []),
+        ...(skOrdersRes.data || [])
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       
-      setOrders(currentOrders);
-      setTransactions(currentTxs);
+      setOrders(combinedOrders);
+      setTransactions(txRes.data || []);
 
       if (!isReconciling.current) {
-        const pendingCredits = currentTxs.filter(t => t.type === 'credit' && t.status === 'pending');
+        const pendingCredits = (txRes.data || []).filter(t => t.type === 'credit' && t.status === 'pending');
         if (pendingCredits.length > 0) {
           isReconciling.current = true;
-          let recovered = false;
-
           for (const tx of pendingCredits) {
-            try {
-              const res = await fetch('/api/paystack/verify', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reference: tx.reference }),
-              });
-              const data = await res.json();
-              if (data.success) {
-                recovered = true;
-              }
-            } catch (err) {
-              console.warn('Reconciliation failed for ref:', tx.reference);
-            }
-          }
-
-          if (recovered) {
-            const { data: updatedProfile } = await supabase.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle();
-            if (updatedProfile) setProfile(updatedProfile);
-            
-            const { data: updatedTxs } = await supabase.from('wallet_transactions').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false });
-            if (updatedTxs) setTransactions(updatedTxs);
+            await fetch('/api/paystack/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ reference: tx.reference }),
+            }).catch(() => {});
           }
           isReconciling.current = false;
         }
       }
 
-      const hasActiveOrders = currentOrders.some(o => 
-        ['pending', 'processing'].includes(o.status?.toLowerCase())
-      );
-      if (hasActiveOrders) {
-        syncUserOrders(session.user.id).catch(() => {});
-      }
+      syncUserOrders(session.user.id).catch(() => {});
 
     } catch (error: any) {
       console.error('Error loading dashboard:', error);
@@ -159,50 +132,26 @@ export default function DashboardPage() {
       .channel('profile-updates')
       .on(
         'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'profiles',
-          filter: `user_id=eq.${profile.user_id}`
-        },
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `user_id=eq.${profile.user_id}` },
         (payload) => {
           setProfile(payload.new as Profile);
-          toast({
-            title: "Balance Updated",
-            description: `Your new balance is GHS ${Number((payload.new as Profile).wallet_balance).toFixed(2)}`,
+          toast({ 
+            variant: "success", 
+            title: "🎉 Balance Updated", 
+            description: `Your new balance is GHS ${Number((payload.new as Profile).wallet_balance).toFixed(2)}` 
           });
           loadDashboardData();
         }
       )
       .subscribe();
 
-    const txSubscription = supabase
-      .channel('transaction-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'wallet_transactions',
-          filter: `user_id=eq.${profile.user_id}`
-        },
-        () => {
-          loadDashboardData();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(profileSubscription);
-      supabase.removeChannel(txSubscription);
-    };
+    return () => { supabase.removeChannel(profileSubscription); };
   }, [profile?.user_id, loadDashboardData, toast]);
 
-  // Filter and Pagination Logic
   const filteredOrders = useMemo(() => {
     return orders.filter(o => 
-      o.gig.toLowerCase().includes(ordersSearch.toLowerCase()) || 
-      o.phone.includes(ordersSearch)
+      (o.gig || o.gb_size || '').toLowerCase().includes(ordersSearch.toLowerCase()) || 
+      o.phone?.includes(ordersSearch) || o.recipient?.includes(ordersSearch)
     );
   }, [orders, ordersSearch]);
 
@@ -211,8 +160,6 @@ export default function DashboardPage() {
     return filteredOrders.slice(start, start + PAGE_SIZE);
   }, [filteredOrders, ordersPage]);
 
-  const totalOrderPages = Math.ceil(filteredOrders.length / PAGE_SIZE);
-
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => 
       t.description.toLowerCase().includes(txSearch.toLowerCase()) ||
@@ -220,26 +167,9 @@ export default function DashboardPage() {
     );
   }, [transactions, txSearch]);
 
-  const paginatedTransactions = useMemo(() => {
-    const start = (txPage - 1) * PAGE_SIZE;
-    return filteredTransactions.slice(start, start + PAGE_SIZE);
-  }, [filteredTransactions, txPage]);
-
-  const totalTxPages = Math.ceil(filteredTransactions.length / PAGE_SIZE);
-
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push('/');
-  };
-
-  const handleTabChange = (tab: DashboardTab) => {
-    setActiveTab(tab);
-    setSidebarOpen(false);
-    // Reset pagination when switching tabs
-    setOrdersPage(1);
-    setTxPage(1);
-    setOrdersSearch('');
-    setTxSearch('');
   };
 
   const copyRef = (code: string) => {
@@ -250,23 +180,12 @@ export default function DashboardPage() {
   if (loading && !profile) {
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-violet-600 flex items-center justify-center">
-            <Loader2 className="w-6 h-6 text-white animate-spin" />
-          </div>
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Establishing Session...</p>
-        </div>
+        <Loader2 className="w-12 h-12 text-violet-600 animate-spin" />
       </div>
     );
   }
 
   if (!profile) return null;
-
-  const firstName = profile.full_name.split(' ')[0];
-  const totalOrdersCount = orders.length;
-  const deliveredOrders = orders.filter(o => ['delivered', 'success'].includes((o.upstream_status || o.status)?.toLowerCase())).length;
-  const totalDeposits = transactions.filter(t => t.type === 'credit' && t.status === 'success').reduce((sum, t) => sum + Number(t.amount), 0);
-  const totalSalesVolume = orders.filter(o => !['failed'].includes(o.status?.toLowerCase())).reduce((sum, o) => sum + Number(o.sell_price_ghs), 0);
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white flex">
@@ -289,7 +208,7 @@ export default function DashboardPage() {
           {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => handleTabChange(id as DashboardTab)}
+              onClick={() => { setActiveTab(id as DashboardTab); setSidebarOpen(false); }}
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all",
                 activeTab === id ? "bg-violet-600 text-white shadow-lg shadow-violet-600/20" : "text-zinc-400 hover:text-white hover:bg-white/5"
@@ -299,6 +218,13 @@ export default function DashboardPage() {
               {label}
             </button>
           ))}
+          <button
+            onClick={() => router.push('/dashboard/api-docs')}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-zinc-400 hover:text-white hover:bg-white/5"
+          >
+            <Code2 size={17} />
+            API Docs
+          </button>
         </nav>
 
         <div className="pt-6 border-t border-white/5 space-y-4">
@@ -310,7 +236,7 @@ export default function DashboardPage() {
               <p className="text-sm font-bold truncate">{profile.full_name}</p>
               <p className="text-xs text-zinc-500 truncate flex items-center gap-1.5">
                 {profile.phone} 
-                <span className="text-[10px] text-zinc-600 font-bold px-1.5 py-0.5 bg-white/5 rounded border border-white/5 select-none">{profile.reference_code}</span>
+                <span className="text-[10px] text-zinc-600 font-bold px-1.5 py-0.5 bg-white/5 rounded border border-white/5">{profile.reference_code}</span>
               </p>
             </div>
           </div>
@@ -330,7 +256,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2 ml-auto">
             <Dialog>
               <DialogTrigger asChild>
-                <Button size="sm" variant="outline" className="h-9 gap-1.5 bg-violet-600/10 border-violet-600/20 text-violet-400 hover:bg-violet-600 hover:text-white transition-all text-xs font-bold px-3 rounded-xl">
+                <Button size="sm" variant="outline" className="h-9 gap-1.5 bg-violet-600/10 border-violet-600/20 text-violet-400 hover:bg-violet-600 hover:text-white text-xs font-bold px-3 rounded-xl">
                   <Plus className="w-3.5 h-3.5" />
                   Top Up
                 </Button>
@@ -341,9 +267,6 @@ export default function DashboardPage() {
                     <Info className="w-5 h-5 text-violet-400" />
                     Manual Deposit
                   </DialogTitle>
-                  <DialogDescription className="text-zinc-400 text-sm">
-                    Follow these steps to fund your wallet instantly.
-                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-6 py-4">
                   <div className="bg-black/40 p-4 rounded-xl border border-white/5 space-y-4">
@@ -361,24 +284,13 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </div>
-                  
-                  <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex gap-3">
-                    <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
-                    <p className="text-[11px] font-medium text-red-300 leading-tight">
-                      <strong className="uppercase">Warning:</strong> You MUST use <span className="font-bold text-white underline">{profile.reference_code}</span> as the reference/reason or your wallet will NOT be credited automatically.
-                    </p>
-                  </div>
-
-                  <p className="text-[10px] text-zinc-500 text-center italic">
-                    Wallet will be credited automatically once payment is received.
-                  </p>
+                  <p className="text-[10px] text-zinc-500 text-center italic">Wallet will be credited automatically once payment is received.</p>
                 </div>
               </DialogContent>
             </Dialog>
 
             <div className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white/5 rounded-2xl border border-white/5">
               <Wallet className="w-3.5 h-3.5 text-violet-400" />
-              <span className="hidden xs:inline text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Wallet</span>
               <span className="text-xs sm:text-sm font-black text-white">GHS {Number(profile.wallet_balance).toFixed(2)}</span>
             </div>
 
@@ -389,37 +301,18 @@ export default function DashboardPage() {
         <main className="flex-1 p-3 sm:p-6 lg:p-10 max-w-5xl w-full mx-auto space-y-6 sm:space-y-8">
           {!systemStatus.enabled && (
             <Alert className="bg-red-500/10 border-red-500/20 text-red-400 animate-in fade-in slide-in-from-top-4 duration-500">
-              <AlertTriangle className="h-4 w-4 text-red-400" />
+              <AlertTriangle className="h-4 w-4" />
               <AlertTitle className="font-black uppercase tracking-widest text-[10px]">System Restricted</AlertTitle>
-              <AlertDescription className="text-xs font-medium">
-                {systemStatus.message || "We are currently undergoing maintenance. Deposits and purchases are temporarily disabled."}
-              </AlertDescription>
+              <AlertDescription className="text-xs font-medium">{systemStatus.message || "We are currently undergoing maintenance."}</AlertDescription>
             </Alert>
           )}
 
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-            <div className="space-y-0.5">
-              <h1 className="text-xl sm:text-3xl font-black tracking-tight">
-                {activeTab === 'dashboard'    && `Hey, ${firstName} 👋`}
-                {activeTab === 'orders'       && 'My Orders'}
-                {activeTab === 'transactions' && 'Transactions'}
-                {activeTab === 'usage'        && 'Usage Insights'}
-              </h1>
-              <p className="text-xs sm:text-sm text-zinc-500">
-                {activeTab === 'dashboard'    && 'Activate a new bundle instantly.'}
-                {activeTab === 'orders'       && 'Track your connectivity history.'}
-                {activeTab === 'transactions' && 'Wallet activity and funding logs.'}
-                {activeTab === 'usage'        && 'Your data consumption analysis.'}
-              </p>
-            </div>
-          </div>
-
           {activeTab === 'dashboard' && (
-            <div className="space-y-6 sm:space-y-12 animate-in fade-in duration-300">
+            <div className="space-y-12 animate-in fade-in duration-300">
               <section className="space-y-4">
                 <div className="flex items-center gap-2">
-                  <ShoppingBag className="w-3.5 h-3.5 text-violet-400" />
-                  <h2 className="text-[10px] sm:text-sm font-bold uppercase tracking-widest text-zinc-400">Available Bundles</h2>
+                  <Zap className="w-4 h-4 text-amber-400" />
+                  <h2 className="text-[10px] sm:text-sm font-bold uppercase tracking-widest text-zinc-400">Main Bundles</h2>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:gap-6">
                   {PLANS.map(plan => (
@@ -428,49 +321,27 @@ export default function DashboardPage() {
                 </div>
               </section>
 
-              <section className="pt-8 border-t border-white/5 space-y-6 text-center">
-                <div className="space-y-2">
-                  <h3 className="text-lg font-black tracking-tight">Looking for regular offers?</h3>
-                  <p className="text-xs text-zinc-500 max-w-sm mx-auto">Visit our main website to explore a wider range of high-speed regular data bundles and exclusive deals.</p>
-                </div>
-                <div className="flex justify-center">
-                  <Button 
-                    asChild 
-                    className="h-14 px-8 rounded-2xl bg-[#111118] hover:bg-white/5 text-white border border-white/10 font-black uppercase tracking-widest text-xs flex items-center gap-3 transition-all group"
-                  >
-                    <a href="https://sbbundles-main.vercel.app/store/qqqq" target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="w-4 h-4 text-violet-400 group-hover:scale-110 transition-transform" />
-                      Regular Bundles
-                    </a>
-                  </Button>
-                </div>
-              </section>
-
-              <section className="pt-8 border-t border-white/5 space-y-4">
+              <section className="space-y-4 border-t border-white/5 pt-10">
                 <div className="flex items-center gap-2">
-                  <History className="w-3.5 h-3.5 text-violet-400" />
-                  <h2 className="text-[10px] sm:text-sm font-bold uppercase tracking-widest text-zinc-400">Recent Activity</h2>
+                  <ShoppingBag className="w-4 h-4 text-violet-400" />
+                  <h2 className="text-[10px] sm:text-sm font-bold uppercase tracking-widest text-zinc-400">SK Plug (Reseller Rates)</h2>
                 </div>
-                {orders.length === 0 ? (
-                   <p className="text-xs text-zinc-600 italic px-2">No recent transactions.</p>
-                ) : (
-                  <div className="grid gap-3">
-                    {orders.slice(0, 2).map(order => (
-                      <div key={order.id} className="bg-[#111118] border border-white/5 p-4 rounded-2xl flex items-center justify-between group hover:bg-white/3 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-violet-600/10 flex items-center justify-center">
-                            <ShoppingBag className="w-5 h-5 text-violet-400" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-white">{order.gig} Bundle</p>
-                            <p className="text-[10px] text-zinc-500 font-medium font-mono">{order.phone} · {new Date(order.created_at).toLocaleDateString()}</p>
-                          </div>
-                        </div>
-                        <StatusBadge status={order.upstream_status || order.status} />
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <div className="grid grid-cols-2 gap-2 sm:gap-6">
+                  <PlanCard 
+                    plan={{ id: 'sk_5gb', name: 'SK Plug', size: '5GB', price: 15, description: 'Direct Reseller Data' }} 
+                    userId={profile.user_id} 
+                    walletBalance={profile.wallet_balance} 
+                    disabled={!systemStatus.enabled}
+                    isSKPlug
+                  />
+                  <PlanCard 
+                    plan={{ id: 'sk_10gb', name: 'SK Plug', size: '10GB', price: 29, description: 'Direct Reseller Data' }} 
+                    userId={profile.user_id} 
+                    walletBalance={profile.wallet_balance} 
+                    disabled={!systemStatus.enabled}
+                    isSKPlug
+                  />
+                </div>
               </section>
             </div>
           )}
@@ -479,227 +350,49 @@ export default function DashboardPage() {
             <div className="animate-in fade-in duration-300 space-y-4">
               <div className="relative max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                <Input 
-                  placeholder="Search by bundle or phone..." 
-                  className="pl-10 bg-[#111118] border-white/5 text-white" 
-                  value={ordersSearch}
-                  onChange={(e) => { setOrdersSearch(e.target.value); setOrdersPage(1); }}
-                />
+                <Input placeholder="Search orders..." className="pl-10 bg-[#111118] border-white/5" value={ordersSearch} onChange={e => setOrdersSearch(e.target.value)} />
               </div>
-
               <div className="rounded-2xl border border-white/5 bg-[#111118] overflow-hidden">
-                {filteredOrders.length === 0 ? (
-                  <EmptyState icon={ShoppingBag} message={ordersSearch ? "No matching orders found." : "No orders yet. Buy your first bundle above."} />
-                ) : (
-                  <>
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader><TableRow className="border-white/5"><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Date</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Bundle</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Phone</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Status</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4 text-right">Price</TableHead></TableRow></TableHeader>
-                        <TableBody>
-                          {paginatedOrders.map(order => (
-                            <TableRow key={order.id} className="border-white/5 hover:bg-white/3">
-                              <TableCell className="text-sm text-zinc-400 py-4">{new Date(order.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</TableCell>
-                              <TableCell className="font-bold text-white">{order.gig}</TableCell>
-                              <TableCell className="font-mono text-xs text-zinc-400">{order.phone}</TableCell>
-                              <TableCell><StatusBadge status={order.upstream_status || order.status} /></TableCell>
-                              <TableCell className="font-bold text-white text-right">GHS {Number(order.sell_price_ghs).toFixed(2)}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-
-                    {totalOrderPages > 1 && (
-                      <div className="p-4 border-t border-white/5 flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
-                          Page {ordersPage} of {totalOrderPages}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            disabled={ordersPage === 1}
-                            onClick={() => setOrdersPage(p => p - 1)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <ChevronLeft size={16} />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            disabled={ordersPage === totalOrderPages}
-                            onClick={() => setOrdersPage(p => p + 1)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <ChevronRight size={16} />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
+                <Table>
+                  <TableHeader><TableRow className="border-white/5"><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Date</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Bundle</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Phone</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4 text-right">Status</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {paginatedOrders.map(order => (
+                      <TableRow key={order.id} className="border-white/5 hover:bg-white/3">
+                        <TableCell className="text-sm text-zinc-400">{new Date(order.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="font-bold">{order.gig || order.gb_size} {order.gb_size ? 'GB' : ''}</TableCell>
+                        <TableCell className="font-mono text-xs">{order.phone || order.recipient}</TableCell>
+                        <TableCell className="text-right"><StatusBadge status={order.status} /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             </div>
           )}
 
           {activeTab === 'transactions' && (
             <div className="animate-in fade-in duration-300 space-y-4">
-              <div className="relative max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                <Input 
-                  placeholder="Search transactions..." 
-                  className="pl-10 bg-[#111118] border-white/5 text-white" 
-                  value={txSearch}
-                  onChange={(e) => { setTxSearch(e.target.value); setTxPage(1); }}
-                />
-              </div>
-
               <div className="rounded-2xl border border-white/5 bg-[#111118] overflow-hidden">
-                {filteredTransactions.length === 0 ? (
-                  <EmptyState icon={History} message={txSearch ? "No matching transactions found." : "No transactions yet. Top up your wallet to get started."} />
-                ) : (
-                  <>
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader><TableRow className="border-white/5"><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Date</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Type</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Description</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4 text-right">Amount</TableHead></TableRow></TableHeader>
-                        <TableBody>
-                          {paginatedTransactions.map(tx => (
-                            <TableRow key={tx.id} className="border-white/5 hover:bg-white/3">
-                              <TableCell className="text-sm text-zinc-400 py-4">{new Date(tx.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</TableCell>
-                              <TableCell><div className="flex items-center gap-1.5">{tx.type === 'credit' ? <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowUpRight className="w-3.5 h-3.5 text-red-400" />}<span className={cn("text-xs font-bold uppercase", tx.type === 'credit' ? 'text-emerald-400' : 'text-red-400')}>{tx.type}</span></div></TableCell>
-                              <TableCell className="text-sm text-zinc-400 max-w-[160px] truncate">{tx.description}</TableCell>
-                              <TableCell className={cn("font-black text-right", tx.type === 'credit' ? 'text-emerald-400' : 'text-white')}>{tx.type === 'credit' ? '+' : '-'} GHS {Number(tx.amount).toFixed(2)}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-
-                    {totalTxPages > 1 && (
-                      <div className="p-4 border-t border-white/5 flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
-                          Page {txPage} of {totalTxPages}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            disabled={txPage === 1}
-                            onClick={() => setTxPage(p => p - 1)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <ChevronLeft size={16} />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            disabled={txPage === totalTxPages}
-                            onClick={() => setTxPage(p => p + 1)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <ChevronRight size={16} />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
+                <Table>
+                  <TableHeader><TableRow className="border-white/5"><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Date</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4">Description</TableHead><TableHead className="text-[11px] uppercase font-bold text-zinc-500 py-4 text-right">Amount</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {transactions.map(tx => (
+                      <TableRow key={tx.id} className="border-white/5 hover:bg-white/3">
+                        <TableCell className="text-sm text-zinc-400">{new Date(tx.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-sm">{tx.description}</TableCell>
+                        <TableCell className={cn("font-bold text-right", tx.type === 'credit' ? 'text-emerald-400' : 'text-white')}>
+                          {tx.type === 'credit' ? '+' : '-'} GHS {Number(tx.amount).toFixed(2)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             </div>
           )}
 
-          {activeTab === 'usage' && (
-            <div className="animate-in fade-in duration-300 space-y-8">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="bg-[#111118] border-white/5 shadow-xl"><CardContent className="p-4 pt-6 text-center space-y-1"><div className="w-8 h-8 rounded-full bg-violet-600/10 flex items-center justify-center mx-auto mb-2"><ShoppingBag className="w-4 h-4 text-violet-400" /></div><div className="text-xl font-black">{totalOrdersCount}</div><div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Total Orders</div></CardContent></Card>
-                <Card className="bg-[#111118] border-white/5 shadow-xl"><CardContent className="p-4 pt-6 text-center space-y-1"><div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /></div><div className="text-xl font-black">{deliveredOrders}</div><div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Delivered</div></CardContent></Card>
-                <Card className="bg-[#111118] border-white/5 shadow-xl"><CardContent className="p-4 pt-6 text-center space-y-1"><div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-2"><CreditCard className="w-4 h-4 text-blue-400" /></div><div className="text-xl font-black">GHS {totalDeposits.toFixed(2)}</div><div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Deposits</div></CardContent></Card>
-                <Card className="bg-violet-600 border-none shadow-xl shadow-violet-600/20"><CardContent className="p-4 pt-6 text-center space-y-1"><div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-2"><TrendingUp className="w-4 h-4 text-white" /></div><div className="text-xl font-black text-white">GHS {totalSalesVolume.toFixed(2)}</div><div className="text-[10px] text-white/60 font-bold uppercase tracking-widest">Sales Vol</div></CardContent></Card>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <ForecastTool currentBalance={profile.wallet_balance} orders={orders} />
-                
-                <Card className="bg-[#111118] border-white/5 shadow-xl flex flex-col">
-                  <div className="p-6 pb-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <CreditCard className="w-4 h-4 text-violet-400" />
-                      <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Manual Deposit</h3>
-                    </div>
-                    <p className="text-xs text-zinc-500">Fund your wallet directly via MoMo transfer.</p>
-                  </div>
-                  <CardContent className="p-6 flex-1 flex flex-col justify-center">
-                    <div className="bg-black/30 rounded-2xl p-6 border border-white/5 space-y-4 text-center">
-                      <div className="space-y-1">
-                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Your Unique Reference</span>
-                        <div className="flex items-center justify-center gap-3">
-                          <span className="text-3xl font-black tracking-widest text-violet-400 font-mono">{profile.reference_code}</span>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-zinc-500 hover:text-white" onClick={() => copyRef(profile.reference_code)}>
-                            <Copy className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button className="w-full h-12 bg-violet-600 hover:bg-violet-700 text-white font-black uppercase tracking-widest text-xs">
-                            <ArrowDownLeft className="w-4 h-4 mr-2" />
-                            Deposit Now
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="bg-[#111118] border-white/5 text-white max-w-sm">
-                          <DialogHeader>
-                            <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
-                              <Info className="w-5 h-5 text-violet-400" />
-                              Manual Deposit
-                            </DialogTitle>
-                            <DialogDescription className="text-zinc-400 text-sm">
-                              Follow these steps to fund your wallet instantly.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-6 py-4">
-                            <div className="bg-black/40 p-4 rounded-xl border border-white/5 space-y-4">
-                              <div className="space-y-1">
-                                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Step 1: Send MoMo To</p>
-                                <p className="text-2xl font-black text-white">0595919802</p>
-                              </div>
-                              <div className="space-y-1 pt-2 border-t border-white/5">
-                                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Step 2: Use Reference</p>
-                                <div className="flex items-center justify-between">
-                                  <p className="text-2xl font-black text-violet-400 font-mono">{profile.reference_code}</p>
-                                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => copyRef(profile.reference_code)}>
-                                    <Copy className="w-4 h-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex gap-3">
-                              <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
-                              <p className="text-[11px] font-medium text-red-300 leading-tight">
-                                <strong className="uppercase">Warning:</strong> You MUST use <span className="font-bold text-white underline">{profile.reference_code}</span> as the reference/reason or your wallet will NOT be credited automatically.
-                              </p>
-                            </div>
-
-                            <p className="text-[10px] text-zinc-500 text-center italic">
-                              Wallet will be credited automatically once payment is received.
-                            </p>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          )}
+          {activeTab === 'usage' && <ForecastTool currentBalance={profile.wallet_balance} orders={orders} />}
         </main>
-
-        <nav className="lg:hidden sticky bottom-0 bg-[#111118]/95 backdrop-blur border-t border-white/5 flex">
-          {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
-            <button key={id} onClick={() => handleTabChange(id as DashboardTab)} className={cn("flex-1 flex flex-col items-center gap-1 py-3 text-[10px] font-bold uppercase tracking-wider transition-colors", activeTab === id ? "text-violet-400" : "text-zinc-600")}><Icon size={18} /><span className="hidden xs:block">{label.split(' ')[0]}</span></button>
-          ))}
-        </nav>
       </div>
     </div>
   );
@@ -714,8 +407,4 @@ function StatusBadge({ status }: { status: string }) {
     failed:     'bg-red-500/10     text-red-400     border-red-500/20',
   };
   return <span className={cn("inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-bold uppercase border", map[status?.toLowerCase()] ?? 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20')}>{status || 'pending'}</span>;
-}
-
-function EmptyState({ icon: Icon, message }: { icon: any; message: string }) {
-  return <div className="flex flex-col items-center justify-center py-20 gap-3 text-center px-6"><div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center"><Icon className="w-5 h-5 text-zinc-600" /></div><p className="text-sm text-zinc-500 max-w-xs">{message}</p></div>;
 }

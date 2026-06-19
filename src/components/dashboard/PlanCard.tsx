@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -31,14 +32,15 @@ interface PlanCardProps {
   userId: string;
   walletBalance: number;
   disabled?: boolean;
+  isSKPlug?: boolean;
 }
 
-export default function PlanCard({ plan, userId, walletBalance, disabled }: PlanCardProps) {
+export default function PlanCard({ plan, userId, walletBalance, disabled, isSKPlug }: PlanCardProps) {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [userEmail, setUserEmail] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'paystack'>('paystack');
+  const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'paystack'>('wallet');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -51,26 +53,14 @@ export default function PlanCard({ plan, userId, walletBalance, disabled }: Plan
 
   const handleInitialClick = () => {
     if (!phone || phone.length < 10) {
-      toast({ 
-        title: "Invalid Phone", 
-        description: "Please enter a valid 10-digit phone number.", 
-        variant: "destructive" 
-      });
+      toast({ title: "Invalid Phone", description: "Enter a valid 10-digit number.", variant: "destructive" });
       return;
     }
-
-    // MTN Prefix Validation
     const mtnPrefixes = ['024', '054', '055', '059', '025', '053'];
-    const prefix = phone.substring(0, 3);
-    if (!mtnPrefixes.includes(prefix)) {
-      toast({
-        title: "MTN Number Required",
-        description: "This service is for MTN users only. Use numbers starting with 024, 054, 055, 059, 025, or 053.",
-        variant: "destructive"
-      });
+    if (!mtnPrefixes.includes(phone.substring(0, 3))) {
+      toast({ title: "MTN Only", description: "Use numbers starting with 024, 054, etc.", variant: "destructive" });
       return;
     }
-
     setShowConfirm(true);
   };
 
@@ -79,205 +69,131 @@ export default function PlanCard({ plan, userId, walletBalance, disabled }: Plan
     setShowConfirm(false);
 
     try {
-      if (paymentMethod === 'wallet') {
+      if (isSKPlug) {
         if (walletBalance < plan.price) {
-          toast({ title: "Insufficient Balance", description: "Top up your wallet or use Paystack.", variant: "destructive" });
+          toast({ variant: "destructive", title: "Insufficient Funds", description: "Top up your wallet." });
           setLoading(false);
           return;
         }
-
-        const result = await buyBundle(userId, plan.id, phone);
-        if (result.success) {
-          toast({ title: "Success", description: result.message });
+        const res = await fetch('/api/skplug/buy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, recipient: phone, network: 'MTN', gbSize: plan.size.replace('GB', ''), sellPriceGHS: plan.price })
+        });
+        const data = await res.json();
+        if (data.success) {
+          toast({ variant: "success", title: "🎉 Order Placed", description: "SK Plug is processing your data." });
           setPhone('');
         } else {
-          toast({ title: "Error", description: result.message, variant: "destructive" });
+          toast({ variant: "destructive", title: "Error", description: data.message });
         }
         setLoading(false);
+        return;
+      }
+
+      if (paymentMethod === 'wallet') {
+        const result = await buyBundle(userId, plan.id, phone);
+        if (result.success) {
+          toast({ variant: "success", title: "🎉 Bundle Activated", description: result.message });
+          setPhone('');
+        } else {
+          toast({ variant: "destructive", title: "Error", description: result.message });
+        }
       } else {
-        // Paystack Inline Flow
+        // Paystack logic...
         const response = await fetch('/api/paystack/initialize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: plan.price,
-            email: userEmail,
-            userId: userId
-          }),
+          body: JSON.stringify({ amount: plan.price, email: userEmail, userId: userId }),
         });
-
         const data = await response.json();
-        if (!data.reference) throw new Error(data.error || 'Failed to initialize payment');
-
         const PaystackPop = (await import('@paystack/inline-js')).default;
         const paystack = new PaystackPop();
-        
         paystack.newTransaction({
           key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
           email: userEmail,
           amount: Math.round(plan.price * 100),
           currency: 'GHS',
           reference: data.reference,
-          onSuccess: async (transaction: any) => {
-            toast({ title: "Payment Verified", description: "Fulfilling your data order..." });
-            const result = await fulfillDirectOrder(transaction.reference, plan.id, phone, userId);
-            if (result.success) {
-              toast({ title: "Order Complete", description: result.message });
-              setPhone('');
-            } else {
-              toast({ title: "Fulfillment Failed", description: result.message, variant: "destructive" });
-            }
-            setLoading(false);
-          },
-          onCancel: () => {
-            toast({ title: "Payment Cancelled", description: "Transaction was not completed." });
-            setLoading(false);
+          onSuccess: async (tx: any) => {
+            const result = await fulfillDirectOrder(tx.reference, plan.id, phone, userId);
+            if (result.success) toast({ variant: "success", title: "🎉 Order Complete", description: result.message });
           }
         });
       }
     } catch (err: any) {
-      console.error('Order Process Error:', err);
-      toast({ title: "Error", description: err.message || "An unexpected error occurred", variant: "destructive" });
+      toast({ variant: "destructive", title: "Error", description: err.message });
+    } finally {
       setLoading(false);
     }
   };
 
-  const isHighlighted = phone.length >= 10;
-
   return (
     <>
-      <Card className={cn(
-        "flex flex-col h-full bg-[#111827] border-white/5 transition-all group overflow-hidden shadow-2xl",
-        !disabled && "hover:border-primary/20",
-        disabled && "opacity-60 grayscale cursor-not-allowed"
-      )}>
-        <div className="p-3 sm:p-8 pb-0 space-y-0.5 sm:space-y-1">
+      <Card className={cn("flex flex-col h-full bg-[#111827] border-white/5 transition-all group overflow-hidden shadow-2xl", !disabled && "hover:border-violet-500/20", disabled && "opacity-60")}>
+        <div className="p-4 sm:p-8 pb-0 space-y-1">
           <div className="flex justify-between items-start">
-            <span className="text-[9px] sm:text-sm font-bold text-muted-foreground/80">{plan.name}</span>
-            <CheckCircle2 className="text-primary w-3 h-3 sm:w-4 sm:h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{plan.name}</span>
+            <CheckCircle2 className="text-violet-500 w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
-          <div className="text-2xl sm:text-5xl font-black text-foreground tracking-tighter leading-none">{plan.size}</div>
-          <p className="text-[8px] sm:text-xs text-muted-foreground font-medium uppercase tracking-tight truncate">{plan.description}</p>
+          <div className="text-3xl sm:text-5xl font-black text-white tracking-tighter leading-none">{plan.size}</div>
+          <p className="text-[10px] text-zinc-500 font-medium uppercase truncate">{plan.description}</p>
         </div>
-        
-        <CardContent className="p-3 sm:p-8 space-y-4 sm:space-y-8">
-          <div className="text-sm sm:text-2xl font-black text-accent tracking-tight">GHS {plan.price.toFixed(2)}</div>
-          
+        <CardContent className="p-4 sm:p-8 space-y-6">
+          <div className="text-xl sm:text-2xl font-black text-violet-400">GHS {plan.price.toFixed(2)}</div>
           <div className="space-y-2">
-            <Label htmlFor={`phone-${plan.id}`} className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-[0.1em] sm:tracking-[0.2em]">RECIPIENT NUMBER</Label>
-            <div className="relative">
-              <div className={cn(
-                "absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 transition-colors z-10",
-                isHighlighted ? "text-black" : "text-zinc-400"
-              )}>
-                <Smartphone className="w-3 h-3 sm:w-4 sm:h-4" />
-              </div>
-              <Input 
-                id={`phone-${plan.id}`}
-                placeholder="024 000 0000" 
-                className={cn(
-                  "pl-7 sm:pl-11 h-9 sm:h-14 font-bold text-xs sm:text-lg transition-all border-none ring-offset-transparent focus-visible:ring-0",
-                  isHighlighted 
-                    ? "bg-[#dbeafe] text-black" 
-                    : "bg-white/10 text-white placeholder:text-zinc-500"
-                )}
-                value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                disabled={loading || disabled}
-                maxLength={10}
-              />
-            </div>
+            <Label className="text-[10px] text-zinc-500 uppercase font-black tracking-widest">Recipient Number</Label>
+            <Input 
+              placeholder="024 000 0000" 
+              className="bg-white/5 border-none h-12 font-bold text-lg focus-visible:ring-violet-600"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+              maxLength={10}
+            />
           </div>
         </CardContent>
-        
-        <CardFooter className="p-3 sm:p-8 pt-0 mt-auto">
-          <Button 
-            className="w-full h-9 sm:h-14 font-black tracking-normal sm:tracking-widest text-[9px] sm:text-sm uppercase bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/10 rounded-lg sm:rounded-xl" 
-            onClick={handleInitialClick}
-            disabled={loading || disabled}
-          >
-            {loading ? (
-              <Loader2 className="w-3 h-3 sm:w-5 sm:h-5 animate-spin" />
-            ) : (
-              'ACTIVATE'
-            )}
+        <CardFooter className="p-4 sm:p-8 pt-0 mt-auto">
+          <Button className="w-full h-12 font-black tracking-widest text-xs uppercase bg-violet-600 hover:bg-violet-700 text-white" onClick={handleInitialClick} disabled={loading || disabled}>
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'ACTIVATE'}
           </Button>
         </CardFooter>
       </Card>
 
       <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <DialogContent className="bg-[#111827] border-white/5 sm:max-w-md text-white">
+        <DialogContent className="bg-[#111827] border-white/5 text-white">
           <DialogHeader>
             <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-primary" />
-              Confirmation
+              <AlertCircle className="w-5 h-5 text-violet-600" /> Confirmation
             </DialogTitle>
-            <DialogDescription className="text-zinc-400 text-sm">
-              Confirm recipient and choose your preferred payment method.
-            </DialogDescription>
           </DialogHeader>
-          
-          <div className="space-y-6 my-2">
+          <div className="space-y-6">
             <div className="bg-black/30 rounded-2xl p-5 border border-white/5 space-y-3">
               <div className="flex justify-between items-center text-xs">
                 <span className="font-bold text-zinc-500 uppercase tracking-widest">Recipient</span>
-                <span className="font-mono font-bold text-base text-white">{phone}</span>
+                <span className="font-mono font-bold text-base">{phone}</span>
               </div>
               <div className="flex justify-between items-center text-xs">
-                <span className="font-bold text-zinc-500 uppercase tracking-widest">Plan</span>
-                <span className="font-black text-base text-primary">{plan.size}</span>
-              </div>
-              <div className="flex justify-between items-center pt-2 border-t border-white/5">
                 <span className="font-bold text-zinc-500 uppercase tracking-widest">Total Price</span>
-                <span className="font-black text-xl text-white">GHS {plan.price.toFixed(2)}</span>
+                <span className="font-black text-xl">GHS {plan.price.toFixed(2)}</span>
               </div>
             </div>
-
-            <div className="space-y-3">
-              <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Select Payment Method</Label>
+            {!isSKPlug && (
               <RadioGroup value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)} className="grid gap-3">
-                <div 
-                  className={cn(
-                    "flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all",
-                    paymentMethod === 'wallet' ? "bg-violet-600/10 border-violet-600" : "bg-black/20 border-white/5"
-                  )}
-                  onClick={() => setPaymentMethod('wallet')}
-                >
-                  <div className="flex items-center gap-3">
-                    <RadioGroupItem value="wallet" id="wallet" className="border-zinc-700" />
-                    <div>
-                      <Label htmlFor="wallet" className="font-bold text-sm block cursor-pointer">Wallet Balance</Label>
-                      <span className="text-[10px] text-zinc-500 font-medium">Current: GHS {walletBalance.toFixed(2)}</span>
-                    </div>
-                  </div>
-                  <Wallet className={cn("w-5 h-5", paymentMethod === 'wallet' ? "text-violet-400" : "text-zinc-700")} />
+                <div className={cn("flex items-center justify-between p-4 rounded-xl border cursor-pointer", paymentMethod === 'wallet' ? "bg-violet-600/10 border-violet-600" : "bg-black/20 border-white/5")} onClick={() => setPaymentMethod('wallet')}>
+                  <Label htmlFor="wallet" className="font-bold cursor-pointer">Wallet Balance (GHS {walletBalance.toFixed(2)})</Label>
+                  <RadioGroupItem value="wallet" id="wallet" />
                 </div>
-
-                <div 
-                  className={cn(
-                    "flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all",
-                    paymentMethod === 'paystack' ? "bg-primary/10 border-primary" : "bg-black/20 border-white/5"
-                  )}
-                  onClick={() => setPaymentMethod('paystack')}
-                >
-                  <div className="flex items-center gap-3">
-                    <RadioGroupItem value="paystack" id="paystack" className="border-zinc-700" />
-                    <div>
-                      <Label htmlFor="paystack" className="font-bold text-sm block cursor-pointer">Direct Paystack</Label>
-                      <span className="text-[10px] text-zinc-500 font-medium">MoMo / Card / Bank</span>
-                    </div>
-                  </div>
-                  <CreditCard className={cn("w-5 h-5", paymentMethod === 'paystack' ? "text-primary" : "text-zinc-700")} />
+                <div className={cn("flex items-center justify-between p-4 rounded-xl border cursor-pointer", paymentMethod === 'paystack' ? "bg-primary/10 border-primary" : "bg-black/20 border-white/5")} onClick={() => setPaymentMethod('paystack')}>
+                  <Label htmlFor="paystack" className="font-bold cursor-pointer">Paystack (Direct Pay)</Label>
+                  <RadioGroupItem value="paystack" id="paystack" />
                 </div>
               </RadioGroup>
-            </div>
+            )}
+            {isSKPlug && <p className="text-[11px] text-zinc-500 text-center">SK Plug orders use wallet balance only.</p>}
           </div>
-
-          <DialogFooter className="gap-2 sm:gap-0 mt-4">
-            <Button variant="ghost" onClick={() => setShowConfirm(false)} className="font-bold text-zinc-400 hover:text-white">Cancel</Button>
-            <Button onClick={handleProcessOrder} className="bg-primary hover:bg-primary/90 text-white font-black px-8">
-              {paymentMethod === 'wallet' ? 'USE WALLET' : 'PAY NOW'}
-            </Button>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowConfirm(false)}>Cancel</Button>
+            <Button onClick={handleProcessOrder} className="bg-violet-600 hover:bg-violet-700 text-white font-black px-8">PAY NOW</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
