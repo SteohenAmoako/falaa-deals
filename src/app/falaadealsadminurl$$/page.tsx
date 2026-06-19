@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -29,7 +28,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { getAdminDashboardData, updateSystemStatus, adjustUserBalance } from '@/app/actions/admin';
+import { getAdminDashboardData, updateSystemStatus, adjustUserBalance, checkIsAdmin } from '@/app/actions/admin';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
@@ -81,44 +80,31 @@ export default function AdminDashboard() {
   const { toast } = useToast();
 
   useEffect(() => {
-    async function checkAdminAccess() {
+    async function verifyAdmin() {
       try {
-        console.log('[AdminPage] Starting Admin Access Check...');
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session) { 
-          console.warn('[AdminPage] No session found. Redirecting to home.');
           router.replace('/'); 
           return; 
         }
 
-        console.log('[AdminPage] Session found for user:', session.user.id);
+        const isAdmin = await checkIsAdmin(session.user.id);
 
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('is_admin')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
-
-        if (error) {
-          console.error('[AdminPage] Database error checking admin status:', error.message);
-        }
-
-        if (!profile?.is_admin) { 
-          console.warn('[AdminPage] User is not an admin or profile missing. profile:', profile);
+        if (!isAdmin) { 
+          console.warn('[AdminPage] Non-admin access rejected.');
           router.replace('/dashboard'); 
           return;
         }
 
-        console.log('[AdminPage] Admin access confirmed.');
         setAuthLoading(false);
         fetchData();
       } catch (err: any) { 
-        console.error('[AdminPage] Unexpected auth check error:', err.message);
+        console.error('[AdminPage] Auth verification error:', err.message);
         router.replace('/dashboard'); 
       }
     }
-    checkAdminAccess();
+    verifyAdmin();
   }, [router]);
 
   const fetchData = async () => {

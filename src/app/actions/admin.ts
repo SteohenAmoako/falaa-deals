@@ -15,6 +15,29 @@ const PLAN_COSTS: Record<string, number> = {
 };
 
 /**
+ * Robust check for admin status using the Service Role client.
+ */
+export async function checkIsAdmin(userId: string) {
+  try {
+    const { data: profile, error } = await supabaseAdmin
+      .from('profiles')
+      .select('is_admin')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[Action: checkIsAdmin] DB Error:', error.message);
+      return false;
+    }
+
+    return profile?.is_admin === true;
+  } catch (err) {
+    console.error('[Action: checkIsAdmin] Fatal Error:', err);
+    return false;
+  }
+}
+
+/**
  * Fetches the maintenance mode status.
  */
 export async function getSystemStatus() {
@@ -125,7 +148,6 @@ export async function getAdminDashboardData() {
     };
   } catch (error: any) {
     console.error('Admin Data Fetch Failed:', error);
-    // Return a default structure instead of null to prevent UI crashes and TS errors
     return {
       stats: {
         totalUsers: 0,
