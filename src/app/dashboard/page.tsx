@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type Profile, type WalletTransaction, type Bundle } from '@/lib/types';
 import {
   LayoutDashboard, History, ShoppingBag, LogOut, Code2,
-  BarChart3, User, Loader2, Menu, X, CreditCard, Wallet, Plus, Search, Zap, AlertTriangle, Smartphone
+  BarChart3, User, Loader2, Menu, Wallet, Plus, Search, Zap, AlertTriangle, Smartphone
 } from "lucide-react";
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -122,126 +122,110 @@ export default function DashboardPage() {
       {sidebarOpen && <div className="fixed inset-0 bg-black/60 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />}
       
       <aside className={cn(
-        "fixed top-0 left-0 h-full w-72 bg-[#111118] border-r border-white/5 z-40 flex flex-col p-6 transition-transform duration-300",
+        "fixed top-0 left-0 h-full w-64 bg-[#111118] border-r border-white/5 z-40 flex flex-col transition-transform duration-300",
         "lg:translate-x-0 lg:static lg:z-auto",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-9 h-9 rounded-xl bg-violet-600 flex items-center justify-center font-black italic text-white shadow-lg shadow-violet-600/20">FD</div>
-          <span className="text-lg font-black tracking-tight">Falaa Deals</span>
+        <div className="p-6 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center font-black italic text-white text-sm">FD</div>
+          <span className="font-black tracking-tight">Falaa Deals</span>
         </div>
 
-        <nav className="flex-1 space-y-1">
-          <button onClick={() => setActiveTab('dashboard')} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all", activeTab === 'dashboard' ? "bg-violet-600 shadow-lg shadow-violet-600/20" : "text-zinc-400 hover:bg-white/5")}>
-            <LayoutDashboard size={17} /> Dashboard
-          </button>
-          <button onClick={() => setActiveTab('orders')} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all", activeTab === 'orders' ? "bg-violet-600 shadow-lg shadow-violet-600/20" : "text-zinc-400 hover:bg-white/5")}>
-            <ShoppingBag size={17} /> Orders
-          </button>
-          <button onClick={() => setActiveTab('transactions')} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all", activeTab === 'transactions' ? "bg-violet-600 shadow-lg shadow-violet-600/20" : "text-zinc-400 hover:bg-white/5")}>
-            <History size={17} /> History
-          </button>
-          <button onClick={() => setActiveTab('usage')} className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all", activeTab === 'usage' ? "bg-violet-600 shadow-lg shadow-violet-600/20" : "text-zinc-400 hover:bg-white/5")}>
-            <BarChart3 size={17} /> Insights
-          </button>
-          <button onClick={() => router.push('/dashboard/api-docs')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-zinc-400 hover:bg-white/5">
-            <Code2 size={17} /> API Docs
-          </button>
+        <nav className="flex-1 px-4 space-y-1">
+          <NavItem icon={LayoutDashboard} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => { setActiveTab('dashboard'); setSidebarOpen(false); }} />
+          <NavItem icon={ShoppingBag} label="Orders" active={activeTab === 'orders'} onClick={() => { setActiveTab('orders'); setSidebarOpen(false); }} />
+          <NavItem icon={History} label="History" active={activeTab === 'transactions'} onClick={() => { setActiveTab('transactions'); setSidebarOpen(false); }} />
+          <NavItem icon={BarChart3} label="Usage Insights" active={activeTab === 'usage'} onClick={() => { setActiveTab('usage'); setSidebarOpen(false); }} />
+          <NavItem icon={Code2} label="API Docs" active={false} onClick={() => router.push('/dashboard/api-docs')} />
         </nav>
 
-        <div className="pt-6 border-t border-white/5">
+        <div className="p-4 border-t border-white/5 mt-auto">
           <div className="flex items-center gap-3 px-2 mb-4">
             <User className="w-8 h-8 p-1.5 bg-violet-600/20 rounded-full text-violet-400" />
             <div className="min-w-0">
-              <p className="text-sm font-bold truncate">{profile.full_name}</p>
-              <p className="text-[10px] text-zinc-500 uppercase font-black tracking-widest">{profile.role}</p>
+              <p className="text-xs font-bold truncate">{profile.full_name}</p>
+              <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">{profile.role}</p>
             </div>
           </div>
-          <button onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-zinc-400 hover:text-red-400 transition-colors">
-            <LogOut size={16} /> Sign out
+          <button onClick={handleLogout} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-zinc-500 hover:text-red-400 transition-colors">
+            <LogOut size={14} /> Sign out
           </button>
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="sticky top-0 z-20 bg-[#0a0a0f]/80 backdrop-blur border-b border-white/5 px-6 py-4 flex items-center justify-between">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 text-zinc-400"><Menu /></button>
-          <div className="flex items-center gap-4 ml-auto">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+        <header className="flex-none bg-[#0a0a0f]/80 backdrop-blur border-b border-white/5 px-4 h-16 flex items-center justify-between">
+          <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 text-zinc-400"><Menu size={20} /></button>
+          
+          <div className="flex items-center gap-2">
             <Dialog>
-              <DialogTrigger asChild><Button size="sm" className="bg-violet-600 hover:bg-violet-700 font-bold"><Plus size={16} className="mr-1" /> Top Up</Button></DialogTrigger>
-              <DialogContent className="bg-[#111118] border-white/5 text-white">
+              <DialogTrigger asChild>
+                <Button size="sm" className="bg-violet-600 hover:bg-violet-700 font-bold h-9 px-3 text-xs">
+                  <Plus size={14} className="mr-1" /> Top Up
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-[#111118] border-white/5 text-white p-6 max-w-sm rounded-3xl">
                 <DialogHeader>
-                  <DialogTitle className="text-xl font-black italic">MANUAL DEPOSIT</DialogTitle>
-                  <DialogDescription className="text-zinc-500 text-xs">Follow these steps to fund your wallet manually.</DialogDescription>
+                  <DialogTitle className="text-lg font-black italic">MANUAL DEPOSIT</DialogTitle>
+                  <DialogDescription className="sr-only">Instructions for MoMo manual deposit</DialogDescription>
                 </DialogHeader>
-                <div className="p-6 bg-black/40 rounded-2xl space-y-6 border border-white/5">
+                <div className="p-4 bg-black/40 rounded-2xl space-y-4 border border-white/5">
                   <div>
                     <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-1">Send MoMo To</p>
-                    <p className="text-3xl font-black text-white">0595919802</p>
-                    <p className="text-[10px] text-violet-400 font-bold mt-1">Merchant: Falaa Deals</p>
+                    <p className="text-2xl font-black text-white">0595919802</p>
+                    <p className="text-[10px] text-violet-400 font-bold mt-0.5">Merchant: Falaa Deals</p>
                   </div>
-                  <div className="pt-6 border-t border-white/5">
+                  <div className="pt-4 border-t border-white/5">
                     <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-1">Use Reference</p>
-                    <p className="text-3xl font-black text-[#FFD700] font-mono tracking-tighter">{profile.reference_code}</p>
-                    <p className="text-[10px] text-zinc-400 mt-2 font-medium">Wallet is credited automatically within seconds of payment.</p>
+                    <p className="text-2xl font-black text-[#FFD700] font-mono tracking-tighter">{profile.reference_code}</p>
+                    <p className="text-[9px] text-zinc-400 mt-2 font-medium">Auto-credited within seconds of payment.</p>
                   </div>
                 </div>
               </DialogContent>
             </Dialog>
-            <div className="px-4 py-2 bg-white/5 rounded-2xl border border-white/5 flex items-center gap-3">
-              <Wallet size={16} className="text-violet-400" />
+
+            <div className="h-9 px-3 bg-white/5 rounded-xl border border-white/5 flex items-center gap-2">
+              <Wallet size={14} className="text-violet-400" />
               <div className="flex flex-col">
-                <span className="text-[8px] font-black uppercase text-zinc-500 tracking-widest leading-none mb-0.5">Wallet</span>
-                <span className="font-black text-sm">GHS {profile.wallet_balance.toFixed(2)}</span>
+                <span className="text-[7px] font-black uppercase text-zinc-500 leading-none">Wallet</span>
+                <span className="font-black text-xs">GHS {profile.wallet_balance.toFixed(2)}</span>
               </div>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 p-6 lg:p-10 max-w-6xl w-full mx-auto space-y-8">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
           {!systemStatus.enabled && (
-            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 flex gap-3 animate-pulse">
-              <AlertTriangle className="shrink-0" />
-              <div><p className="text-xs font-black uppercase tracking-widest">Maintenance Mode</p><p className="text-sm font-medium">{systemStatus.message}</p></div>
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 flex gap-2">
+              <AlertTriangle className="shrink-0 w-4 h-4" />
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest">Maintenance</p>
+                <p className="text-xs font-medium">{systemStatus.message}</p>
+              </div>
             </div>
           )}
 
           {activeTab === 'dashboard' && (
-            <div className="space-y-8">
+            <div className="space-y-6">
               <div className="space-y-1">
-                <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
-                  <Zap className="text-[#FFD700]" />
-                  Buy Data Bundles
+                <h2 className="text-xl font-black tracking-tight flex items-center gap-2">
+                  <Zap className="text-[#FFD700] w-5 h-5" />
+                  Buy Data
                 </h2>
-                <p className="text-zinc-500 text-sm">Select your network to view available packages.</p>
+                <p className="text-zinc-500 text-xs">Choose network to view bundles.</p>
               </div>
 
-              <Tabs defaultValue="MTN" className="space-y-8">
-                <TabsList className="bg-[#111118] border border-white/5 p-1.5 h-auto grid grid-cols-3 gap-2 max-w-md">
-                  <TabsTrigger 
-                    value="MTN" 
-                    className="py-3 font-black text-xs uppercase tracking-widest data-[state=active]:bg-violet-600 data-[state=active]:text-white transition-all"
-                  >
-                    MTN
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="AirtelTigo" 
-                    className="py-3 font-black text-xs uppercase tracking-widest data-[state=active]:bg-violet-600 data-[state=active]:text-white transition-all"
-                  >
-                    AirtelTigo
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="Telecel" 
-                    className="py-3 font-black text-xs uppercase tracking-widest data-[state=active]:bg-violet-600 data-[state=active]:text-white transition-all"
-                  >
-                    Telecel
-                  </TabsTrigger>
+              <Tabs defaultValue="MTN" className="space-y-6">
+                <TabsList className="bg-[#111118] border border-white/5 p-1 h-auto w-full grid grid-cols-3 gap-1 sticky top-0 z-10 backdrop-blur-sm bg-opacity-90">
+                  <TabsTrigger value="MTN" className="py-2.5 font-black text-[10px] uppercase tracking-widest">MTN</TabsTrigger>
+                  <TabsTrigger value="AirtelTigo" className="py-2.5 font-black text-[10px] uppercase tracking-widest">AirtelTigo</TabsTrigger>
+                  <TabsTrigger value="Telecel" className="py-2.5 font-black text-[10px] uppercase tracking-widest">Telecel</TabsTrigger>
                 </TabsList>
 
                 {Object.entries(groupedBundles).map(([network, networkBundles]) => (
-                  <TabsContent key={network} value={network} className="mt-0 focus-visible:outline-none focus-visible:ring-0">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {networkBundles && networkBundles.length > 0 ? (
+                  <TabsContent key={network} value={network} className="mt-0 outline-none">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                      {networkBundles.length > 0 ? (
                         networkBundles.map(bundle => (
                           <PlanCard 
                             key={bundle.id} 
@@ -252,14 +236,9 @@ export default function DashboardPage() {
                           />
                         ))
                       ) : (
-                        <div className="col-span-full py-20 flex flex-col items-center justify-center opacity-20 space-y-4">
-                          <Smartphone size={48} />
-                          <p className="font-bold">No bundles available for {network}</p>
-                          {profile.is_admin && (
-                            <Button variant="outline" size="sm" onClick={() => router.push('/falaadealsadminurl$$/pricing')}>
-                              Go to Admin Pricing to Sync Bundles
-                            </Button>
-                          )}
+                        <div className="col-span-full py-12 flex flex-col items-center justify-center opacity-20 gap-2">
+                          <Smartphone size={32} />
+                          <p className="text-xs font-bold">No packages available</p>
                         </div>
                       )}
                     </div>
@@ -270,41 +249,35 @@ export default function DashboardPage() {
           )}
 
           {activeTab === 'orders' && (
-            <div className="space-y-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <h2 className="text-2xl font-black tracking-tight">Order History</h2>
-                <div className="relative w-full max-w-sm">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-black">Orders</h2>
+                <div className="relative w-full max-w-[200px]">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
                   <Input 
-                    placeholder="Search phone or bundle size..." 
+                    placeholder="Search..." 
                     value={ordersSearch} 
                     onChange={e => setOrdersSearch(e.target.value)} 
-                    className="bg-[#111118] border-white/5 pl-10 h-10" 
+                    className="bg-[#111118] border-white/5 pl-8 h-8 text-xs" 
                   />
                 </div>
               </div>
-              
-              <div className="rounded-2xl border border-white/5 bg-[#111118] overflow-hidden">
+              <div className="rounded-xl border border-white/5 bg-[#111118] overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow className="border-white/5 bg-white/5 hover:bg-white/5">
-                      <TableHead className="font-black uppercase text-[10px] tracking-widest">Date</TableHead>
-                      <TableHead className="font-black uppercase text-[10px] tracking-widest">Bundle</TableHead>
-                      <TableHead className="font-black uppercase text-[10px] tracking-widest">Phone</TableHead>
-                      <TableHead className="text-right font-black uppercase text-[10px] tracking-widest">Status</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] h-10">Bundle</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] h-10">Recipient</TableHead>
+                      <TableHead className="text-right font-black uppercase text-[9px] h-10">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {orders
-                      .filter(o => 
-                        (o.gig || o.gb_size || '').toLowerCase().includes(ordersSearch.toLowerCase()) || 
-                        (o.phone || o.recipient || '').includes(ordersSearch)
-                      )
+                      .filter(o => (o.gig || o.gb_size || '').toLowerCase().includes(ordersSearch.toLowerCase()) || (o.phone || o.recipient || '').includes(ordersSearch))
                       .map(order => (
-                      <TableRow key={order.id} className="border-white/5 hover:bg-white/5 transition-colors">
-                        <TableCell className="text-zinc-400 text-xs font-medium">{new Date(order.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell className="font-black text-sm">{order.gig || `${order.gb_size}GB`}</TableCell>
-                        <TableCell className="font-mono text-zinc-300 font-bold">{order.phone || order.recipient}</TableCell>
+                      <TableRow key={order.id} className="border-white/5 hover:bg-white/5 h-12">
+                        <TableCell className="text-xs font-bold">{order.gig || `${order.gb_size}GB`}</TableCell>
+                        <TableCell className="font-mono text-[11px] text-zinc-400">{order.phone || order.recipient}</TableCell>
                         <TableCell className="text-right"><StatusBadge status={order.status} /></TableCell>
                       </TableRow>
                     ))}
@@ -315,24 +288,24 @@ export default function DashboardPage() {
           )}
 
           {activeTab === 'transactions' && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-black tracking-tight">Wallet Transactions</h2>
-              <div className="rounded-2xl border border-white/5 bg-[#111118] overflow-hidden">
+            <div className="space-y-4">
+              <h2 className="text-xl font-black">History</h2>
+              <div className="rounded-xl border border-white/5 bg-[#111118] overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow className="border-white/5 bg-white/5 hover:bg-white/5">
-                      <TableHead className="font-black uppercase text-[10px] tracking-widest">Date</TableHead>
-                      <TableHead className="font-black uppercase text-[10px] tracking-widest">Description</TableHead>
-                      <TableHead className="text-right font-black uppercase text-[10px] tracking-widest">Amount</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] h-10">Date</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] h-10">Detail</TableHead>
+                      <TableHead className="text-right font-black uppercase text-[9px] h-10">Amount</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {transactions.map(tx => (
-                      <TableRow key={tx.id} className="border-white/5 hover:bg-white/5 transition-colors">
-                        <TableCell className="text-zinc-400 text-xs font-medium">{new Date(tx.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell className="text-sm font-medium">{tx.description}</TableCell>
-                        <TableCell className={cn("font-black text-right text-sm", tx.type === 'credit' ? 'text-emerald-400' : 'text-white')}>
-                          {tx.type === 'credit' ? '+' : '-'} GHS {tx.amount.toFixed(2)}
+                      <TableRow key={tx.id} className="border-white/5 hover:bg-white/5 h-12">
+                        <TableCell className="text-[10px] text-zinc-500">{new Date(tx.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-xs max-w-[120px] truncate">{tx.description}</TableCell>
+                        <TableCell className={cn("font-black text-right text-xs", tx.type === 'credit' ? 'text-emerald-400' : 'text-white')}>
+                          {tx.type === 'credit' ? '+' : '-'} {tx.amount.toFixed(2)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -349,6 +322,17 @@ export default function DashboardPage() {
   );
 }
 
+function NavItem({ icon: Icon, label, active, onClick }: { icon: any, label: string, active: boolean, onClick: () => void }) {
+  return (
+    <button onClick={onClick} className={cn(
+      "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all",
+      active ? "bg-violet-600 text-white shadow-lg shadow-violet-600/20" : "text-zinc-500 hover:bg-white/5"
+    )}>
+      <Icon size={16} /> {label}
+    </button>
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     delivered: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -356,5 +340,5 @@ function StatusBadge({ status }: { status: string }) {
     pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     failed: 'bg-red-500/10 text-red-400 border-red-500/20',
   };
-  return <span className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase border tracking-tighter", styles[status?.toLowerCase()] || 'bg-zinc-500/10 text-zinc-400')}>{status}</span>;
+  return <span className={cn("px-2 py-0.5 rounded-full text-[8px] font-black uppercase border", styles[status?.toLowerCase()] || 'bg-zinc-500/10 text-zinc-400')}>{status}</span>;
 }

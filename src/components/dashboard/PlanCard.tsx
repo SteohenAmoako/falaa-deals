@@ -1,12 +1,11 @@
-
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, AlertCircle, CheckCircle2, Phone, ArrowRight, Zap, Info } from "lucide-react";
+import { Loader2, CheckCircle2, Phone, Zap, Info, ArrowRight } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { buyBundle } from '@/app/actions/orders';
 import { useToast } from '@/hooks/use-toast';
@@ -23,62 +22,22 @@ interface PlanCardProps {
 export default function PlanCard({ bundle, userId, walletBalance, disabled }: PlanCardProps) {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [showPurchase, setShowPurchase] = useState(false);
   const { toast } = useToast();
 
-  const handleInitialClick = () => {
-    if (!isExpanded) {
-      setIsExpanded(true);
-      return;
-    }
-
+  const handleProcessOrder = async () => {
     if (!phone || phone.length < 10) {
       toast({ title: "Invalid Phone", description: "Enter a valid 10-digit number.", variant: "destructive" });
       return;
     }
 
-    const mtnPrefixes = ['024', '054', '055', '059', '025', '053'];
-    const telecelPrefixes = ['020', '050'];
-    const airtelTigoPrefixes = ['027', '057', '026', '056'];
-
-    const net = bundle.network.toUpperCase();
-    let isValid = false;
-    let requiredNetwork = "";
-
-    if (net === 'MTN') {
-      isValid = mtnPrefixes.includes(phone.substring(0, 3));
-      requiredNetwork = "MTN";
-    } else if (net === 'TELECEL') {
-      isValid = telecelPrefixes.includes(phone.substring(0, 3));
-      requiredNetwork = "Telecel";
-    } else if (net.startsWith('AT_')) {
-      isValid = airtelTigoPrefixes.includes(phone.substring(0, 3));
-      requiredNetwork = "AirtelTigo";
-    }
-
-    if (!isValid) {
-      toast({ 
-        title: "Network Mismatch", 
-        description: `This bundle is for ${requiredNetwork}. Please enter a valid ${requiredNetwork} number.`, 
-        variant: "destructive" 
-      });
-      return;
-    }
-
-    setShowConfirm(true);
-  };
-
-  const handleProcessOrder = async () => {
     setLoading(true);
-    setShowConfirm(false);
-
     try {
       const result = await buyBundle(userId, bundle.id, phone);
       if (result.success) {
         toast({ variant: "success", title: "🎉 Order Complete", description: result.message });
         setPhone('');
-        setIsExpanded(false);
+        setShowPurchase(false);
       } else {
         toast({ variant: "destructive", title: "Purchase Failed", description: result.message });
       }
@@ -89,111 +48,101 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
     }
   };
 
-  const isNoExpiry = bundle.network.toUpperCase() === 'AT_NOEXPIRY';
   const isAirtelTigo = bundle.network.toUpperCase().startsWith('AT_');
+  const isNoExpiry = bundle.network.toUpperCase() === 'AT_NOEXPIRY';
 
   return (
     <>
-      <Card className={cn(
-        "flex flex-col h-full bg-[#111118] border-white/5 transition-all group overflow-hidden shadow-2xl relative",
-        !disabled && "hover:border-violet-500/40",
-        isExpanded && "border-violet-600/60 ring-1 ring-violet-600/20",
-        disabled && "opacity-50 grayscale pointer-events-none"
-      )}>
-        {isAirtelTigo && (
-          <div className={cn(
-            "absolute top-0 right-0 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest rounded-bl-lg",
-            isNoExpiry ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400"
-          )}>
-            {isNoExpiry ? 'No Expiry' : 'Expiry'}
-          </div>
+      <Card 
+        onClick={() => !disabled && setShowPurchase(true)}
+        className={cn(
+          "flex flex-col bg-[#111118] border-white/5 transition-all cursor-pointer active:scale-95",
+          "hover:border-violet-500/40 hover:bg-[#15151f]",
+          disabled && "opacity-50 grayscale pointer-events-none"
         )}
-
-        <div className="p-6 space-y-1">
-          <div className="flex justify-between items-start">
-            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">{bundle.network.replace('_', ' ')}</span>
-            <Zap className={cn("w-4 h-4 transition-colors", isExpanded ? "text-violet-500" : "text-zinc-700")} />
+      >
+        <div className="p-3 sm:p-4 space-y-1">
+          <div className="flex justify-between items-center">
+            <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">
+              {bundle.network.replace('AT_', '').replace('_', ' ')}
+            </span>
+            {isAirtelTigo && (
+              <span className={cn(
+                "text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full",
+                isNoExpiry ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"
+              )}>
+                {isNoExpiry ? 'No Expiry' : 'Expiry'}
+              </span>
+            )}
           </div>
-          <div className="text-3xl font-black text-white tracking-tighter">{bundle.label}</div>
-          <div className="text-xl font-black text-violet-400 mt-2">GHS {bundle.sell_price_ghs?.toFixed(2)}</div>
+          <div className="text-xl sm:text-2xl font-black text-white tracking-tighter truncate">
+            {bundle.label}
+          </div>
+          <div className="flex items-center justify-between mt-1">
+            <div className="text-sm sm:text-base font-black text-violet-400">
+              GHS {bundle.sell_price_ghs?.toFixed(2)}
+            </div>
+            <div className="w-6 h-6 rounded-full bg-violet-600/10 flex items-center justify-center">
+              <ArrowRight size={12} className="text-violet-500" />
+            </div>
+          </div>
         </div>
+      </Card>
 
-        <CardContent className={cn("p-6 pt-0 space-y-5 transition-all duration-300", isExpanded ? "opacity-100" : "opacity-0 h-0 p-0 overflow-hidden")}>
-          <div className="space-y-2">
-            <Label className="text-[10px] text-zinc-400 uppercase font-black tracking-widest flex items-center gap-1.5">
-              <Phone size={10} className="text-violet-500" /> 
-              Recipient Number
-            </Label>
-            <div className="relative">
+      <Dialog open={showPurchase} onOpenChange={setShowPurchase}>
+        <DialogContent className="bg-[#111118] border-white/5 text-white max-w-sm rounded-3xl p-6">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black italic tracking-tight flex items-center gap-2">
+              <Zap className="w-6 h-6 text-[#FFD700]" /> BUY DATA
+            </DialogTitle>
+            <DialogDescription className="text-zinc-500 font-medium">
+              You are purchasing {bundle.label} for {bundle.network.replace('_', ' ')}.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-5 py-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] text-zinc-400 uppercase font-black tracking-widest flex items-center gap-1.5">
+                <Phone size={10} className="text-violet-500" /> 
+                Recipient Number
+              </Label>
               <Input 
                 placeholder="e.g. 024 000 0000" 
-                className="bg-black/40 border-white/10 h-12 font-black text-lg placeholder:text-zinc-800 text-white focus:border-violet-600 focus:ring-violet-600/20 transition-all"
+                className="bg-black/40 border-white/10 h-14 font-black text-2xl placeholder:text-zinc-800 text-white focus:border-violet-600 focus:ring-violet-600/20 text-center"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
                 maxLength={10}
+                autoFocus
               />
             </div>
-            <p className="text-[9px] text-zinc-500 font-medium">Please double check the number. No refunds for wrong entries.</p>
-          </div>
-        </CardContent>
 
-        <CardFooter className="p-6 pt-0 mt-auto">
-          <Button 
-            className={cn(
-              "w-full h-12 font-black tracking-[0.1em] text-xs uppercase transition-all duration-300",
-              isExpanded ? "bg-violet-600 hover:bg-violet-700 shadow-lg shadow-violet-600/20" : "bg-white/5 hover:bg-white/10 text-white border border-white/5"
-            )} 
-            onClick={handleInitialClick} 
-            disabled={loading || disabled}
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-              <span className="flex items-center gap-2">
-                {isExpanded ? 'PROCEED TO PAY' : 'SELECT PACKAGE'}
-                <ArrowRight size={14} className={cn("transition-transform", isExpanded && "rotate-0", !isExpanded && "-rotate-45")} />
-              </span>
-            )}
-          </Button>
-        </CardFooter>
-      </Card>
-
-      <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <DialogContent className="bg-[#111118] border-white/5 text-white max-w-sm rounded-3xl">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-black italic tracking-tight flex items-center gap-2">
-              <CheckCircle2 className="w-6 h-6 text-emerald-500" /> CONFIRM
-            </DialogTitle>
-            <DialogDescription className="text-zinc-500 font-medium">Verify your order details before processing.</DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="bg-black/60 rounded-2xl p-6 border border-white/5 space-y-4 shadow-inner">
-              <div className="flex justify-between items-center">
-                <span className="text-[10px] font-black text-zinc-500 uppercase">Package</span>
-                <span className="font-black text-white text-lg">{bundle.label}</span>
+            <div className="bg-black/40 rounded-2xl p-4 border border-white/5 space-y-2">
+              <div className="flex justify-between text-[11px] font-bold">
+                <span className="text-zinc-500 uppercase">Package</span>
+                <span className="text-white">{bundle.label}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-[10px] font-black text-zinc-500 uppercase">Network</span>
-                <span className="font-black text-violet-400 text-sm uppercase tracking-widest">{bundle.network.replace('_', ' ')}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-[10px] font-black text-zinc-500 uppercase">Recipient</span>
-                <span className="font-mono font-black text-white text-lg tracking-tighter">{phone}</span>
-              </div>
-              <div className="pt-4 border-t border-white/5 flex justify-between items-center">
-                <span className="text-[10px] font-black text-zinc-500 uppercase">Total Cost</span>
-                <span className="font-black text-[#FFD700] text-2xl">GHS {bundle.sell_price_ghs?.toFixed(2)}</span>
+              <div className="flex justify-between text-[11px] font-bold">
+                <span className="text-zinc-500 uppercase">Total Cost</span>
+                <span className="text-[#FFD700]">GHS {bundle.sell_price_ghs?.toFixed(2)}</span>
               </div>
             </div>
             
             <div className="flex items-start gap-2 p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl">
               <Info size={14} className="text-amber-500 shrink-0 mt-0.5" />
-              <p className="text-[9px] text-amber-200/60 leading-tight">Data delivery is usually instant. Ensure the recipient number is correct as transactions cannot be reversed.</p>
+              <p className="text-[9px] text-amber-200/60 leading-tight">
+                Transactions are instant and irreversible. Please verify the recipient number.
+              </p>
             </div>
           </div>
 
-          <DialogFooter className="gap-3 sm:gap-0">
-            <Button variant="ghost" className="font-bold text-zinc-500 hover:text-white" onClick={() => setShowConfirm(false)}>CANCEL</Button>
-            <Button onClick={handleProcessOrder} className="bg-violet-600 hover:bg-violet-700 text-white font-black px-8 py-6 rounded-xl shadow-xl shadow-violet-600/20">PAY NOW</Button>
+          <DialogFooter>
+            <Button 
+              disabled={loading || phone.length < 10}
+              onClick={handleProcessOrder} 
+              className="w-full bg-violet-600 hover:bg-violet-700 text-white font-black h-14 rounded-xl shadow-xl shadow-violet-600/20 text-sm tracking-widest"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'CONFIRM PURCHASE'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
