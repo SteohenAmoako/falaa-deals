@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -20,7 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription 
 } from '@/components/ui/dialog';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { getAdminDashboardData, updateSystemStatus, adjustUserBalance, assignUserRole, registerSkPlugWebhook } from '@/app/actions/admin';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -178,6 +177,10 @@ export default function AdminDashboard() {
               <Button size="icon" variant="ghost" className="text-zinc-400"><Menu /></Button>
             </SheetTrigger>
             <SheetContent side="right" className="bg-[#111111] border-white/5 text-white p-6 pt-12">
+              <SheetHeader className="text-left mb-6">
+                <SheetTitle className="text-xs font-black uppercase tracking-widest text-zinc-500">Navigation Menu</SheetTitle>
+                <SheetDescription className="sr-only">Admin navigation links and controls</SheetDescription>
+              </SheetHeader>
               <NavContent />
             </SheetContent>
           </Sheet>
@@ -271,7 +274,10 @@ export default function AdminDashboard() {
 
       <Dialog open={isAdjOpen} onOpenChange={setIsAdjOpen}>
         <DialogContent className="bg-[#111111] border-white/5 text-white max-w-[95vw] sm:max-w-md rounded-2xl">
-          <DialogHeader><DialogTitle className="text-sm font-black uppercase">Adjust Wallet: {adjUser?.full_name}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="text-sm font-black uppercase">Adjust Wallet: {adjUser?.full_name}</DialogTitle>
+            <DialogDescription className="text-zinc-500 text-xs">Enter an amount and reason to adjust this user's balance.</DialogDescription>
+          </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <Select value={adjType} onValueChange={(v: any) => setAdjType(v)}>

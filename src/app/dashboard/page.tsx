@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -19,7 +18,7 @@ import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { getBundlesForRole } from '@/app/actions/bundles';
 import { getSystemStatus } from '@/app/actions/admin';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 
 type DashboardTab = 'dashboard' | 'orders' | 'transactions' | 'usage';
 
@@ -171,7 +170,10 @@ export default function DashboardPage() {
             <Dialog>
               <DialogTrigger asChild><Button size="sm" className="bg-violet-600 hover:bg-violet-700 font-bold"><Plus size={16} className="mr-1" /> Top Up</Button></DialogTrigger>
               <DialogContent className="bg-[#111118] border-white/5 text-white">
-                <DialogHeader><DialogTitle className="text-xl font-black italic">MANUAL DEPOSIT</DialogTitle></DialogHeader>
+                <DialogHeader>
+                  <DialogTitle className="text-xl font-black italic">MANUAL DEPOSIT</DialogTitle>
+                  <DialogDescription className="text-zinc-500 text-xs">Follow these steps to fund your wallet manually.</DialogDescription>
+                </DialogHeader>
                 <div className="p-6 bg-black/40 rounded-2xl space-y-6 border border-white/5">
                   <div>
                     <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-1">Send MoMo To</p>
