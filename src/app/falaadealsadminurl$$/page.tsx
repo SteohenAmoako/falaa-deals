@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -12,13 +13,14 @@ import {
 import {
   Users, ShoppingCart, Wallet, 
   Search, Loader2, RefreshCw,
-  Zap, ArrowDownLeft, LogOut, LayoutDashboard, AlertCircle, Settings2, History, TrendingUp, Download, Coins, Filter, ChevronLeft, ChevronRight, PackageSearch, Bell
+  Zap, ArrowDownLeft, LogOut, LayoutDashboard, AlertCircle, Settings2, History, TrendingUp, Download, Coins, Filter, ChevronLeft, ChevronRight, PackageSearch, Bell, Menu, X
 } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription 
 } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { getAdminDashboardData, updateSystemStatus, adjustUserBalance, assignUserRole, registerSkPlugWebhook } from '@/app/actions/admin';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -143,34 +145,54 @@ export default function AdminDashboard() {
 
   if (loading && !data) return <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center"><Loader2 className="animate-spin text-[#FFD700]" /></div>;
 
+  const NavContent = () => (
+    <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+      <Button size="sm" variant="ghost" onClick={handleRegisterWebhook} disabled={registeringWebhook} className="text-zinc-400 border border-white/5 justify-start">
+        {registeringWebhook ? <Loader2 size={16} className="animate-spin" /> : <Bell size={16} className="mr-2" />} 
+        Webhook Setup
+      </Button>
+      <Button size="sm" variant="ghost" onClick={() => router.push('/falaadealsadminurl$$/pricing')} className="text-zinc-400 border border-white/5 justify-start"><PackageSearch size={16} className="mr-2" /> Pricing & Bundles</Button>
+      <Button size="sm" variant="ghost" onClick={fetchData} className="text-zinc-400 border border-white/5 justify-start"><RefreshCw size={16} className={cn(loading && "animate-spin mr-2")} /> Refresh</Button>
+      <Button size="sm" variant="ghost" onClick={() => router.push('/dashboard')} className="text-zinc-400 border border-white/5 justify-start"><LayoutDashboard size={16} className="mr-2" /> Dashboard</Button>
+      <Button size="sm" variant="ghost" onClick={() => supabase.auth.signOut().then(() => router.push('/'))} className="text-red-400 border border-white/5 justify-start"><LogOut size={16} className="mr-2" /> Logout</Button>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[#0d0d0d] text-white">
-      <header className="sticky top-0 z-20 bg-[#0d0d0d]/90 backdrop-blur border-b border-white/5 px-8 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-20 bg-[#0d0d0d]/90 backdrop-blur border-b border-white/5 px-6 lg:px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-[#FFD700] flex items-center justify-center font-black text-black text-sm">FD</div>
-          <h1 className="text-base font-black tracking-tight">FalaaData Admin</h1>
+          <h1 className="text-base font-black tracking-tight">Admin</h1>
         </div>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="ghost" onClick={handleRegisterWebhook} disabled={registeringWebhook} className="text-zinc-400 border border-white/5">
-            {registeringWebhook ? <Loader2 size={16} className="animate-spin" /> : <Bell size={16} className="mr-2" />} 
-            Webhook Setup
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => router.push('/falaadealsadminurl$$/pricing')} className="text-zinc-400 border border-white/5"><PackageSearch size={16} className="mr-2" /> Pricing & Bundles</Button>
-          <Button size="sm" variant="ghost" onClick={fetchData} className="text-zinc-400 border border-white/5"><RefreshCw size={16} className={cn(loading && "animate-spin")} /></Button>
-          <Button size="sm" variant="ghost" onClick={() => router.push('/dashboard')} className="text-zinc-400 border border-white/5"><LayoutDashboard size={16} /></Button>
-          <Button size="sm" variant="ghost" onClick={() => supabase.auth.signOut().then(() => router.push('/'))} className="text-red-400 border border-white/5"><LogOut size={16} /></Button>
+        
+        {/* Desktop Nav */}
+        <div className="hidden lg:flex items-center gap-2">
+          <NavContent />
+        </div>
+
+        {/* Mobile Nav */}
+        <div className="lg:hidden">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button size="icon" variant="ghost" className="text-zinc-400"><Menu /></Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="bg-[#111111] border-white/5 text-white p-6 pt-12">
+              <NavContent />
+            </SheetContent>
+          </Sheet>
         </div>
       </header>
 
-      <div className="p-10 max-w-7xl mx-auto space-y-8">
+      <div className="p-6 lg:p-10 max-w-7xl mx-auto space-y-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <Card className="lg:col-span-1 bg-[#111111] border-white/5">
+          <Card className="lg:col-span-1 bg-[#111111] border-white/5 h-fit">
             <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 p-4">
-              <CardTitle className="text-sm font-black uppercase tracking-widest text-zinc-500">System Status</CardTitle>
+              <CardTitle className="text-xs font-black uppercase tracking-widest text-zinc-500">System Control</CardTitle>
               <Switch checked={localSystemEnabled} onCheckedChange={setLocalSystemEnabled} />
             </CardHeader>
             <CardContent className="p-4 space-y-4">
-              <Textarea placeholder="Maintenance message..." value={localSystemMessage} onChange={e => setLocalSystemMessage(e.target.value)} className="bg-[#0d0d0d] border-white/5" />
+              <Textarea placeholder="Maintenance message..." value={localSystemMessage} onChange={e => setLocalSystemMessage(e.target.value)} className="bg-[#0d0d0d] border-white/5 text-xs min-h-[80px]" />
               <Button onClick={handleUpdateStatus} disabled={updatingStatus} className="w-full bg-[#FFD700] text-black font-black uppercase text-[10px] h-9">Update System</Button>
             </CardContent>
           </Card>
@@ -180,15 +202,15 @@ export default function AdminDashboard() {
             <StatCard icon={ArrowDownLeft} label="Deposits Today" value={`GHS ${data?.stats.todayDeposits.toFixed(2)}`} color="text-emerald-400" />
             <StatCard icon={ShoppingCart} label="Orders Today" value={data?.stats.todayOrders} color="text-blue-400" />
             <StatCard icon={TrendingUp} label="Total Profit" value={`GHS ${data?.stats.totalProfit.toFixed(2)}`} color="text-amber-500" />
-            <StatCard icon={Wallet} label="Upstream Balance" value={`GHS ${data?.stats.rahitaluBalance.toFixed(2)}`} highlight />
+            <StatCard icon={Wallet} label="Upstream Wallet" value={`GHS ${data?.stats.rahitaluBalance.toFixed(2)}`} highlight />
           </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-[#111111] border border-white/5 p-1">
-            <TabsTrigger value="activity">Live Stream</TabsTrigger>
-            <TabsTrigger value="deposits">Recent Deposits</TabsTrigger>
-            <TabsTrigger value="users">Customers & Roles</TabsTrigger>
+          <TabsList className="bg-[#111111] border border-white/5 p-1 w-full lg:w-fit overflow-x-auto h-auto grid grid-cols-3 lg:flex">
+            <TabsTrigger value="activity" className="text-[10px] font-black uppercase">Live Stream</TabsTrigger>
+            <TabsTrigger value="deposits" className="text-[10px] font-black uppercase">Recent Deposits</TabsTrigger>
+            <TabsTrigger value="users" className="text-[10px] font-black uppercase">Customers</TabsTrigger>
           </TabsList>
 
           <div className="relative w-full max-w-sm">
@@ -197,69 +219,71 @@ export default function AdminDashboard() {
           </div>
 
           <div className="rounded-2xl border border-white/5 bg-[#111111] overflow-hidden">
-            <Table>
-              {activeTab === 'users' && (
-                <>
-                  <TableHeader><TableRow className="border-white/5"><TableHead className="pl-6">Name</TableHead><TableHead>Reference</TableHead><TableHead>Balance</TableHead><TableHead>Role</TableHead><TableHead className="text-right pr-6">Action</TableHead></TableRow></TableHeader>
-                  <TableBody>
-                    {paginatedData.map((u: any) => (
-                      <TableRow key={u.id} className="border-white/5">
-                        <TableCell className="pl-6 font-bold">{u.full_name}</TableCell>
-                        <TableCell className="font-mono text-zinc-500">{u.reference_code}</TableCell>
-                        <TableCell className="font-black">GHS {parseFloat(u.wallet_balance).toFixed(2)}</TableCell>
-                        <TableCell>
-                          <Select value={u.role || 'base'} onValueChange={(v: UserRole) => handleUpdateRole(u.user_id, v)}>
-                            <SelectTrigger className="h-7 text-[10px] font-black uppercase bg-black/40 border-white/5 w-28">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-[#111111] border-white/5 text-white">
-                              <SelectItem value="base">BASE (Retail)</SelectItem>
-                              <SelectItem value="falaa">FALAA (VIP)</SelectItem>
-                              <SelectItem value="api_user">API USER</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell className="text-right pr-6"><Button size="sm" onClick={() => { setAdjUser(u); setIsAdjOpen(true); }} className="h-7 text-[9px] font-black uppercase bg-[#FFD700]/10 text-[#FFD700]">Adjust</Button></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </>
-              )}
-              {activeTab === 'activity' && (
-                <>
-                  <TableHeader><TableRow className="border-white/5"><TableHead className="pl-6">Time</TableHead><TableHead>Phone</TableHead><TableHead>Plan</TableHead><TableHead className="text-right pr-6">Status</TableHead></TableRow></TableHeader>
-                  <TableBody>
-                    {paginatedData.map((i: any) => (
-                      <TableRow key={i.id} className="border-white/5">
-                        <TableCell className="pl-6 text-[11px] text-zinc-500">{new Date(i.timestamp).toLocaleString()}</TableCell>
-                        <TableCell className="font-mono">{i.phone}</TableCell>
-                        <TableCell className="font-black text-[#FFD700]">{i.plan}</TableCell>
-                        <TableCell className="text-right pr-6"><StatusPill status={i.status} /></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </>
-              )}
-            </Table>
+            <div className="overflow-x-auto">
+              <Table>
+                {activeTab === 'users' && (
+                  <>
+                    <TableHeader><TableRow className="border-white/5"><TableHead className="pl-6">Name</TableHead><TableHead>Reference</TableHead><TableHead>Balance</TableHead><TableHead>Role</TableHead><TableHead className="text-right pr-6">Action</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {paginatedData.map((u: any) => (
+                        <TableRow key={u.id} className="border-white/5">
+                          <TableCell className="pl-6 font-bold text-xs truncate max-w-[120px]">{u.full_name}</TableCell>
+                          <TableCell className="font-mono text-zinc-500 text-xs">{u.reference_code}</TableCell>
+                          <TableCell className="font-black text-xs">GHS {parseFloat(u.wallet_balance).toFixed(2)}</TableCell>
+                          <TableCell>
+                            <Select value={u.role || 'base'} onValueChange={(v: UserRole) => handleUpdateRole(u.user_id, v)}>
+                              <SelectTrigger className="h-7 text-[9px] font-black uppercase bg-black/40 border-white/5 w-24">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-[#111111] border-white/5 text-white">
+                                <SelectItem value="base" className="text-[10px]">BASE</SelectItem>
+                                <SelectItem value="falaa" className="text-[10px]">FALAA</SelectItem>
+                                <SelectItem value="api_user" className="text-[10px]">API USER</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell className="text-right pr-6"><Button size="sm" onClick={() => { setAdjUser(u); setIsAdjOpen(true); }} className="h-7 text-[9px] font-black uppercase bg-[#FFD700]/10 text-[#FFD700]">Adjust</Button></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </>
+                )}
+                {activeTab === 'activity' && (
+                  <>
+                    <TableHeader><TableRow className="border-white/5"><TableHead className="pl-6">Time</TableHead><TableHead>Phone</TableHead><TableHead>Plan</TableHead><TableHead className="text-right pr-6">Status</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {paginatedData.map((i: any) => (
+                        <TableRow key={i.id} className="border-white/5">
+                          <TableCell className="pl-6 text-[10px] text-zinc-500">{new Date(i.timestamp).toLocaleTimeString()}</TableCell>
+                          <TableCell className="font-mono text-xs">{i.phone}</TableCell>
+                          <TableCell className="font-black text-[#FFD700] text-xs">{i.plan}</TableCell>
+                          <TableCell className="text-right pr-6"><StatusPill status={i.status} /></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </>
+                )}
+              </Table>
+            </div>
           </div>
         </Tabs>
       </div>
 
       <Dialog open={isAdjOpen} onOpenChange={setIsAdjOpen}>
-        <DialogContent className="bg-[#111111] border-white/5 text-white">
-          <DialogHeader><DialogTitle>Adjust Wallet: {adjUser?.full_name}</DialogTitle></DialogHeader>
+        <DialogContent className="bg-[#111111] border-white/5 text-white max-w-[95vw] sm:max-w-md rounded-2xl">
+          <DialogHeader><DialogTitle className="text-sm font-black uppercase">Adjust Wallet: {adjUser?.full_name}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <Select value={adjType} onValueChange={(v: any) => setAdjType(v)}>
-                <SelectTrigger className="bg-[#0d0d0d] border-white/5"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-[#111111] text-white"><SelectItem value="credit">CREDIT (+)</SelectItem><SelectItem value="debit">DEBIT (-)</SelectItem></SelectContent>
+                <SelectTrigger className="bg-[#0d0d0d] border-white/5 h-12"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-[#111111] text-white border-white/5"><SelectItem value="credit">CREDIT (+)</SelectItem><SelectItem value="debit">DEBIT (-)</SelectItem></SelectContent>
               </Select>
-              <Input type="number" placeholder="0.00" value={adjAmount} onChange={e => setAdjAmount(e.target.value)} className="bg-[#0d0d0d] border-white/5" />
+              <Input type="number" placeholder="0.00" value={adjAmount} onChange={e => setAdjAmount(e.target.value)} className="bg-[#0d0d0d] border-white/5 h-12" />
             </div>
             <Textarea placeholder="Adjustment reason..." value={adjReason} onChange={e => setAdjReason(e.target.value)} className="bg-[#0d0d0d] border-white/5" />
           </div>
           <DialogFooter>
-            <Button onClick={handleAdjustBalance} disabled={adjLoading} className="bg-[#FFD700] text-black font-black">{adjLoading ? <Loader2 className="animate-spin" /> : "Apply"}</Button>
+            <Button onClick={handleAdjustBalance} disabled={adjLoading} className="w-full bg-[#FFD700] text-black font-black uppercase h-12">{adjLoading ? <Loader2 className="animate-spin" /> : "Apply Adjustment"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -269,10 +293,10 @@ export default function AdminDashboard() {
 
 function StatCard({ icon: Icon, label, value, color = "text-white", highlight }: any) {
   return (
-    <Card className={cn("bg-[#111111] border-white/5 p-5", highlight && "bg-[#FFD700]")}>
-      <Icon className={cn("w-4 h-4 mb-2", highlight ? "text-black" : "text-zinc-500")} />
-      <div className={cn("text-xl font-black", highlight ? "text-black" : color)}>{value}</div>
-      <div className={cn("text-[9px] font-bold uppercase tracking-widest", highlight ? "text-black/60" : "text-zinc-600")}>{label}</div>
+    <Card className={cn("bg-[#111111] border-white/5 p-4 lg:p-5", highlight && "bg-[#FFD700]")}>
+      <Icon className={cn("w-3 h-3 mb-2", highlight ? "text-black" : "text-zinc-500")} />
+      <div className={cn("text-base lg:text-xl font-black truncate", highlight ? "text-black" : color)}>{value}</div>
+      <div className={cn("text-[8px] lg:text-[9px] font-bold uppercase tracking-widest", highlight ? "text-black/60" : "text-zinc-600")}>{label}</div>
     </Card>
   );
 }
@@ -283,5 +307,5 @@ function StatusPill({ status }: { status: string }) {
     processing: 'bg-[#FFD700]/10 text-[#FFD700] border-[#FFD700]/20',
     failed: 'bg-red-500/10 text-red-400 border-red-500/20',
   };
-  return <span className={cn("px-2 py-0.5 rounded-full text-[9px] font-black uppercase border", styles[status?.toLowerCase()] || 'bg-zinc-500/10')}>{status}</span>;
+  return <span className={cn("px-2 py-0.5 rounded-full text-[8px] font-black uppercase border", styles[status?.toLowerCase()] || 'bg-zinc-500/10')}>{status}</span>;
 }
