@@ -167,7 +167,9 @@ export default function DashboardPage() {
               <DialogContent className="bg-[#111118] border-white/5 text-white p-6 max-w-sm rounded-3xl">
                 <DialogHeader>
                   <DialogTitle className="text-lg font-black italic">MANUAL DEPOSIT</DialogTitle>
-                  <DialogDescription className="sr-only">Instructions for MoMo manual deposit</DialogDescription>
+                  <DialogDescription className="text-[11px] text-zinc-500 font-medium">
+                    Send funds to the merchant account below using your unique reference.
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="p-4 bg-black/40 rounded-2xl space-y-4 border border-white/5">
                   <div>

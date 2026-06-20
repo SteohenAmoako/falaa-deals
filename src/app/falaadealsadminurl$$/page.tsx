@@ -94,7 +94,7 @@ export default function AdminDashboard() {
   const handleUpdateRole = async (userId: string, role: UserRole) => {
     try {
       await assignUserRole(userId, role);
-      toast({ variant: "success", title: "Role Updated" });
+      toast({ title: "Role Updated" });
       fetchData();
     } catch (e: any) {
       toast({ variant: "destructive", title: "Update Failed", description: e.message });
@@ -105,7 +105,7 @@ export default function AdminDashboard() {
     setUpdatingStatus(true);
     const result = await updateSystemStatus(localSystemEnabled, localSystemMessage);
     if (result.success) {
-      toast({ variant: "success", title: "System Updated" });
+      toast({ title: "System Updated" });
       fetchData();
     }
     setUpdatingStatus(false);
@@ -114,7 +114,7 @@ export default function AdminDashboard() {
   const handleRegisterWebhook = async () => {
     setRegisteringWebhook(true);
     const result = await registerSkPlugWebhook(window.location.origin);
-    if (result.success) toast({ variant: "success", title: "Webhook Registered" });
+    if (result.success) toast({ title: "Webhook Registered" });
     setRegisteringWebhook(false);
   };
 
@@ -123,7 +123,7 @@ export default function AdminDashboard() {
     setAdjLoading(true);
     const result = await adjustUserBalance(adjUser.id, parseFloat(adjAmount), adjType, adjReason);
     if (result.success) {
-      toast({ variant: "success", title: "Balance Adjusted" });
+      toast({ title: "Balance Adjusted" });
       setIsAdjOpen(false);
       fetchData();
     }
@@ -161,7 +161,7 @@ export default function AdminDashboard() {
             <SheetContent side="right" className="bg-[#111111] border-white/5 text-white p-6 pt-12">
               <SheetHeader className="text-left mb-6">
                 <SheetTitle className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Menu</SheetTitle>
-                <SheetDescription className="sr-only">Admin Navigation</SheetDescription>
+                <SheetDescription className="text-xs text-zinc-500">Admin Navigation Control</SheetDescription>
               </SheetHeader>
               <NavContent />
             </SheetContent>

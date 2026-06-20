@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, CheckCircle2, Phone, Zap, Info, ArrowRight } from "lucide-react";
+import { Loader2, Phone, Zap, Info, ArrowRight } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { buyBundle } from '@/app/actions/orders';
 import { useToast } from '@/hooks/use-toast';
@@ -35,7 +35,7 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
     try {
       const result = await buyBundle(userId, bundle.id, phone);
       if (result.success) {
-        toast({ variant: "success", title: "🎉 Order Complete", description: result.message });
+        toast({ variant: "success", title: "Order Complete", description: result.message });
         setPhone('');
         setShowPurchase(false);
       } else {
@@ -56,34 +56,37 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
       <Card 
         onClick={() => !disabled && setShowPurchase(true)}
         className={cn(
-          "flex flex-col bg-[#111118] border-white/5 transition-all cursor-pointer active:scale-95",
+          "flex flex-col bg-[#111118] border-white/5 transition-all cursor-pointer active:scale-95 group overflow-hidden",
           "hover:border-violet-500/40 hover:bg-[#15151f]",
           disabled && "opacity-50 grayscale pointer-events-none"
         )}
       >
         <div className="p-3 sm:p-4 space-y-1">
-          <div className="flex justify-between items-center">
-            <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">
+          <div className="flex justify-between items-center h-4">
+            <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest truncate">
               {bundle.network.replace('AT_', '').replace('_', ' ')}
             </span>
             {isAirtelTigo && (
               <span className={cn(
-                "text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full",
+                "text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full shrink-0",
                 isNoExpiry ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"
               )}>
-                {isNoExpiry ? 'No Expiry' : 'Expiry'}
+                {isNoExpiry ? 'No Exp' : 'Exp'}
               </span>
             )}
           </div>
-          <div className="text-xl sm:text-2xl font-black text-white tracking-tighter truncate">
-            {bundle.label}
-          </div>
-          <div className="flex items-center justify-between mt-1">
-            <div className="text-sm sm:text-base font-black text-violet-400">
-              GHS {bundle.sell_price_ghs?.toFixed(2)}
+          
+          <div className="pt-2">
+            <div className="text-xl sm:text-2xl font-black text-white tracking-tighter leading-none">
+              {bundle.label}
             </div>
-            <div className="w-6 h-6 rounded-full bg-violet-600/10 flex items-center justify-center">
-              <ArrowRight size={12} className="text-violet-500" />
+            <div className="mt-2 flex items-center justify-between">
+              <div className="text-xs sm:text-sm font-black text-violet-400">
+                GHS {bundle.sell_price_ghs?.toFixed(2)}
+              </div>
+              <div className="w-5 h-5 rounded-full bg-violet-600/10 flex items-center justify-center group-hover:bg-violet-600 group-hover:text-white transition-colors">
+                <ArrowRight size={10} />
+              </div>
             </div>
           </div>
         </div>
@@ -95,20 +98,20 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
             <DialogTitle className="text-2xl font-black italic tracking-tight flex items-center gap-2">
               <Zap className="w-6 h-6 text-[#FFD700]" /> BUY DATA
             </DialogTitle>
-            <DialogDescription className="text-zinc-500 font-medium">
-              You are purchasing {bundle.label} for {bundle.network.replace('_', ' ')}.
+            <DialogDescription className="text-zinc-500 font-medium text-xs">
+              Purchasing {bundle.label} for {bundle.network.replace('_', ' ')}.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-5 py-4">
+          <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label className="text-[10px] text-zinc-400 uppercase font-black tracking-widest flex items-center gap-1.5">
                 <Phone size={10} className="text-violet-500" /> 
                 Recipient Number
               </Label>
               <Input 
-                placeholder="e.g. 024 000 0000" 
-                className="bg-black/40 border-white/10 h-14 font-black text-2xl placeholder:text-zinc-800 text-white focus:border-violet-600 focus:ring-violet-600/20 text-center"
+                placeholder="024XXXXXXX" 
+                className="bg-black/40 border-white/10 h-12 font-black text-xl placeholder:text-zinc-800 text-white focus:border-violet-600 text-center"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
                 maxLength={10}
@@ -116,21 +119,21 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
               />
             </div>
 
-            <div className="bg-black/40 rounded-2xl p-4 border border-white/5 space-y-2">
-              <div className="flex justify-between text-[11px] font-bold">
+            <div className="bg-black/40 rounded-xl p-3 border border-white/5 space-y-1">
+              <div className="flex justify-between text-[10px] font-bold">
                 <span className="text-zinc-500 uppercase">Package</span>
                 <span className="text-white">{bundle.label}</span>
               </div>
-              <div className="flex justify-between text-[11px] font-bold">
+              <div className="flex justify-between text-[10px] font-bold">
                 <span className="text-zinc-500 uppercase">Total Cost</span>
                 <span className="text-[#FFD700]">GHS {bundle.sell_price_ghs?.toFixed(2)}</span>
               </div>
             </div>
             
-            <div className="flex items-start gap-2 p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl">
-              <Info size={14} className="text-amber-500 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2 p-2.5 bg-amber-500/5 border border-amber-500/10 rounded-xl">
+              <Info size={12} className="text-amber-500 shrink-0 mt-0.5" />
               <p className="text-[9px] text-amber-200/60 leading-tight">
-                Transactions are instant and irreversible. Please verify the recipient number.
+                Verify recipient number before purchase.
               </p>
             </div>
           </div>
@@ -139,7 +142,7 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
             <Button 
               disabled={loading || phone.length < 10}
               onClick={handleProcessOrder} 
-              className="w-full bg-violet-600 hover:bg-violet-700 text-white font-black h-14 rounded-xl shadow-xl shadow-violet-600/20 text-sm tracking-widest"
+              className="w-full bg-violet-600 hover:bg-violet-700 text-white font-black h-12 rounded-xl text-xs tracking-widest"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'CONFIRM PURCHASE'}
             </Button>

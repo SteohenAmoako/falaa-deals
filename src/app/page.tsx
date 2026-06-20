@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from "react";
@@ -13,10 +12,6 @@ import { supabase } from "@/lib/supabase";
 import { signUp } from "@/app/actions/auth";
 import { useToast } from "@/hooks/use-toast";
 
-/**
- * Centered Authentication Portal (Login/Register)
- * Unified at the root path "/"
- */
 export default function LandingPage() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
@@ -29,7 +24,6 @@ export default function LandingPage() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          // Check user role for redirection
           const { data: profile } = await supabase
             .from('profiles')
             .select('is_admin')
@@ -65,14 +59,13 @@ export default function LandingPage() {
       if (error || !data.session) {
         toast({
           title: "Login Failed",
-          description: error?.message || "Invalid credentials. Please try again.",
+          description: error?.message || "Invalid credentials.",
           variant: "destructive",
         });
         setLoading(false);
         return;
       }
 
-      // Check user role for redirection
       const { data: profile } = await supabase
         .from('profiles')
         .select('is_admin')
@@ -122,14 +115,10 @@ export default function LandingPage() {
       if (error || !data.session) {
         setActiveTab("login");
         setLoading(false);
-        toast({
-          title: "Account Created!",
-          description: "Please log in with your new credentials.",
-        });
+        toast({ title: "Account Created!" });
         return;
       }
 
-      // Check user role for redirection
       const { data: profile } = await supabase
         .from('profiles')
         .select('is_admin')
@@ -160,42 +149,42 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0f1e] text-foreground flex items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-[#0a0f1e] text-foreground flex items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/20 rounded-full blur-[140px]" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent/20 rounded-full blur-[120px]" />
 
-      <div className="relative w-full max-w-md z-10 space-y-8">
+      <div className="relative w-full max-w-sm z-10 space-y-6">
         <div className="flex flex-col items-center gap-3 text-white">
-          <div className="w-16 h-16 bg-violet-600 rounded-2xl flex items-center justify-center font-black italic shadow-2xl shadow-violet-600/20 text-white text-2xl">SB</div>
-          <h1 className="text-3xl font-black tracking-tighter">Falaa Deals</h1>
+          <div className="w-12 h-12 bg-violet-600 rounded-2xl flex items-center justify-center font-black italic shadow-2xl text-white text-xl">FD</div>
+          <h1 className="text-2xl font-black tracking-tighter">Falaa Deals</h1>
         </div>
 
         <Card className="bg-[#111827]/80 backdrop-blur-2xl border-white/5 shadow-2xl overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 bg-black/20 h-12 rounded-none">
-              <TabsTrigger value="login" className="font-bold text-xs data-[state=active]:bg-white/5 uppercase tracking-widest">Login</TabsTrigger>
-              <TabsTrigger value="signup" className="font-bold text-xs data-[state=active]:bg-white/5 uppercase tracking-widest">Register</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 bg-black/20 h-10 rounded-none">
+              <TabsTrigger value="login" className="font-black text-[9px] data-[state=active]:bg-white/5 uppercase tracking-widest">Login</TabsTrigger>
+              <TabsTrigger value="signup" className="font-black text-[9px] data-[state=active]:bg-white/5 uppercase tracking-widest">Register</TabsTrigger>
             </TabsList>
             
             <div className="p-2">
               <TabsContent value="login" className="mt-0 outline-none">
                 <form onSubmit={handleLogin}>
-                  <CardHeader className="text-center pb-6 pt-8">
-                    <CardTitle className="text-xl font-bold">Welcome Back</CardTitle>
-                    <CardDescription className="text-xs">Access your automated data dashboard.</CardDescription>
+                  <CardHeader className="text-center pb-4 pt-6">
+                    <CardTitle className="text-lg font-black italic">WELCOME BACK</CardTitle>
+                    <CardDescription className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest">Automated Data Portal</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-1.5">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Email Address</Label>
-                      <Input name="email" type="email" required placeholder="user@example.com" className="h-12 bg-white/5 border-white/5 text-white placeholder:text-gray-600 font-medium" />
+                      <Label className="text-[9px] uppercase font-black text-muted-foreground tracking-widest">Email Address</Label>
+                      <Input name="email" type="email" required placeholder="user@mail.com" className="h-10 bg-white/5 border-white/5 text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Password</Label>
-                      <Input name="password" type="password" required placeholder="••••••••" className="h-12 bg-white/5 border-white/5 text-white placeholder:text-gray-600" />
+                      <Label className="text-[9px] uppercase font-black text-muted-foreground tracking-widest">Password</Label>
+                      <Input name="password" type="password" required placeholder="••••••••" className="h-10 bg-white/5 border-white/5 text-xs" />
                     </div>
-                    <Button disabled={loading} className="w-full h-12 font-bold text-base mt-4 group bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20">
+                    <Button disabled={loading} className="w-full h-11 font-black text-xs mt-2 group bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 uppercase tracking-widest">
                       {loading ? <Loader2 className="animate-spin" /> : (
-                        <span className="flex items-center gap-2">LOG IN <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></span>
+                        <span className="flex items-center gap-2">LOG IN <ArrowRight className="w-4 h-4" /></span>
                       )}
                     </Button>
                   </CardContent>
@@ -204,29 +193,29 @@ export default function LandingPage() {
 
               <TabsContent value="signup" className="mt-0 outline-none">
                 <form onSubmit={handleSignup}>
-                  <CardHeader className="text-center pb-6 pt-8">
-                    <CardTitle className="text-xl font-bold">Create Account</CardTitle>
-                    <CardDescription className="text-xs">Join the data automation network.</CardDescription>
+                  <CardHeader className="text-center pb-4 pt-6">
+                    <CardTitle className="text-lg font-black italic">CREATE ACCOUNT</CardTitle>
+                    <CardDescription className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest">Join the network</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Full Name</Label>
-                      <Input name="fullName" required placeholder="Kojo Antwi" className="h-12 bg-white/5 border-white/5 text-white placeholder:text-gray-600 font-medium" />
+                  <CardContent className="space-y-3">
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase font-black text-muted-foreground tracking-widest">Full Name</Label>
+                      <Input name="fullName" required placeholder="John Doe" className="h-10 bg-white/5 border-white/5 text-xs" />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Email Address</Label>
-                      <Input name="email" type="email" required placeholder="kojo@example.com" className="h-12 bg-white/5 border-white/5 text-white placeholder:text-gray-600 font-medium" />
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase font-black text-muted-foreground tracking-widest">Email</Label>
+                      <Input name="email" type="email" required placeholder="john@mail.com" className="h-10 bg-white/5 border-white/5 text-xs" />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Phone Number</Label>
-                      <Input name="phone" required placeholder="024XXXXXXX" className="h-12 bg-white/5 border-white/5 text-white placeholder:text-gray-600 font-medium" />
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase font-black text-muted-foreground tracking-widest">Phone</Label>
+                      <Input name="phone" required placeholder="024XXXXXXX" className="h-10 bg-white/5 border-white/5 text-xs" />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Password</Label>
-                      <Input name="password" type="password" required placeholder="••••••••" className="h-12 bg-white/5 border-white/5 text-white placeholder:text-gray-600" />
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase font-black text-muted-foreground tracking-widest">Password</Label>
+                      <Input name="password" type="password" required placeholder="••••••••" className="h-10 bg-white/5 border-white/5 text-xs" />
                     </div>
-                    <Button disabled={loading} className="w-full h-12 font-bold text-base mt-4 bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20">
-                      {loading ? <Loader2 className="animate-spin" /> : "CREATE ACCOUNT"}
+                    <Button disabled={loading} className="w-full h-11 font-black text-xs mt-3 bg-primary hover:bg-primary/90 text-white uppercase tracking-widest">
+                      {loading ? <Loader2 className="animate-spin" /> : "JOIN NOW"}
                     </Button>
                   </CardContent>
                 </form>
