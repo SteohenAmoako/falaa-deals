@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Users, ShoppingCart, Wallet, Search, Loader2, RefreshCw,
@@ -133,7 +133,9 @@ export default function AdminDashboard() {
   const formatGb = (gb: any) => {
     if (!gb) return '';
     const clean = gb.toString().replace('GB', '').trim();
-    return parseFloat(clean).toString() + 'GB';
+    // Convert to float and back to string to remove .00
+    const value = parseFloat(clean);
+    return (isNaN(value) ? clean : value.toString()) + 'GB';
   };
 
   if (loading && !data) return (

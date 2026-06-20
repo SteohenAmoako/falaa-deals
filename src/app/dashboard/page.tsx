@@ -6,7 +6,7 @@ import ForecastTool from '@/components/dashboard/ForecastTool';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type Profile, type WalletTransaction, type Bundle } from '@/lib/types';
 import {
   LayoutDashboard, History, ShoppingBag, LogOut, Code2,
@@ -111,8 +111,9 @@ export default function DashboardPage() {
 
   const formatGb = (size: any) => {
     if (!size) return '';
-    const clean = size.toString().replace('GB', '');
-    return parseFloat(clean).toString() + 'GB';
+    const clean = size.toString().replace('GB', '').trim();
+    const value = parseFloat(clean);
+    return (isNaN(value) ? clean : value.toString()) + 'GB';
   };
 
   if (loading) return (

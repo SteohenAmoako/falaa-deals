@@ -103,8 +103,9 @@ export async function getAdminDashboardData() {
 
     const formatGbRaw = (gb: any) => {
       if (!gb) return '';
-      const clean = gb.toString().replace('GB', '');
-      return parseFloat(clean).toString() + 'GB';
+      const clean = gb.toString().replace('GB', '').trim();
+      const value = parseFloat(clean);
+      return (isNaN(value) ? clean : value.toString()) + 'GB';
     };
 
     return {

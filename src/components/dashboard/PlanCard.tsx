@@ -51,7 +51,7 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
   const isAirtelTigo = bundle.network.toUpperCase().startsWith('AT_');
   const isNoExpiry = bundle.network.toUpperCase() === 'AT_NOEXPIRY';
   
-  // Format GB size to whole number if possible
+  // Format GB size to whole number
   const formattedGb = parseFloat(bundle.gb_size.toString()).toString() + 'GB';
 
   return (
