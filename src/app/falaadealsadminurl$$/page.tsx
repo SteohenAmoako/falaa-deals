@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from '@/components/ui/button';
@@ -47,30 +47,30 @@ export default function AdminDashboard() {
   const router = useRouter();
   const { toast } = useToast();
 
-  useEffect(() => { fetchData(); }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
-    const result = await getAdminDashboardData();
-    if (result) {
-      setData(result);
-      setLocalSystemEnabled(result.systemStatus.enabled);
-      setLocalSystemMessage(result.systemStatus.message);
+    try {
+      const result = await getAdminDashboardData();
+      if (result) {
+        setData(result);
+        setLocalSystemEnabled(result.systemStatus?.enabled ?? true);
+        setLocalSystemMessage(result.systemStatus?.message ?? '');
+      }
+    } catch (err) {
+      console.error('Fetch Data Fail:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  };
+  }, []);
 
-  const processedUsers = useMemo(() => {
-    if (!data) return [];
-    return data.users;
-  }, [data]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const filteredData = useMemo(() => {
     if (!data) return [];
     const query = searchQuery.toLowerCase();
     
     if (activeTab === 'users') {
-      return processedUsers.filter((u: any) =>
+      return (data.users || []).filter((u: any) =>
         (u.full_name || '').toLowerCase().includes(query) ||
         (u.reference_code || '').toLowerCase().includes(query) ||
         (u.phone || '').includes(query)
@@ -80,11 +80,11 @@ export default function AdminDashboard() {
       });
     }
     
-    if (activeTab === 'activity') return data.liveStream.filter((i: any) => (i.phone || '').includes(query));
-    if (activeTab === 'deposits') return data.recentTransactions.filter((t: any) => (t.profiles?.full_name || '').toLowerCase().includes(query));
+    if (activeTab === 'activity') return (data.liveStream || []).filter((i: any) => (i.phone || '').includes(query));
+    if (activeTab === 'deposits') return (data.recentTransactions || []).filter((t: any) => (t.profiles?.full_name || '').toLowerCase().includes(query));
     
     return [];
-  }, [activeTab, searchQuery, data, processedUsers, userSortField]);
+  }, [activeTab, searchQuery, data, userSortField]);
 
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
@@ -131,10 +131,16 @@ export default function AdminDashboard() {
   };
 
   const formatGb = (gb: any) => {
-    return parseFloat(gb.toString()).toString() + 'GB';
+    if (!gb) return '';
+    const clean = gb.toString().replace('GB', '').trim();
+    return parseFloat(clean).toString() + 'GB';
   };
 
-  if (loading && !data) return <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center"><Loader2 className="animate-spin text-[#FFD700]" /></div>;
+  if (loading && !data) return (
+    <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center">
+      <Loader2 className="animate-spin text-[#FFD700]" />
+    </div>
+  );
 
   const NavContent = () => (
     <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
@@ -187,11 +193,11 @@ export default function AdminDashboard() {
           </Card>
 
           <div className="lg:col-span-9 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
-            <StatCard icon={Users} label="Users" value={data?.stats.totalUsers} />
-            <StatCard icon={ArrowDownLeft} label="Deposits" value={data?.stats.todayDeposits.toFixed(2)} color="text-emerald-400" />
-            <StatCard icon={ShoppingCart} label="Orders" value={data?.stats.todayOrders} color="text-blue-400" />
-            <StatCard icon={TrendingUp} label="Profit" value={data?.stats.todayProfit.toFixed(2)} color="text-amber-500" />
-            <StatCard icon={Wallet} label="Upstream" value={data?.stats.rahitaluBalance.toFixed(2)} highlight />
+            <StatCard icon={Users} label="Users" value={data?.stats?.totalUsers} />
+            <StatCard icon={ArrowDownLeft} label="Deposits" value={data?.stats?.todayDeposits?.toFixed(2)} color="text-emerald-400" />
+            <StatCard icon={ShoppingCart} label="Orders" value={data?.stats?.todayOrders} color="text-blue-400" />
+            <StatCard icon={TrendingUp} label="Profit" value={data?.stats?.todayProfit?.toFixed(2)} color="text-amber-500" />
+            <StatCard icon={Wallet} label="Upstream" value={data?.stats?.rahitaluBalance?.toFixed(2)} highlight />
           </div>
         </div>
 
@@ -216,7 +222,7 @@ export default function AdminDashboard() {
                     {paginatedData.map((u: any) => (
                       <TableRow key={u.id} className="border-white/5 hover:bg-white/5">
                         <TableCell className="px-4 py-3"><div className="font-bold text-xs">{u.full_name}</div><div className="text-[9px] text-zinc-500 font-mono">{u.phone}</div></TableCell>
-                        <TableCell className="px-4 font-black text-xs">{parseFloat(u.wallet_balance).toFixed(2)}</TableCell>
+                        <TableCell className="px-4 font-black text-xs">{parseFloat(u.wallet_balance || 0).toFixed(2)}</TableCell>
                         <TableCell className="px-4">
                           <Select value={u.role || 'base'} onValueChange={(v: UserRole) => handleUpdateRole(u.user_id, v)}>
                             <SelectTrigger className="h-7 text-[8px] font-black uppercase bg-black/40 border-white/5 w-20 px-2"><SelectValue /></SelectTrigger>
@@ -227,7 +233,11 @@ export default function AdminDashboard() {
                             </SelectContent>
                           </Select>
                         </TableCell>
-                        <TableCell className="text-right px-4"><Button size="sm" variant="ghost" onClick={() => { setAdjUser(u); setIsAdjOpen(true); }} className="h-7 w-7 p-0 text-[#FFD700] hover:bg-[#FFD700]/10"><Plus size={14} /></Button></TableCell>
+                        <TableCell className="text-right px-4">
+                          <Button size="sm" variant="ghost" onClick={() => { setAdjUser(u); setIsAdjOpen(true); }} className="h-7 w-7 p-0 text-[#FFD700] hover:bg-[#FFD700]/10">
+                            <Plus size={14} />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -286,7 +296,7 @@ function StatCard({ icon: Icon, label, value, color = "text-white", highlight }:
         <Icon className={cn("w-3 h-3", highlight ? "text-black/60" : "text-zinc-600")} />
         <span className={cn("text-[8px] font-black uppercase tracking-widest", highlight ? "text-black/60" : "text-zinc-600")}>{label}</span>
       </div>
-      <div className={cn("text-sm font-black truncate", highlight ? "text-black" : color)}>{value}</div>
+      <div className={cn("text-sm font-black truncate", highlight ? "text-black" : color)}>{value ?? '...'}</div>
     </Card>
   );
 }

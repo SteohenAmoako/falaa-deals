@@ -16,9 +16,6 @@ const PLAN_COSTS: Record<string, number> = {
   '6a282eb267c07f8445745dcc': 12.5, // 5.1GB
 };
 
-/**
- * Robust check for admin status using the Service Role client.
- */
 export async function checkIsAdmin(userId: string) {
   try {
     const { data: profile, error } = await supabaseAdmin
@@ -34,9 +31,6 @@ export async function checkIsAdmin(userId: string) {
   }
 }
 
-/**
- * Fetches the maintenance mode status.
- */
 export async function getSystemStatus() {
   try {
     const { data, error } = await supabaseAdmin
@@ -52,9 +46,6 @@ export async function getSystemStatus() {
   }
 }
 
-/**
- * Aggregates data for the Admin Dashboard.
- */
 export async function getAdminDashboardData() {
   try {
     const { count: totalUsers } = await supabaseAdmin
@@ -92,8 +83,8 @@ export async function getAdminDashboardData() {
       .select('*', { count: 'exact', head: true })
       .gte('created_at', today);
 
-    const upstreamDash = await getUpstreamDashboard();
-    const upstreamOrders = await getUpstreamOrderHistory(100);
+    const upstreamDash = await getUpstreamDashboard().catch(() => ({ wallet: { balance: 0 } }));
+    const upstreamOrders = await getUpstreamOrderHistory(100).catch(() => []);
 
     const { data: users } = await supabaseAdmin
       .from('profiles')
@@ -109,6 +100,12 @@ export async function getAdminDashboardData() {
       .limit(200);
 
     const systemStatus = await getSystemStatus();
+
+    const formatGbRaw = (gb: any) => {
+      if (!gb) return '';
+      const clean = gb.toString().replace('GB', '');
+      return parseFloat(clean).toString() + 'GB';
+    };
 
     return {
       stats: {
@@ -127,14 +124,22 @@ export async function getAdminDashboardData() {
         id: order._id || order.id || Math.random().toString(),
         reference: order.reference || 'N/A',
         phone: order.phone || order.customerPhone || 'Unknown',
-        plan: order.gig ? `${order.gig}GB MTN` : 'Data Bundle',
+        plan: order.gig ? `${formatGbRaw(order.gig)} MTN` : 'Data Bundle',
         price: order.amount ? Number(order.amount).toFixed(2) : order.sellPriceGHS ? Number(order.sellPriceGHS).toFixed(2) : null,
         status: (order.upstreamStatus || order.status || 'pending').toLowerCase(),
         timestamp: order.upstreamUpdatedAt || order.createdAt || order.created_at || new Date().toISOString(),
       }))
     };
   } catch (error) {
-    return null;
+    console.error('getAdminDashboardData Error:', error);
+    return {
+      stats: { totalUsers: 0, todayDeposits: 0, todayOrders: 0, rahitaluBalance: 0, totalProfit: 0, todayProfit: 0 },
+      systemStatus: { enabled: true, message: '' },
+      users: [],
+      orders: [],
+      recentTransactions: [],
+      liveStream: []
+    };
   }
 }
 
