@@ -5,11 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Users, ShoppingCart, Wallet, Search, Loader2, RefreshCw,
-  ArrowDownLeft, LogOut, LayoutDashboard, TrendingUp, PackageSearch, Bell, Menu
+  ArrowDownLeft, LogOut, LayoutDashboard, TrendingUp, PackageSearch, Bell, Menu, Plus
 } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -130,6 +130,10 @@ export default function AdminDashboard() {
     setAdjLoading(false);
   };
 
+  const formatGb = (gb: any) => {
+    return parseFloat(gb.toString()).toString() + 'GB';
+  };
+
   if (loading && !data) return <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center"><Loader2 className="animate-spin text-[#FFD700]" /></div>;
 
   const NavContent = () => (
@@ -236,7 +240,7 @@ export default function AdminDashboard() {
                     {paginatedData.map((i: any) => (
                       <TableRow key={i.id} className="border-white/5 hover:bg-white/5">
                         <TableCell className="px-4 text-[10px] text-zinc-500">{new Date(i.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</TableCell>
-                        <TableCell className="px-4 py-3"><div className="font-bold text-xs">{i.phone}</div><div className="text-[9px] text-[#FFD700] font-black uppercase">{i.plan}</div></TableCell>
+                        <TableCell className="px-4 py-3"><div className="font-bold text-xs">{i.phone}</div><div className="text-[9px] text-[#FFD700] font-black uppercase">{formatGb(i.plan)}</div></TableCell>
                         <TableCell className="text-right px-4"><StatusBadge status={i.status} /></TableCell>
                       </TableRow>
                     ))}

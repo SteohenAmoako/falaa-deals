@@ -6,7 +6,7 @@ import ForecastTool from '@/components/dashboard/ForecastTool';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/tabs";
 import { type Profile, type WalletTransaction, type Bundle } from '@/lib/types';
 import {
   LayoutDashboard, History, ShoppingBag, LogOut, Code2,
@@ -107,6 +107,12 @@ export default function DashboardPage() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push('/');
+  };
+
+  const formatGb = (size: any) => {
+    if (!size) return '';
+    const clean = size.toString().replace('GB', '');
+    return parseFloat(clean).toString() + 'GB';
   };
 
   if (loading) return (
@@ -278,7 +284,7 @@ export default function DashboardPage() {
                       .filter(o => (o.gig || o.gb_size || '').toLowerCase().includes(ordersSearch.toLowerCase()) || (o.phone || o.recipient || '').includes(ordersSearch))
                       .map(order => (
                       <TableRow key={order.id} className="border-white/5 hover:bg-white/5 h-12">
-                        <TableCell className="text-xs font-bold">{order.gig || `${order.gb_size}GB`}</TableCell>
+                        <TableCell className="text-xs font-bold">{formatGb(order.gig || order.gb_size)}</TableCell>
                         <TableCell className="font-mono text-[11px] text-zinc-400">{order.phone || order.recipient}</TableCell>
                         <TableCell className="text-right"><StatusBadge status={order.status} /></TableCell>
                       </TableRow>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -44,7 +43,7 @@ export default function PricingPage() {
     setSyncing(true);
     const res = await syncBundlesFromSkPlug();
     if (res.success) {
-      toast({ variant: "success", title: "Sync Complete", description: `Added/Updated bundles. ${res.newCount} new bundles found.` });
+      toast({ variant: "success", title: "Sync Complete", description: `Added/Updated bundles.` });
       fetchPricingData();
     }
     setSyncing(false);
@@ -71,6 +70,10 @@ export default function PricingPage() {
     b.network.toLowerCase().includes(searchQuery.toLowerCase()) || 
     b.label.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const formatGb = (gb: any) => {
+    return parseFloat(gb.toString()).toString() + 'GB';
+  };
 
   if (loading) return <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center"><Loader2 className="animate-spin text-[#FFD700]" /></div>;
 
@@ -151,7 +154,7 @@ export default function PricingPage() {
 
                       return (
                         <TableRow key={bundle.id} className="border-white/5 hover:bg-white/5 transition-colors">
-                          <TableCell className="font-black text-sm">{bundle.label}</TableCell>
+                          <TableCell className="font-black text-sm">{formatGb(bundle.gb_size)}</TableCell>
                           <TableCell className="text-[10px] font-black text-[#FFD700] uppercase">{bundle.network}</TableCell>
                           <TableCell className="font-mono text-zinc-500 text-xs">GHS {bundle.cost_price_ghs.toFixed(2)}</TableCell>
                           <TableCell>

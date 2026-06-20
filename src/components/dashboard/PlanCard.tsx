@@ -50,6 +50,9 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
 
   const isAirtelTigo = bundle.network.toUpperCase().startsWith('AT_');
   const isNoExpiry = bundle.network.toUpperCase() === 'AT_NOEXPIRY';
+  
+  // Format GB size to whole number if possible
+  const formattedGb = parseFloat(bundle.gb_size.toString()).toString() + 'GB';
 
   return (
     <>
@@ -78,7 +81,7 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
           
           <div className="pt-2">
             <div className="text-xl sm:text-2xl font-black text-white tracking-tighter leading-none">
-              {bundle.label}
+              {formattedGb}
             </div>
             <div className="mt-2 flex items-center justify-between">
               <div className="text-xs sm:text-sm font-black text-violet-400">
@@ -99,7 +102,7 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
               <Zap className="w-6 h-6 text-[#FFD700]" /> BUY DATA
             </DialogTitle>
             <DialogDescription className="text-zinc-500 font-medium text-xs">
-              Purchasing {bundle.label} for {bundle.network.replace('_', ' ')}.
+              Purchasing {formattedGb} for {bundle.network.replace('_', ' ')}.
             </DialogDescription>
           </DialogHeader>
           
@@ -122,7 +125,7 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
             <div className="bg-black/40 rounded-xl p-3 border border-white/5 space-y-1">
               <div className="flex justify-between text-[10px] font-bold">
                 <span className="text-zinc-500 uppercase">Package</span>
-                <span className="text-white">{bundle.label}</span>
+                <span className="text-white">{formattedGb}</span>
               </div>
               <div className="flex justify-between text-[10px] font-bold">
                 <span className="text-zinc-500 uppercase">Total Cost</span>

@@ -12,9 +12,18 @@ interface WalletCardProps {
 }
 
 export default function WalletCard({ balance, referenceCode, disabled }: WalletCardProps) {
-  const copyRef = () => {
-    navigator.clipboard.writeText(referenceCode);
-    toast({ title: "Copied!", description: "Reference code copied to clipboard." });
+  const copyRef = async () => {
+    try {
+      await navigator.clipboard.writeText(referenceCode);
+      toast({ title: "Copied!", description: "Reference code copied to clipboard." });
+    } catch (err) {
+      console.warn('Clipboard access blocked:', err);
+      toast({ 
+        variant: "destructive", 
+        title: "Copy Failed", 
+        description: "Clipboard access is restricted in this browser environment." 
+      });
+    }
   };
 
   return (
