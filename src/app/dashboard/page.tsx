@@ -10,12 +10,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type Profile, type WalletTransaction, type Bundle } from '@/lib/types';
 import {
   LayoutDashboard, History, ShoppingBag, LogOut, Code2,
-  BarChart3, User, Loader2, Menu, Wallet, Plus, Search, Zap, AlertTriangle, Smartphone
+  BarChart3, User, Loader2, Menu, Wallet, Plus, Search, Zap, AlertTriangle, Smartphone, ArrowRightLeft
 } from "lucide-react";
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { cn } from '@/lib/utils';
+import { cn, formatGb, formatLongDate } from '@/lib/utils';
 import { getBundlesForRole } from '@/app/actions/bundles';
 import { getSystemStatus } from '@/app/actions/admin';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
@@ -109,13 +109,6 @@ export default function DashboardPage() {
     router.push('/');
   };
 
-  const formatGb = (size: any) => {
-    if (!size) return '';
-    const clean = size.toString().replace('GB', '').trim();
-    const value = parseFloat(clean);
-    return (isNaN(value) ? clean : value.toString()) + 'GB';
-  };
-
   if (loading) return (
     <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
       <Loader2 className="w-12 h-12 text-violet-600 animate-spin" />
@@ -141,7 +134,7 @@ export default function DashboardPage() {
         <nav className="flex-1 px-4 space-y-1">
           <NavItem icon={LayoutDashboard} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => { setActiveTab('dashboard'); setSidebarOpen(false); }} />
           <NavItem icon={ShoppingBag} label="Orders" active={activeTab === 'orders'} onClick={() => { setActiveTab('orders'); setSidebarOpen(false); }} />
-          <NavItem icon={History} label="History" active={activeTab === 'transactions'} onClick={() => { setActiveTab('transactions'); setSidebarOpen(false); }} />
+          <NavItem icon={ArrowRightLeft} label="Transactions" active={activeTab === 'transactions'} onClick={() => { setActiveTab('transactions'); setSidebarOpen(false); }} />
           <NavItem icon={BarChart3} label="Usage Insights" active={activeTab === 'usage'} onClick={() => { setActiveTab('usage'); setSidebarOpen(false); }} />
           <NavItem icon={Code2} label="API Docs" active={false} onClick={() => router.push('/dashboard/api-docs')} />
         </nav>
@@ -298,7 +291,7 @@ export default function DashboardPage() {
 
           {activeTab === 'transactions' && (
             <div className="space-y-4">
-              <h2 className="text-xl font-black">History</h2>
+              <h2 className="text-xl font-black">Transactions</h2>
               <div className="rounded-xl border border-white/5 bg-[#111118] overflow-hidden">
                 <Table>
                   <TableHeader>
@@ -311,8 +304,8 @@ export default function DashboardPage() {
                   <TableBody>
                     {transactions.map(tx => (
                       <TableRow key={tx.id} className="border-white/5 hover:bg-white/5 h-12">
-                        <TableCell className="text-[10px] text-zinc-500">{new Date(tx.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell className="text-xs max-w-[120px] truncate">{tx.description}</TableCell>
+                        <TableCell className="text-[10px] text-zinc-500 whitespace-nowrap">{formatLongDate(tx.created_at)}</TableCell>
+                        <TableCell className="text-xs max-w-[150px] truncate">{tx.description}</TableCell>
                         <TableCell className={cn("font-black text-right text-xs", tx.type === 'credit' ? 'text-emerald-400' : 'text-white')}>
                           {tx.type === 'credit' ? '+' : '-'} {tx.amount.toFixed(2)}
                         </TableCell>

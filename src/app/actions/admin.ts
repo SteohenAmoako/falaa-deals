@@ -84,7 +84,12 @@ export async function getAdminDashboardData() {
       .gte('created_at', today);
 
     const upstreamDash = await getUpstreamDashboard().catch(() => ({ wallet: { balance: 0 } }));
-    const upstreamOrders = await getUpstreamOrderHistory(100).catch(() => []);
+
+    // Fetch orders from both tables and join with profiles to get reference codes
+    const [rahitaluOrdersRes, skplugOrdersRes] = await Promise.all([
+      supabaseAdmin.from('rahitalu_orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(50),
+      supabaseAdmin.from('skplug_orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(50)
+    ]);
 
     const { data: users } = await supabaseAdmin
       .from('profiles')
@@ -94,19 +99,32 @@ export async function getAdminDashboardData() {
 
     const { data: recentTransactions } = await supabaseAdmin
       .from('wallet_transactions')
-      .select('*, profiles(full_name)')
+      .select('*, profiles(full_name, reference_code)')
       .eq('type', 'credit')
       .order('created_at', { ascending: false })
       .limit(200);
 
     const systemStatus = await getSystemStatus();
 
-    const formatGbRaw = (gb: any) => {
-      if (!gb) return '';
-      const clean = gb.toString().replace('GB', '').trim();
-      const value = parseFloat(clean);
-      return (isNaN(value) ? clean : value.toString()) + 'GB';
-    };
+    // Merge internal orders for the live feed
+    const combinedOrders = [
+      ...(rahitaluOrdersRes.data || []).map(o => ({
+        id: o.id,
+        phone: o.phone,
+        plan: o.gig,
+        status: o.status,
+        timestamp: o.created_at,
+        user_ref: o.profiles?.reference_code || 'N/A'
+      })),
+      ...(skplugOrdersRes.data || []).map(o => ({
+        id: o.id,
+        phone: o.recipient,
+        plan: `${o.gb_size}GB`,
+        status: o.status,
+        timestamp: o.created_at,
+        user_ref: o.profiles?.reference_code || 'N/A'
+      }))
+    ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     return {
       stats: {
@@ -121,15 +139,7 @@ export async function getAdminDashboardData() {
       users: users || [],
       orders: allSuccessfulOrders || [],
       recentTransactions: recentTransactions || [],
-      liveStream: (upstreamOrders || []).map((order: any) => ({
-        id: order._id || order.id || Math.random().toString(),
-        reference: order.reference || 'N/A',
-        phone: order.phone || order.customerPhone || 'Unknown',
-        plan: order.gig ? `${formatGbRaw(order.gig)} MTN` : 'Data Bundle',
-        price: order.amount ? Number(order.amount).toFixed(2) : order.sellPriceGHS ? Number(order.sellPriceGHS).toFixed(2) : null,
-        status: (order.upstreamStatus || order.status || 'pending').toLowerCase(),
-        timestamp: order.upstreamUpdatedAt || order.createdAt || order.created_at || new Date().toISOString(),
-      }))
+      liveStream: combinedOrders.slice(0, 100)
     };
   } catch (error) {
     console.error('getAdminDashboardData Error:', error);

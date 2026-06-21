@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -9,14 +9,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Users, ShoppingCart, Wallet, Search, Loader2, RefreshCw,
-  ArrowDownLeft, LogOut, LayoutDashboard, TrendingUp, PackageSearch, Bell, Menu, Plus
+  ArrowDownLeft, LogOut, LayoutDashboard, TrendingUp, PackageSearch, Bell, Menu, Plus, AlertCircle
 } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { getAdminDashboardData, updateSystemStatus, adjustUserBalance, assignUserRole, registerSkPlugWebhook } from '@/app/actions/admin';
-import { cn } from '@/lib/utils';
+import { cn, formatGb, formatLongDate } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -80,8 +80,8 @@ export default function AdminDashboard() {
       });
     }
     
-    if (activeTab === 'activity') return (data.liveStream || []).filter((i: any) => (i.phone || '').includes(query));
-    if (activeTab === 'deposits') return (data.recentTransactions || []).filter((t: any) => (t.profiles?.full_name || '').toLowerCase().includes(query));
+    if (activeTab === 'activity') return (data.liveStream || []).filter((i: any) => (i.phone || '').includes(query) || (i.user_ref || '').toLowerCase().includes(query));
+    if (activeTab === 'deposits') return (data.recentTransactions || []).filter((t: any) => (t.profiles?.full_name || '').toLowerCase().includes(query) || (t.profiles?.reference_code || '').toLowerCase().includes(query));
     
     return [];
   }, [activeTab, searchQuery, data, userSortField]);
@@ -128,14 +128,6 @@ export default function AdminDashboard() {
       fetchData();
     }
     setAdjLoading(false);
-  };
-
-  const formatGb = (gb: any) => {
-    if (!gb) return '';
-    const clean = gb.toString().replace('GB', '').trim();
-    // Convert to float and back to string to remove .00
-    const value = parseFloat(clean);
-    return (isNaN(value) ? clean : value.toString()) + 'GB';
   };
 
   if (loading && !data) return (
@@ -223,7 +215,7 @@ export default function AdminDashboard() {
                   <TableBody>
                     {paginatedData.map((u: any) => (
                       <TableRow key={u.id} className="border-white/5 hover:bg-white/5">
-                        <TableCell className="px-4 py-3"><div className="font-bold text-xs">{u.full_name}</div><div className="text-[9px] text-zinc-500 font-mono">{u.phone}</div></TableCell>
+                        <TableCell className="px-4 py-3"><div className="font-bold text-xs">{u.full_name}</div><div className="text-[9px] text-zinc-500 font-mono">{u.phone} • {u.reference_code}</div></TableCell>
                         <TableCell className="px-4 font-black text-xs">{parseFloat(u.wallet_balance || 0).toFixed(2)}</TableCell>
                         <TableCell className="px-4">
                           <Select value={u.role || 'base'} onValueChange={(v: UserRole) => handleUpdateRole(u.user_id, v)}>
@@ -251,9 +243,23 @@ export default function AdminDashboard() {
                   <TableBody>
                     {paginatedData.map((i: any) => (
                       <TableRow key={i.id} className="border-white/5 hover:bg-white/5">
-                        <TableCell className="px-4 text-[10px] text-zinc-500">{new Date(i.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</TableCell>
-                        <TableCell className="px-4 py-3"><div className="font-bold text-xs">{i.phone}</div><div className="text-[9px] text-[#FFD700] font-black uppercase">{formatGb(i.plan)}</div></TableCell>
+                        <TableCell className="px-4 text-[10px] text-zinc-500 whitespace-nowrap">{formatLongDate(i.timestamp)}</TableCell>
+                        <TableCell className="px-4 py-3"><div className="font-bold text-xs">{i.phone}</div><div className="text-[9px] text-[#FFD700] font-black uppercase">{formatGb(i.plan)} • {i.user_ref}</div></TableCell>
                         <TableCell className="text-right px-4"><StatusBadge status={i.status} /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </>
+              )}
+              {activeTab === 'deposits' && (
+                <>
+                  <TableHeader><TableRow className="border-white/5 bg-white/5"><TableHead className="text-[9px] font-black uppercase px-4">Time</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Customer</TableHead><TableHead className="text-right px-4">Amount</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {paginatedData.map((t: any) => (
+                      <TableRow key={t.id} className="border-white/5 hover:bg-white/5">
+                        <TableCell className="px-4 text-[10px] text-zinc-500 whitespace-nowrap">{formatLongDate(t.created_at)}</TableCell>
+                        <TableCell className="px-4 py-3"><div className="font-bold text-xs">{t.profiles?.full_name}</div><div className="text-[9px] text-zinc-500 font-black uppercase">{t.profiles?.reference_code} • {t.reference}</div></TableCell>
+                        <TableCell className="text-right px-4 font-black text-emerald-400">GHS {parseFloat(t.amount).toFixed(2)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
