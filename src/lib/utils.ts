@@ -20,8 +20,11 @@ export function formatGb(size: string | number | null | undefined): string {
 /**
  * Formats a date into a long string like "22nd May 2026 7:50 AM"
  */
-export function formatLongDate(dateString: string | Date): string {
+export function formatLongDate(dateString: string | Date | null | undefined): string {
+  if (!dateString) return 'N/A';
   const d = new Date(dateString);
+  if (isNaN(d.getTime())) return 'Invalid Date';
+
   const day = d.getDate();
   const month = d.toLocaleString('en-US', { month: 'long' });
   const year = d.getFullYear();

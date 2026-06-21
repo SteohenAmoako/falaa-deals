@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
-import { getUpstreamDashboard, getUpstreamOrderHistory } from '@/lib/rahitalu';
+import { getUpstreamDashboard } from '@/lib/rahitalu';
 import { skPlugClient } from '@/lib/skplug/client';
 import { revalidatePath } from 'next/cache';
 import { UserRole } from '@/lib/types';
@@ -11,6 +11,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
+// We keep these for legacy profit calculation if needed
 const PLAN_COSTS: Record<string, number> = {
   '6a282f0167c07f8445745e7b': 6.5, // 3.4GB
   '6a282eb267c07f8445745dcc': 12.5, // 5.1GB
@@ -48,12 +49,13 @@ export async function getSystemStatus() {
 
 export async function getAdminDashboardData() {
   try {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // 1. Stats and Counts
     const { count: totalUsers } = await supabaseAdmin
       .from('profiles')
       .select('*', { count: 'exact', head: true });
 
-    const today = new Date().toISOString().split('T')[0];
-    
     const { data: depositsToday } = await supabaseAdmin
       .from('wallet_transactions')
       .select('amount')
@@ -63,21 +65,6 @@ export async function getAdminDashboardData() {
 
     const todayDepositsAmount = (depositsToday || []).reduce((sum, tx) => sum + parseFloat(tx.amount.toString()), 0);
 
-    const { data: allSuccessfulOrders } = await supabaseAdmin
-      .from('rahitalu_orders')
-      .select('user_id, plan_id, sell_price_ghs, created_at, status')
-      .not('status', 'eq', 'failed');
-
-    let totalProfit = 0;
-    let todayProfit = 0;
-
-    (allSuccessfulOrders || []).forEach(order => {
-      const cost = PLAN_COSTS[order.plan_id] || 0;
-      const profit = parseFloat(order.sell_price_ghs.toString()) - cost;
-      totalProfit += profit;
-      if (order.created_at.startsWith(today)) todayProfit += profit;
-    });
-
     const { count: todayOrdersCount } = await supabaseAdmin
       .from('rahitalu_orders')
       .select('*', { count: 'exact', head: true })
@@ -85,28 +72,40 @@ export async function getAdminDashboardData() {
 
     const upstreamDash = await getUpstreamDashboard().catch(() => ({ wallet: { balance: 0 } }));
 
-    // Fetch orders from both tables and join with profiles to get reference codes
+    // 2. Fetch Rich Audit Data
+    // Fetch orders from both tables joined with profiles for references
     const [rahitaluOrdersRes, skplugOrdersRes] = await Promise.all([
-      supabaseAdmin.from('rahitalu_orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(50),
-      supabaseAdmin.from('skplug_orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(50)
+      supabaseAdmin
+        .from('rahitalu_orders')
+        .select('*, profiles(reference_code)')
+        .order('created_at', { ascending: false })
+        .limit(200),
+      supabaseAdmin
+        .from('skplug_orders')
+        .select('*, profiles(reference_code)')
+        .order('created_at', { ascending: false })
+        .limit(200)
     ]);
 
-    const { data: users } = await supabaseAdmin
-      .from('profiles')
-      .select('id, full_name, phone, reference_code, wallet_balance, created_at, user_id, role')
-      .order('created_at', { ascending: false })
-      .limit(500);
-
+    // Fetch Credit Transactions (Deposits) for the audit tab
     const { data: recentTransactions } = await supabaseAdmin
       .from('wallet_transactions')
       .select('*, profiles(full_name, reference_code)')
       .eq('type', 'credit')
+      .eq('status', 'success')
       .order('created_at', { ascending: false })
-      .limit(200);
+      .limit(300);
+
+    // Fetch All Users for Customer Tier tab
+    const { data: users } = await supabaseAdmin
+      .from('profiles')
+      .select('id, full_name, phone, reference_code, wallet_balance, created_at, user_id, role')
+      .order('created_at', { ascending: false })
+      .limit(1000);
 
     const systemStatus = await getSystemStatus();
 
-    // Merge internal orders for the live feed
+    // 3. Process Live Feed (Orders)
     const combinedOrders = [
       ...(rahitaluOrdersRes.data || []).map(o => ({
         id: o.id,
@@ -132,14 +131,13 @@ export async function getAdminDashboardData() {
         todayDeposits: todayDepositsAmount,
         todayOrders: todayOrdersCount || 0,
         rahitaluBalance: upstreamDash?.wallet?.balance || 0,
-        totalProfit: totalProfit,
-        todayProfit: todayProfit
+        totalProfit: 0, // Placeholder
+        todayProfit: 0  // Placeholder
       },
       systemStatus,
       users: users || [],
-      orders: allSuccessfulOrders || [],
       recentTransactions: recentTransactions || [],
-      liveStream: combinedOrders.slice(0, 100)
+      liveStream: combinedOrders.slice(0, 200)
     };
   } catch (error) {
     console.error('getAdminDashboardData Error:', error);
@@ -147,7 +145,6 @@ export async function getAdminDashboardData() {
       stats: { totalUsers: 0, todayDeposits: 0, todayOrders: 0, rahitaluBalance: 0, totalProfit: 0, todayProfit: 0 },
       systemStatus: { enabled: true, message: '' },
       users: [],
-      orders: [],
       recentTransactions: [],
       liveStream: []
     };

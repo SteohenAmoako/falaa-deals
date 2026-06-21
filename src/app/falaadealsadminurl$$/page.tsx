@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Users, ShoppingCart, Wallet, Search, Loader2, RefreshCw,
-  ArrowDownLeft, LogOut, LayoutDashboard, TrendingUp, PackageSearch, Bell, Menu, Plus, AlertCircle
+  ArrowDownLeft, LogOut, LayoutDashboard, TrendingUp, PackageSearch, Bell, Menu, Plus
 } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -80,8 +80,21 @@ export default function AdminDashboard() {
       });
     }
     
-    if (activeTab === 'activity') return (data.liveStream || []).filter((i: any) => (i.phone || '').includes(query) || (i.user_ref || '').toLowerCase().includes(query));
-    if (activeTab === 'deposits') return (data.recentTransactions || []).filter((t: any) => (t.profiles?.full_name || '').toLowerCase().includes(query) || (t.profiles?.reference_code || '').toLowerCase().includes(query));
+    if (activeTab === 'activity') {
+      return (data.liveStream || []).filter((i: any) => 
+        (i.phone || '').includes(query) || 
+        (i.user_ref || '').toLowerCase().includes(query) ||
+        (i.plan || '').toLowerCase().includes(query)
+      );
+    }
+    
+    if (activeTab === 'deposits') {
+      return (data.recentTransactions || []).filter((t: any) => 
+        (t.profiles?.full_name || '').toLowerCase().includes(query) || 
+        (t.profiles?.reference_code || '').toLowerCase().includes(query) ||
+        (t.reference || '').toLowerCase().includes(query)
+      );
+    }
     
     return [];
   }, [activeTab, searchQuery, data, userSortField]);
@@ -154,7 +167,7 @@ export default function AdminDashboard() {
       <header className="sticky top-0 z-20 bg-[#0d0d0d]/95 backdrop-blur-sm border-b border-white/5 h-16 px-4 lg:px-8 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-[#FFD700] flex items-center justify-center font-black text-black text-xs italic">FD</div>
-          <h1 className="text-sm font-black uppercase tracking-widest">Admin</h1>
+          <h1 className="text-sm font-black uppercase tracking-widest">Audit Console</h1>
         </div>
         
         <div className="hidden lg:flex items-center gap-2"><NavContent /></div>
@@ -187,11 +200,11 @@ export default function AdminDashboard() {
           </Card>
 
           <div className="lg:col-span-9 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
-            <StatCard icon={Users} label="Users" value={data?.stats?.totalUsers} />
-            <StatCard icon={ArrowDownLeft} label="Deposits" value={data?.stats?.todayDeposits?.toFixed(2)} color="text-emerald-400" />
-            <StatCard icon={ShoppingCart} label="Orders" value={data?.stats?.todayOrders} color="text-blue-400" />
-            <StatCard icon={TrendingUp} label="Profit" value={data?.stats?.todayProfit?.toFixed(2)} color="text-amber-500" />
-            <StatCard icon={Wallet} label="Upstream" value={data?.stats?.rahitaluBalance?.toFixed(2)} highlight />
+            <StatCard icon={Users} label="Total Users" value={data?.stats?.totalUsers} />
+            <StatCard icon={ArrowDownLeft} label="Today's Deposits" value={data?.stats?.todayDeposits?.toFixed(2)} color="text-emerald-400" />
+            <StatCard icon={ShoppingCart} label="Today's Orders" value={data?.stats?.todayOrders} color="text-blue-400" />
+            <StatCard icon={TrendingUp} label="Daily Profit" value={data?.stats?.todayProfit?.toFixed(2)} color="text-amber-500" />
+            <StatCard icon={Wallet} label="Upstream Bal" value={data?.stats?.rahitaluBalance?.toFixed(2)} highlight />
           </div>
         </div>
 
@@ -199,7 +212,7 @@ export default function AdminDashboard() {
           <TabsList className="bg-[#111111] border border-white/5 p-1 w-full lg:w-fit overflow-x-auto no-scrollbar h-auto flex gap-1">
             <TabsTrigger value="activity" className="text-[9px] font-black uppercase px-4 py-2.5">Live Feed</TabsTrigger>
             <TabsTrigger value="deposits" className="text-[9px] font-black uppercase px-4 py-2.5">Deposits</TabsTrigger>
-            <TabsTrigger value="users" className="text-[9px] font-black uppercase px-4 py-2.5">Customers tier</TabsTrigger>
+            <TabsTrigger value="users" className="text-[9px] font-black uppercase px-4 py-2.5">Customers Tier</TabsTrigger>
           </TabsList>
 
           <div className="relative w-full max-w-sm">
@@ -211,19 +224,19 @@ export default function AdminDashboard() {
             <Table>
               {activeTab === 'users' && (
                 <>
-                  <TableHeader><TableRow className="border-white/5 bg-white/5"><TableHead className="text-[9px] font-black uppercase px-4">Name</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Balance</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Tier</TableHead><TableHead className="text-right px-4">Edit</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow className="border-white/5 bg-white/5"><TableHead className="text-[9px] font-black uppercase px-4">Customer Info</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Balance</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Tier/Role</TableHead><TableHead className="text-right px-4">Actions</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {paginatedData.map((u: any) => (
                       <TableRow key={u.id} className="border-white/5 hover:bg-white/5">
                         <TableCell className="px-4 py-3"><div className="font-bold text-xs">{u.full_name}</div><div className="text-[9px] text-zinc-500 font-mono">{u.phone} • {u.reference_code}</div></TableCell>
-                        <TableCell className="px-4 font-black text-xs">{parseFloat(u.wallet_balance || 0).toFixed(2)}</TableCell>
+                        <TableCell className="px-4 font-black text-xs">GHS {parseFloat(u.wallet_balance || 0).toFixed(2)}</TableCell>
                         <TableCell className="px-4">
                           <Select value={u.role || 'base'} onValueChange={(v: UserRole) => handleUpdateRole(u.user_id, v)}>
-                            <SelectTrigger className="h-7 text-[8px] font-black uppercase bg-black/40 border-white/5 w-20 px-2"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-7 text-[8px] font-black uppercase bg-black/40 border-white/5 w-24 px-2"><SelectValue /></SelectTrigger>
                             <SelectContent className="bg-[#111111] border-white/5 text-white">
                               <SelectItem value="base" className="text-[10px]">BASE</SelectItem>
-                              <SelectItem value="falaa" className="text-[10px]">VIP</SelectItem>
-                              <SelectItem value="api_user" className="text-[10px]">API</SelectItem>
+                              <SelectItem value="falaa" className="text-[10px]">VIP (FALAA)</SelectItem>
+                              <SelectItem value="api_user" className="text-[10px]">API RESELLER</SelectItem>
                             </SelectContent>
                           </Select>
                         </TableCell>
@@ -239,12 +252,12 @@ export default function AdminDashboard() {
               )}
               {activeTab === 'activity' && (
                 <>
-                  <TableHeader><TableRow className="border-white/5 bg-white/5"><TableHead className="text-[9px] font-black uppercase px-4">Time</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Order Info</TableHead><TableHead className="text-right px-4">Status</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow className="border-white/5 bg-white/5"><TableHead className="text-[9px] font-black uppercase px-4">Time</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Order Detail</TableHead><TableHead className="text-right px-4">Status</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {paginatedData.map((i: any) => (
                       <TableRow key={i.id} className="border-white/5 hover:bg-white/5">
                         <TableCell className="px-4 text-[10px] text-zinc-500 whitespace-nowrap">{formatLongDate(i.timestamp)}</TableCell>
-                        <TableCell className="px-4 py-3"><div className="font-bold text-xs">{i.phone}</div><div className="text-[9px] text-[#FFD700] font-black uppercase">{formatGb(i.plan)} • {i.user_ref}</div></TableCell>
+                        <TableCell className="px-4 py-3"><div className="font-bold text-xs">{i.phone}</div><div className="text-[9px] text-[#FFD700] font-black uppercase">{formatGb(i.plan)} • REF: {i.user_ref}</div></TableCell>
                         <TableCell className="text-right px-4"><StatusBadge status={i.status} /></TableCell>
                       </TableRow>
                     ))}
@@ -253,12 +266,12 @@ export default function AdminDashboard() {
               )}
               {activeTab === 'deposits' && (
                 <>
-                  <TableHeader><TableRow className="border-white/5 bg-white/5"><TableHead className="text-[9px] font-black uppercase px-4">Time</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Customer</TableHead><TableHead className="text-right px-4">Amount</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow className="border-white/5 bg-white/5"><TableHead className="text-[9px] font-black uppercase px-4">Time</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Customer & Ref</TableHead><TableHead className="text-right px-4">Amount</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {paginatedData.map((t: any) => (
                       <TableRow key={t.id} className="border-white/5 hover:bg-white/5">
                         <TableCell className="px-4 text-[10px] text-zinc-500 whitespace-nowrap">{formatLongDate(t.created_at)}</TableCell>
-                        <TableCell className="px-4 py-3"><div className="font-bold text-xs">{t.profiles?.full_name}</div><div className="text-[9px] text-zinc-500 font-black uppercase">{t.profiles?.reference_code} • {t.reference}</div></TableCell>
+                        <TableCell className="px-4 py-3"><div className="font-bold text-xs">{t.profiles?.full_name} ({t.profiles?.reference_code})</div><div className="text-[9px] text-zinc-500 font-black uppercase">TX: {t.reference}</div></TableCell>
                         <TableCell className="text-right px-4 font-black text-emerald-400">GHS {parseFloat(t.amount).toFixed(2)}</TableCell>
                       </TableRow>
                     ))}
@@ -273,7 +286,7 @@ export default function AdminDashboard() {
       <Dialog open={isAdjOpen} onOpenChange={setIsAdjOpen}>
         <DialogContent className="bg-[#111111] border-white/5 text-white max-w-sm rounded-3xl p-6">
           <DialogHeader>
-            <DialogTitle className="text-sm font-black uppercase">Wallet Adjustment</DialogTitle>
+            <DialogTitle className="text-sm font-black uppercase">Balance Adjustment</DialogTitle>
             <DialogDescription className="text-zinc-500 text-xs">Modifying balance for {adjUser?.full_name}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -284,11 +297,11 @@ export default function AdminDashboard() {
               </Select>
               <Input type="number" placeholder="0.00" value={adjAmount} onChange={e => setAdjAmount(e.target.value)} className="bg-[#0d0d0d] border-white/5 h-12 text-center font-black text-lg" />
             </div>
-            <Textarea placeholder="Reason (for log)..." value={adjReason} onChange={e => setAdjReason(e.target.value)} className="bg-[#0d0d0d] border-white/5 text-xs h-20" />
+            <Textarea placeholder="Reason for change..." value={adjReason} onChange={e => setAdjReason(e.target.value)} className="bg-[#0d0d0d] border-white/5 text-xs h-20" />
           </div>
           <DialogFooter>
             <Button onClick={handleAdjustBalance} disabled={adjLoading} className="w-full bg-[#FFD700] text-black font-black uppercase h-12 rounded-xl">
-              {adjLoading ? <Loader2 size={18} className="animate-spin" /> : "Confirm Change"}
+              {adjLoading ? <Loader2 size={18} className="animate-spin" /> : "Execute Change"}
             </Button>
           </DialogFooter>
         </DialogContent>
