@@ -4,8 +4,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { placeDataOrder } from '@/lib/rahitalu';
 import { skPlugClient } from '@/lib/skplug/client';
+import { dakazinaClient } from '@/lib/dakazina/client';
 import { revalidatePath } from 'next/cache';
 import { sendNtfy } from '@/lib/notifications';
+import { getActiveProvider } from '@/app/actions/admin';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -49,13 +51,23 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
 
     // 3. Dispatch to Upstream Provider
     let upstreamResponse;
-    if (bundleData.provider === 'rahitalu') {
+    const activeProvider = await getActiveProvider();
+    
+    // Override bundle provider with active global provider if it's one of the main ones
+    const providerToUse = bundleData.provider === 'rahitalu' ? 'rahitalu' : activeProvider;
+
+    if (providerToUse === 'rahitalu') {
       upstreamResponse = await placeDataOrder(bundleData.provider_bundle_id, phone, actualPrice);
-    } else {
+    } else if (providerToUse === 'skplug') {
       upstreamResponse = await skPlugClient.placeOrder(phone, bundleData.network, bundleData.gb_size.toString());
+    } else {
+      // Dakazina mapping: Assuming we need to map network names to IDs
+      const networkMap: Record<string, number> = { 'MTN': 1, 'TELECEL': 2, 'AIRTELTIGO': 3 };
+      const networkId = networkMap[bundleData.network.toUpperCase().replace('AT_', 'AIRTELTIGO')] || 1;
+      upstreamResponse = await dakazinaClient.buyDataPackage(phone, networkId, bundleData.provider_bundle_id);
     }
 
-    const orderRef = upstreamResponse.reference || upstreamResponse.order_id || upstreamResponse._id || `ORD-${Math.random().toString(36).substring(7).toUpperCase()}`;
+    const orderRef = upstreamResponse.reference || upstreamResponse.order_id || upstreamResponse.order_code || upstreamResponse._id || `ORD-${Math.random().toString(36).substring(7).toUpperCase()}`;
 
     // 4. Update Balance & Record Transaction
     const newBalance = currentBalance - actualPrice;
@@ -67,35 +79,44 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
       type: 'debit',
       status: 'success',
       reference: orderRef,
-      description: `Bought ${bundleData.label} for ${phone} (${bundleData.provider})`,
+      dakazina_order_id: providerToUse === 'dakazina' ? orderRef : null,
+      description: `Bought ${bundleData.label} for ${phone} (${providerToUse})`,
     });
 
     // 5. Record Order
-    const orderTable = bundleData.provider === 'rahitalu' ? 'rahitalu_orders' : 'skplug_orders';
-    const orderData = bundleData.provider === 'rahitalu' ? {
+    let orderTable = 'skplug_orders';
+    if (providerToUse === 'rahitalu') orderTable = 'rahitalu_orders';
+    if (providerToUse === 'dakazina') orderTable = 'dakazina_orders';
+
+    const orderData = {
       user_id: userId,
-      phone,
-      plan_id: bundleData.provider_bundle_id,
-      gig: bundleData.label,
       sell_price_ghs: actualPrice,
-      reference: orderRef,
       status: 'processing'
-    } : {
-      user_id: userId,
-      recipient: phone,
-      network: bundleData.network,
-      gb_size: bundleData.gb_size.toString(),
-      sell_price_ghs: actualPrice,
-      order_id: orderRef,
-      status: 'processing'
-    };
+    } as any;
+
+    if (providerToUse === 'rahitalu') {
+      orderData.phone = phone;
+      orderData.plan_id = bundleData.provider_bundle_id;
+      orderData.gig = bundleData.label;
+      orderData.reference = orderRef;
+    } else if (providerToUse === 'dakazina') {
+      orderData.recipient = phone;
+      orderData.network = bundleData.network;
+      orderData.gb_size = bundleData.gb_size.toString();
+      orderData.dakazina_order_id = orderRef;
+    } else {
+      orderData.recipient = phone;
+      orderData.network = bundleData.network;
+      orderData.gb_size = bundleData.gb_size.toString();
+      orderData.order_id = orderRef;
+    }
 
     await supabaseAdmin.from(orderTable).insert(orderData);
 
     // 6. Notify
     await sendNtfy({
       title: "New Data Order",
-      tags: ["order", bundleData.provider],
+      tags: ["order", providerToUse],
       data: { userId, bundle: bundleData.label, phone, price: actualPrice, role: profile.role }
     });
 

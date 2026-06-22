@@ -13,7 +13,25 @@
         "reference_code": { "type": "string" },
         "wallet_balance": { "type": "number" },
         "is_admin": { "type": "boolean" },
+        "role": { "type": "string", "enum": ["api_user", "falaa", "base"] },
         "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "DakazinaOrder": {
+      "title": "Dakazina Order",
+      "description": "Orders placed through the Dakazina provider",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "user_id": { "type": "string", "format": "uuid" },
+        "recipient": { "type": "string" },
+        "network": { "type": "string" },
+        "gb_size": { "type": "string" },
+        "sell_price_ghs": { "type": "number" },
+        "dakazina_order_id": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "processing", "delivered", "failed"] },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
       }
     },
     "SKPlugOrder": {
@@ -29,21 +47,17 @@
         "sell_price_ghs": { "type": "number" },
         "order_id": { "type": "string" },
         "status": { "type": "string", "enum": ["pending", "processing", "delivered", "failed"] },
-        "created_at": { "type": "string", "format": "date-time" },
-        "updated_at": { "type": "string", "format": "date-time" }
+        "created_at": { "type": "string", "format": "date-time" }
       }
     },
-    "ApiKey": {
-      "title": "API Key",
-      "description": "Public API keys for reseller automation",
+    "SystemConfig": {
+      "title": "System Configuration",
+      "description": "Global settings for the application",
       "type": "object",
       "properties": {
-        "id": { "type": "string", "format": "uuid" },
-        "user_id": { "type": "string", "format": "uuid" },
-        "api_key": { "type": "string" },
-        "is_active": { "type": "boolean" },
-        "created_at": { "type": "string", "format": "date-time" },
-        "last_used_at": { "type": "string", "format": "date-time" }
+        "key": { "type": "string" },
+        "value": { "type": "object" },
+        "updated_at": { "type": "string", "format": "date-time" }
       }
     }
   },

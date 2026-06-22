@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -9,13 +10,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Users, ShoppingCart, Wallet, Search, Loader2, RefreshCw,
-  ArrowDownLeft, LogOut, LayoutDashboard, TrendingUp, PackageSearch, Bell, Menu, Plus
+  ArrowDownLeft, LogOut, LayoutDashboard, TrendingUp, PackageSearch, Bell, Menu, Plus, Zap, Globe
 } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
-import { getAdminDashboardData, updateSystemStatus, adjustUserBalance, assignUserRole, registerSkPlugWebhook } from '@/app/actions/admin';
+import { getAdminDashboardData, updateSystemStatus, adjustUserBalance, assignUserRole, registerSkPlugWebhook, updateActiveProvider } from '@/app/actions/admin';
 import { cn, formatGb, formatLongDate } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
@@ -36,6 +37,7 @@ export default function AdminDashboard() {
   const [data, setData] = useState<any>(null);
   const [localSystemEnabled, setLocalSystemEnabled] = useState(true);
   const [localSystemMessage, setLocalSystemMessage] = useState('');
+  const [activeProvider, setActiveProvider] = useState<'skplug' | 'dakazina'>('skplug');
 
   const [isAdjOpen, setIsAdjOpen] = useState(false);
   const [adjUser, setAdjUser] = useState<any>(null);
@@ -55,6 +57,7 @@ export default function AdminDashboard() {
         setData(result);
         setLocalSystemEnabled(result.systemStatus?.enabled ?? true);
         setLocalSystemMessage(result.systemStatus?.message ?? '');
+        setActiveProvider(result.activeProvider || 'skplug');
       }
     } catch (err) {
       console.error('Fetch Data Fail:', err);
@@ -64,6 +67,14 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleProviderSwitch = async (newProvider: 'skplug' | 'dakazina') => {
+    const res = await updateActiveProvider(newProvider);
+    if (res.success) {
+      setActiveProvider(newProvider);
+      toast({ title: "Provider Switched", description: `Active provider is now ${newProvider.toUpperCase()}` });
+    }
+  };
 
   const filteredData = useMemo(() => {
     if (!data) return [];
@@ -151,6 +162,20 @@ export default function AdminDashboard() {
 
   const NavContent = () => (
     <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+      <div className="flex bg-[#111111] border border-white/5 rounded-lg p-1">
+        <Button 
+          size="sm" 
+          variant={activeProvider === 'skplug' ? 'default' : 'ghost'} 
+          onClick={() => handleProviderSwitch('skplug')}
+          className={cn("h-8 text-[10px] font-black uppercase px-3", activeProvider === 'skplug' && "bg-violet-600")}
+        >SK PLUG</Button>
+        <Button 
+          size="sm" 
+          variant={activeProvider === 'dakazina' ? 'default' : 'ghost'} 
+          onClick={() => handleProviderSwitch('dakazina')}
+          className={cn("h-8 text-[10px] font-black uppercase px-3", activeProvider === 'dakazina' && "bg-violet-600")}
+        >DAKAZINA</Button>
+      </div>
       <Button size="sm" variant="ghost" onClick={handleRegisterWebhook} disabled={registeringWebhook} className="text-zinc-400 border border-white/5 justify-start h-10 px-4">
         {registeringWebhook ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} className="mr-2" />} 
         Webhook

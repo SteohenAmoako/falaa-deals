@@ -1,3 +1,4 @@
+
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
@@ -41,6 +42,35 @@ export async function getSystemStatus() {
   }
 }
 
+export async function getActiveProvider() {
+  try {
+    const { data } = await supabaseAdmin
+      .from('system_configs')
+      .select('value')
+      .eq('key', 'active_provider')
+      .maybeSingle();
+    return data?.value?.provider || 'skplug';
+  } catch {
+    return 'skplug';
+  }
+}
+
+export async function updateActiveProvider(provider: 'skplug' | 'dakazina') {
+  try {
+    await supabaseAdmin
+      .from('system_configs')
+      .upsert({ 
+        key: 'active_provider', 
+        value: { provider },
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'key' });
+    revalidatePath('/falaadealsadminurl$$');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+}
+
 export async function getAdminDashboardData() {
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -67,7 +97,7 @@ export async function getAdminDashboardData() {
     const upstreamDash = await getUpstreamDashboard().catch(() => ({ wallet: { balance: 0 } }));
 
     // 2. Fetch Rich Audit Data
-    const [rahitaluOrdersRes, skplugOrdersRes, walletTxRes, usersRes] = await Promise.all([
+    const [rahitaluOrdersRes, skplugOrdersRes, dakazinaOrdersRes, walletTxRes, usersRes] = await Promise.all([
       supabaseAdmin
         .from('rahitalu_orders')
         .select('*, profiles(reference_code)')
@@ -75,6 +105,11 @@ export async function getAdminDashboardData() {
         .limit(200),
       supabaseAdmin
         .from('skplug_orders')
+        .select('*, profiles(reference_code)')
+        .order('created_at', { ascending: false })
+        .limit(200),
+      supabaseAdmin
+        .from('dakazina_orders')
         .select('*, profiles(reference_code)')
         .order('created_at', { ascending: false })
         .limit(200),
@@ -91,6 +126,7 @@ export async function getAdminDashboardData() {
     ]);
 
     const systemStatus = await getSystemStatus();
+    const activeProvider = await getActiveProvider();
 
     // 3. Process Live Feed (Orders + Deposits)
     const combinedLiveFeed = [
@@ -104,6 +140,15 @@ export async function getAdminDashboardData() {
         type: 'order'
       })),
       ...(skplugOrdersRes.data || []).map(o => ({
+        id: o.id,
+        phone: o.recipient,
+        plan: `${o.gb_size}GB`,
+        status: o.status,
+        timestamp: o.created_at,
+        user_ref: o.profiles?.reference_code || 'N/A',
+        type: 'order'
+      })),
+      ...(dakazinaOrdersRes.data || []).map(o => ({
         id: o.id,
         phone: o.recipient,
         plan: `${o.gb_size}GB`,
@@ -132,6 +177,7 @@ export async function getAdminDashboardData() {
         todayProfit: 0 
       },
       systemStatus,
+      activeProvider,
       users: usersRes.data || [],
       recentTransactions: (walletTxRes.data || []).filter(tx => tx.type === 'credit' && tx.status === 'success'),
       liveStream: combinedLiveFeed.slice(0, 300)
@@ -141,6 +187,7 @@ export async function getAdminDashboardData() {
     return {
       stats: { totalUsers: 0, todayDeposits: 0, todayOrders: 0, rahitaluBalance: 0, todayProfit: 0 },
       systemStatus: { enabled: true, message: '' },
+      activeProvider: 'skplug',
       users: [],
       recentTransactions: [],
       liveStream: []
