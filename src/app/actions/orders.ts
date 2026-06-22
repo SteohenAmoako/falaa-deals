@@ -50,9 +50,12 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
 
     // 3. Dispatch to Upstream Provider
     const activeProvider = await getActiveProvider();
-    const providerToUse = bundleData.provider === 'rahitalu' ? 'rahitalu' : activeProvider;
     
-    // Generate a reference code early so we can pass it to providers
+    // For manual routing, we respect the bundle's native provider UNLESS it's a fallback.
+    // However, if the active provider is Dakazina, and the bundle is a Dakazina bundle, we use it.
+    const providerToUse = bundleData.provider;
+    
+    // Generate a reference code early
     const internalRef = `FD-${Math.random().toString(36).substring(2, 11).toUpperCase()}`;
     let upstreamResponse: any = null;
 
@@ -61,20 +64,15 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
     } else if (providerToUse === 'skplug') {
       upstreamResponse = await skPlugClient.placeOrder(phone, bundleData.network, bundleData.gb_size.toString());
     } else if (providerToUse === 'dakazina') {
-      const networkMap: Record<string, number> = { 
-        'MTN': 1, 
-        'TELECEL': 2, 
-        'AIRTELTIGO': 3,
-        'AT_EXPIRY': 3,
-        'AT_NOEXPIRY': 3
-      };
-      const networkId = networkMap[bundleData.network.toUpperCase()] || 1;
-      const gbValue = Math.floor(bundleData.gb_size);
+      // For Dakazina, provider_bundle_id is "netId:gb"
+      const [netIdStr, gbStr] = bundleData.provider_bundle_id.split(':');
+      const networkId = parseInt(netIdStr);
+      const gbValue = parseInt(gbStr);
       
       upstreamResponse = await dakazinaClient.buyDataPackage(phone, networkId, gbValue, internalRef);
     }
 
-    // Determine the final reference used by the provider for status tracking
+    // Determine the final reference used by the provider
     const orderRef = internalRef; 
     const providerOrderId = upstreamResponse?.order_code || upstreamResponse?.order_id || upstreamResponse?.reference || null;
 
