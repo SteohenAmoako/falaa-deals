@@ -1,17 +1,18 @@
 /**
  * @fileOverview Dakazina API Client
  * Handles orders and status checks using the specific reseller API schema.
+ * All credentials are pulled strictly from environment variables.
  */
 
-const BASE_URL = process.env.DAKAZINA_BASE_URL || 'https://reseller.dakazinabusinessconsult.com/api/v1';
-const API_KEY = process.env.DAKAZINA_API_KEY || 'dk_2uU6jK7JfGEPZrTvqzUXv9ZK3JJ3D9mO';
+const BASE_URL = process.env.DATAKAZINA_BASE_URL;
+const API_KEY = process.env.DATAKAZINA_API_KEY;
 
 async function request(path: string, options: RequestInit = {}) {
-  if (!API_KEY) {
-    throw new Error('Dakazina API key is not configured');
+  if (!API_KEY || !BASE_URL) {
+    throw new Error('Dakazina API configuration (KEY or BASE_URL) is missing in environment variables');
   }
 
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const response = await fetch(`${BASE_URL.replace(/\/+$/, '')}${path}`, {
     ...options,
     headers: {
       'x-api-key': API_KEY,
@@ -23,7 +24,6 @@ async function request(path: string, options: RequestInit = {}) {
 
   const data = await response.json().catch(() => ({}));
   
-  // Some endpoints might return empty bodies but 200/201 status
   if (!response.ok) {
     throw new Error(data.message || `Dakazina API error: ${response.status}`);
   }

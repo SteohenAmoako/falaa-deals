@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 /**
  * @fileOverview Rahitalu API Integration
  * Handles token management and order placement with robust error handling.
+ * Credentials are pulled strictly from environment variables.
  */
 
 const supabaseAdmin = createClient(
@@ -10,7 +11,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const BASE_URL = (process.env.RAHITALU_BASE_URL || 'https://data-api.rahitalu.com/v2').replace(/\/+$/, '');
+const BASE_URL = (process.env.RAHITALU_BASE_URL || '').replace(/\/+$/, '');
 
 const LOGIN_URL = `${BASE_URL}/auth/login`;
 const PURCHASE_URL = `${BASE_URL}/purchases`;
@@ -26,14 +27,18 @@ async function safeParseJson(response: Response) {
 }
 
 async function fetchNewToken(): Promise<string> {
+  const code = process.env.RAHITALU_CODE;
+  const basename = process.env.RAHITALU_BASENAME;
+
+  if (!code || !basename || !BASE_URL) {
+    throw new Error('Rahitalu configuration missing in environment variables');
+  }
+
   try {
     const res = await fetch(LOGIN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        code: process.env.RAHITALU_CODE || 'sboa230',
-        basename: process.env.RAHITALU_BASENAME || 'bravo',
-      }),
+      body: JSON.stringify({ code, basename }),
     });
 
     const data = await safeParseJson(res);
