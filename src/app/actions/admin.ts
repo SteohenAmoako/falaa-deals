@@ -1,4 +1,3 @@
-
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
@@ -7,12 +6,16 @@ import { skPlugClient } from '@/lib/skplug/client';
 import { revalidatePath } from 'next/cache';
 import { UserRole } from '@/lib/types';
 
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  url || 'https://placeholder.supabase.co',
+  key || 'placeholder'
 );
 
 export async function checkIsAdmin(userId: string) {
+  if (!url || !key) return false;
   try {
     const { data: profile, error } = await supabaseAdmin
       .from('profiles')
@@ -28,6 +31,7 @@ export async function checkIsAdmin(userId: string) {
 }
 
 export async function getSystemStatus() {
+  if (!url || !key) return { enabled: true, message: '' };
   try {
     const { data, error } = await supabaseAdmin
       .from('system_configs')
@@ -43,6 +47,7 @@ export async function getSystemStatus() {
 }
 
 export async function getActiveProvider(): Promise<'skplug' | 'dakazina'> {
+  if (!url || !key) return 'skplug';
   try {
     const { data } = await supabaseAdmin
       .from('system_configs')
@@ -56,6 +61,7 @@ export async function getActiveProvider(): Promise<'skplug' | 'dakazina'> {
 }
 
 export async function updateActiveProvider(provider: 'skplug' | 'dakazina') {
+  if (!url || !key) return { success: false, message: 'DB not configured' };
   try {
     await supabaseAdmin
       .from('system_configs')
@@ -74,6 +80,7 @@ export async function updateActiveProvider(provider: 'skplug' | 'dakazina') {
 }
 
 export async function getAdminDashboardData() {
+  if (!url || !key) return null;
   try {
     const today = new Date().toISOString().split('T')[0];
     
@@ -171,18 +178,12 @@ export async function getAdminDashboardData() {
     };
   } catch (error) {
     console.error('getAdminDashboardData Error:', error);
-    return {
-      stats: { totalUsers: 0, todayDeposits: 0, todayOrders: 0, rahitaluBalance: 0, todayProfit: 0 },
-      systemStatus: { enabled: true, message: '' },
-      activeProvider: 'skplug',
-      users: [],
-      allOrders: [],
-      allDeposits: []
-    };
+    return null;
   }
 }
 
 export async function assignUserRole(userId: string, role: UserRole) {
+  if (!url || !key) return;
   const { error } = await supabaseAdmin
     .from('profiles')
     .update({ role })
@@ -194,6 +195,7 @@ export async function assignUserRole(userId: string, role: UserRole) {
 }
 
 export async function updateSystemStatus(enabled: boolean, message: string) {
+  if (!url || !key) return { success: false, message: 'DB not configured' };
   try {
     await supabaseAdmin
       .from('system_configs')
@@ -210,6 +212,7 @@ export async function updateSystemStatus(enabled: boolean, message: string) {
 }
 
 export async function adjustUserBalance(profileId: string, amount: number, type: 'credit' | 'debit', reason: string) {
+  if (!url || !key) return { success: false, message: 'DB not configured' };
   try {
     const { data: profile } = await supabaseAdmin
       .from('profiles')
