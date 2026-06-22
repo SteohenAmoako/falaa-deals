@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -9,43 +8,56 @@ const supabaseAdmin = createClient(
 
 /**
  * Dakazina Webhook Handler
+ * Uses priority-based matching to reconcile provider orders.
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    console.log('📋 Dakazina webhook: Full payload:', JSON.stringify(body, null, 2));
+    console.log('📋 Dakazina Webhook Payload:', JSON.stringify(body, null, 2));
 
     const dakazinaOrderCode = String(body.order_code || "").trim();
-    const status = (body.status || 'delivered').toLowerCase();
+    const incomingApiRef = String(body.incoming_api_ref || "").trim();
+    const rawStatus = (body.status || 'delivered').toLowerCase();
 
-    if (!dakazinaOrderCode) {
-      return NextResponse.json({ ok: false, message: "Missing order_code" }, { status: 200 }); // Always 200 to stop retry
+    // Mapping Dakazina statuses to our internal statuses
+    let status = 'processing';
+    if (rawStatus === 'delivered' || rawStatus === 'success') status = 'delivered';
+    if (rawStatus === 'failed' || rawStatus === 'cancelled') status = 'failed';
+
+    if (!dakazinaOrderCode && !incomingApiRef) {
+      return NextResponse.json({ ok: false, message: "Missing identifiers" }, { status: 200 });
     }
 
-    // 1. Match by dakazina_order_id in dakazina_orders
+    // 1. Reconcile Order (Check both provider ID and our reference)
     const { data: order, error: orderErr } = await supabaseAdmin
       .from('dakazina_orders')
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq('dakazina_order_id', dakazinaOrderCode)
+      .update({ 
+        status, 
+        updated_at: new Date().toISOString() 
+      })
+      .or(`dakazina_order_id.eq.${dakazinaOrderCode},dakazina_order_id.eq.${incomingApiRef}`)
       .select()
       .maybeSingle();
 
-    // 2. Also update corresponding wallet transaction if it exists
+    // 2. Reconcile Wallet Transaction
+    const walletStatus = status === 'delivered' ? 'success' : (status === 'failed' ? 'failed' : 'pending');
+    
     await supabaseAdmin
       .from('wallet_transactions')
-      .update({ status: status === 'delivered' ? 'success' : 'failed' })
-      .eq('dakazina_order_id', dakazinaOrderCode);
+      .update({ status: walletStatus })
+      .or(`dakazina_order_id.eq.${dakazinaOrderCode},reference.eq.${incomingApiRef}`);
 
-    console.log(`✅ Webhook processed for ${dakazinaOrderCode}. New status: ${status}`);
+    console.log(`✅ Webhook processed. Code: ${dakazinaOrderCode}, Ref: ${incomingApiRef}, Final Status: ${status}`);
 
     return NextResponse.json({
       ok: true,
       dakazina_order_code: dakazinaOrderCode,
+      incoming_api_ref: incomingApiRef,
       status: status,
-      orders_updated: order ? 1 : 0
+      updated: !!order
     });
   } catch (error: any) {
-    console.error('❌ Dakazina Webhook Error:', error);
+    console.error('❌ Dakazina Webhook Fatal Error:', error);
     return NextResponse.json({ ok: false, error: error.message }, { status: 200 });
   }
 }

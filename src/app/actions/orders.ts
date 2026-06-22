@@ -1,4 +1,3 @@
-
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
@@ -50,24 +49,34 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
     }
 
     // 3. Dispatch to Upstream Provider
-    let upstreamResponse;
     const activeProvider = await getActiveProvider();
-    
-    // Override bundle provider with active global provider if it's one of the main ones
     const providerToUse = bundleData.provider === 'rahitalu' ? 'rahitalu' : activeProvider;
+    
+    // Generate a reference code early so we can pass it to providers
+    const internalRef = `FD-${Math.random().toString(36).substring(2, 11).toUpperCase()}`;
+    let upstreamResponse: any = null;
 
     if (providerToUse === 'rahitalu') {
       upstreamResponse = await placeDataOrder(bundleData.provider_bundle_id, phone, actualPrice);
     } else if (providerToUse === 'skplug') {
       upstreamResponse = await skPlugClient.placeOrder(phone, bundleData.network, bundleData.gb_size.toString());
-    } else {
-      // Dakazina mapping: Assuming we need to map network names to IDs
-      const networkMap: Record<string, number> = { 'MTN': 1, 'TELECEL': 2, 'AIRTELTIGO': 3 };
-      const networkId = networkMap[bundleData.network.toUpperCase().replace('AT_', 'AIRTELTIGO')] || 1;
-      upstreamResponse = await dakazinaClient.buyDataPackage(phone, networkId, bundleData.provider_bundle_id);
+    } else if (providerToUse === 'dakazina') {
+      const networkMap: Record<string, number> = { 
+        'MTN': 1, 
+        'TELECEL': 2, 
+        'AIRTELTIGO': 3,
+        'AT_EXPIRY': 3,
+        'AT_NOEXPIRY': 3
+      };
+      const networkId = networkMap[bundleData.network.toUpperCase()] || 1;
+      const gbValue = Math.floor(bundleData.gb_size);
+      
+      upstreamResponse = await dakazinaClient.buyDataPackage(phone, networkId, gbValue, internalRef);
     }
 
-    const orderRef = upstreamResponse.reference || upstreamResponse.order_id || upstreamResponse.order_code || upstreamResponse._id || `ORD-${Math.random().toString(36).substring(7).toUpperCase()}`;
+    // Determine the final reference used by the provider for status tracking
+    const orderRef = internalRef; 
+    const providerOrderId = upstreamResponse?.order_code || upstreamResponse?.order_id || upstreamResponse?.reference || null;
 
     // 4. Update Balance & Record Transaction
     const newBalance = currentBalance - actualPrice;
@@ -79,7 +88,7 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
       type: 'debit',
       status: 'success',
       reference: orderRef,
-      dakazina_order_id: providerToUse === 'dakazina' ? orderRef : null,
+      dakazina_order_id: providerToUse === 'dakazina' ? (providerOrderId || orderRef) : null,
       description: `Bought ${bundleData.label} for ${phone} (${providerToUse})`,
     });
 
@@ -103,12 +112,12 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
       orderData.recipient = phone;
       orderData.network = bundleData.network;
       orderData.gb_size = bundleData.gb_size.toString();
-      orderData.dakazina_order_id = orderRef;
+      orderData.dakazina_order_id = providerOrderId || orderRef;
     } else {
       orderData.recipient = phone;
       orderData.network = bundleData.network;
       orderData.gb_size = bundleData.gb_size.toString();
-      orderData.order_id = orderRef;
+      orderData.order_id = providerOrderId || orderRef;
     }
 
     await supabaseAdmin.from(orderTable).insert(orderData);
@@ -117,7 +126,7 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
     await sendNtfy({
       title: "New Data Order",
       tags: ["order", providerToUse],
-      data: { userId, bundle: bundleData.label, phone, price: actualPrice, role: profile.role }
+      data: { userId, bundle: bundleData.label, phone, price: actualPrice, role: profile.role, ref: orderRef }
     });
 
     revalidatePath('/dashboard');
