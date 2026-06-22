@@ -22,7 +22,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { UserRole } from '@/lib/types';
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 25;
 
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -252,11 +252,19 @@ export default function AdminDashboard() {
               )}
               {activeTab === 'activity' && (
                 <>
-                  <TableHeader><TableRow className="border-white/5 bg-white/5"><TableHead className="text-[9px] font-black uppercase px-4">Time</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Order Detail</TableHead><TableHead className="text-right px-4">Status</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow className="border-white/5 bg-white/5"><TableHead className="text-[9px] font-black uppercase px-4">Time</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Action</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Detail</TableHead><TableHead className="text-right px-4">Status</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {paginatedData.map((i: any) => (
                       <TableRow key={i.id} className="border-white/5 hover:bg-white/5">
                         <TableCell className="px-4 text-[10px] text-zinc-500 whitespace-nowrap">{formatLongDate(i.timestamp)}</TableCell>
+                        <TableCell className="px-4">
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded text-[8px] font-black uppercase",
+                            i.type === 'deposit' ? "bg-emerald-500/10 text-emerald-400" : "bg-blue-500/10 text-blue-400"
+                          )}>
+                            {i.type}
+                          </span>
+                        </TableCell>
                         <TableCell className="px-4 py-3"><div className="font-bold text-xs">{i.phone}</div><div className="text-[9px] text-[#FFD700] font-black uppercase">{formatGb(i.plan)} • REF: {i.user_ref}</div></TableCell>
                         <TableCell className="text-right px-4"><StatusBadge status={i.status} /></TableCell>
                       </TableRow>
@@ -325,6 +333,7 @@ function StatCard({ icon: Icon, label, value, color = "text-white", highlight }:
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     delivered: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    completed: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     processing: 'bg-[#FFD700]/10 text-[#FFD700] border-[#FFD700]/20',
     failed: 'bg-red-500/10 text-red-400 border-red-500/20',
   };

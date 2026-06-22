@@ -11,12 +11,6 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-// We keep these for legacy profit calculation if needed
-const PLAN_COSTS: Record<string, number> = {
-  '6a282f0167c07f8445745e7b': 6.5, // 3.4GB
-  '6a282eb267c07f8445745dcc': 12.5, // 5.1GB
-};
-
 export async function checkIsAdmin(userId: string) {
   try {
     const { data: profile, error } = await supabaseAdmin
@@ -73,8 +67,7 @@ export async function getAdminDashboardData() {
     const upstreamDash = await getUpstreamDashboard().catch(() => ({ wallet: { balance: 0 } }));
 
     // 2. Fetch Rich Audit Data
-    // Fetch orders from both tables joined with profiles for references
-    const [rahitaluOrdersRes, skplugOrdersRes] = await Promise.all([
+    const [rahitaluOrdersRes, skplugOrdersRes, walletTxRes, usersRes] = await Promise.all([
       supabaseAdmin
         .from('rahitalu_orders')
         .select('*, profiles(reference_code)')
@@ -84,36 +77,31 @@ export async function getAdminDashboardData() {
         .from('skplug_orders')
         .select('*, profiles(reference_code)')
         .order('created_at', { ascending: false })
-        .limit(200)
+        .limit(200),
+      supabaseAdmin
+        .from('wallet_transactions')
+        .select('*, profiles(full_name, reference_code, phone)')
+        .order('created_at', { ascending: false })
+        .limit(500),
+      supabaseAdmin
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1000)
     ]);
-
-    // Fetch Credit Transactions (Deposits) for the audit tab
-    const { data: recentTransactions } = await supabaseAdmin
-      .from('wallet_transactions')
-      .select('*, profiles(full_name, reference_code)')
-      .eq('type', 'credit')
-      .eq('status', 'success')
-      .order('created_at', { ascending: false })
-      .limit(300);
-
-    // Fetch All Users for Customer Tier tab
-    const { data: users } = await supabaseAdmin
-      .from('profiles')
-      .select('id, full_name, phone, reference_code, wallet_balance, created_at, user_id, role')
-      .order('created_at', { ascending: false })
-      .limit(1000);
 
     const systemStatus = await getSystemStatus();
 
-    // 3. Process Live Feed (Orders)
-    const combinedOrders = [
+    // 3. Process Live Feed (Orders + Deposits)
+    const combinedLiveFeed = [
       ...(rahitaluOrdersRes.data || []).map(o => ({
         id: o.id,
         phone: o.phone,
         plan: o.gig,
         status: o.status,
         timestamp: o.created_at,
-        user_ref: o.profiles?.reference_code || 'N/A'
+        user_ref: o.profiles?.reference_code || 'N/A',
+        type: 'order'
       })),
       ...(skplugOrdersRes.data || []).map(o => ({
         id: o.id,
@@ -121,7 +109,17 @@ export async function getAdminDashboardData() {
         plan: `${o.gb_size}GB`,
         status: o.status,
         timestamp: o.created_at,
-        user_ref: o.profiles?.reference_code || 'N/A'
+        user_ref: o.profiles?.reference_code || 'N/A',
+        type: 'order'
+      })),
+      ...(walletTxRes.data || []).filter(tx => tx.type === 'credit' && tx.status === 'success').map(tx => ({
+        id: tx.id,
+        phone: tx.profiles?.phone || 'N/A',
+        plan: `GHS ${parseFloat(tx.amount).toFixed(2)} Deposit`,
+        status: 'completed',
+        timestamp: tx.created_at,
+        user_ref: tx.profiles?.reference_code || 'N/A',
+        type: 'deposit'
       }))
     ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
@@ -131,18 +129,17 @@ export async function getAdminDashboardData() {
         todayDeposits: todayDepositsAmount,
         todayOrders: todayOrdersCount || 0,
         rahitaluBalance: upstreamDash?.wallet?.balance || 0,
-        totalProfit: 0, // Placeholder
-        todayProfit: 0  // Placeholder
+        todayProfit: 0 
       },
       systemStatus,
-      users: users || [],
-      recentTransactions: recentTransactions || [],
-      liveStream: combinedOrders.slice(0, 200)
+      users: usersRes.data || [],
+      recentTransactions: (walletTxRes.data || []).filter(tx => tx.type === 'credit' && tx.status === 'success'),
+      liveStream: combinedLiveFeed.slice(0, 300)
     };
   } catch (error) {
     console.error('getAdminDashboardData Error:', error);
     return {
-      stats: { totalUsers: 0, todayDeposits: 0, todayOrders: 0, rahitaluBalance: 0, totalProfit: 0, todayProfit: 0 },
+      stats: { totalUsers: 0, todayDeposits: 0, todayOrders: 0, rahitaluBalance: 0, todayProfit: 0 },
       systemStatus: { enabled: true, message: '' },
       users: [],
       recentTransactions: [],
