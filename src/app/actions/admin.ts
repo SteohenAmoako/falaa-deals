@@ -92,45 +92,30 @@ export async function getAdminDashboardData() {
       return sum + (isNaN(val) ? 0 : val);
     }, 0);
 
-    const { count: todayOrdersCount } = await supabaseAdmin
-      .from('rahitalu_orders')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', today);
+    // Fetch orders count for today across all tables
+    const [rahCount, skCount, dakCount] = await Promise.all([
+      supabaseAdmin.from('rahitalu_orders').select('*', { count: 'exact', head: true }).gte('created_at', today),
+      supabaseAdmin.from('skplug_orders').select('*', { count: 'exact', head: true }).gte('created_at', today),
+      supabaseAdmin.from('dakazina_orders').select('*', { count: 'exact', head: true }).gte('created_at', today),
+    ]);
+    const totalTodayOrders = (rahCount.count || 0) + (skCount.count || 0) + (dakCount.count || 0);
 
     const upstreamDash = await getUpstreamDashboard().catch(() => ({ wallet: { balance: 0 } }));
 
+    // Fetch historical data for auditing
     const [rahitaluOrdersRes, skplugOrdersRes, dakazinaOrdersRes, walletTxRes, usersRes] = await Promise.all([
-      supabaseAdmin
-        .from('rahitalu_orders')
-        .select('*, profiles(reference_code)')
-        .order('created_at', { ascending: false })
-        .limit(200),
-      supabaseAdmin
-        .from('skplug_orders')
-        .select('*, profiles(reference_code)')
-        .order('created_at', { ascending: false })
-        .limit(200),
-      supabaseAdmin
-        .from('dakazina_orders')
-        .select('*, profiles(reference_code)')
-        .order('created_at', { ascending: false })
-        .limit(200),
-      supabaseAdmin
-        .from('wallet_transactions')
-        .select('*, profiles(full_name, reference_code, phone)')
-        .order('created_at', { ascending: false })
-        .limit(500),
-      supabaseAdmin
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1000)
+      supabaseAdmin.from('rahitalu_orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(200),
+      supabaseAdmin.from('skplug_orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(200),
+      supabaseAdmin.from('dakazina_orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(200),
+      supabaseAdmin.from('wallet_transactions').select('*, profiles(full_name, reference_code, phone)').order('created_at', { ascending: false }).limit(500),
+      supabaseAdmin.from('profiles').select('*').order('created_at', { ascending: false }).limit(1000)
     ]);
 
     const systemStatus = await getSystemStatus();
     const activeProvider = await getActiveProvider();
 
-    const combinedLiveFeed = [
+    // Unified Orders Feed (Data Purchases Only)
+    const allOrders = [
       ...(rahitaluOrdersRes.data || []).map(o => ({
         id: o.id,
         phone: o.phone,
@@ -138,7 +123,7 @@ export async function getAdminDashboardData() {
         status: o.status,
         timestamp: o.created_at,
         user_ref: o.profiles?.reference_code || 'N/A',
-        type: 'order'
+        provider: 'rahitalu'
       })),
       ...(skplugOrdersRes.data || []).map(o => ({
         id: o.id,
@@ -147,7 +132,7 @@ export async function getAdminDashboardData() {
         status: o.status,
         timestamp: o.created_at,
         user_ref: o.profiles?.reference_code || 'N/A',
-        type: 'order'
+        provider: 'skplug'
       })),
       ...(dakazinaOrdersRes.data || []).map(o => ({
         id: o.id,
@@ -156,32 +141,37 @@ export async function getAdminDashboardData() {
         status: o.status,
         timestamp: o.created_at,
         user_ref: o.profiles?.reference_code || 'N/A',
-        type: 'order'
-      })),
-      ...(walletTxRes.data || []).filter(tx => tx.type === 'credit' && tx.status === 'success').map(tx => ({
-        id: tx.id,
-        phone: tx.profiles?.phone || 'N/A',
-        plan: `GHS ${parseFloat(tx.amount || 0).toFixed(2)} Deposit`,
-        status: 'completed',
-        timestamp: tx.created_at,
-        user_ref: tx.profiles?.reference_code || 'N/A',
-        type: 'deposit'
+        provider: 'dakazina'
       }))
     ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    // Unified Deposits Feed (Credits Only)
+    const allDeposits = (walletTxRes.data || [])
+      .filter(tx => tx.type === 'credit' && tx.status === 'success')
+      .map(tx => ({
+        id: tx.id,
+        phone: tx.profiles?.phone || 'N/A',
+        name: tx.profiles?.full_name || 'N/A',
+        user_ref: tx.profiles?.reference_code || 'N/A',
+        amount: parseFloat(tx.amount || 0),
+        reference: tx.reference,
+        timestamp: tx.created_at,
+        description: tx.description
+      }));
 
     return {
       stats: {
         totalUsers: totalUsers || 0,
         todayDeposits: todayDepositsAmount,
-        todayOrders: todayOrdersCount || 0,
+        todayOrders: totalTodayOrders,
         rahitaluBalance: upstreamDash?.wallet?.balance || 0,
         todayProfit: 0 
       },
       systemStatus,
       activeProvider,
       users: usersRes.data || [],
-      recentTransactions: (walletTxRes.data || []).filter(tx => tx.type === 'credit' && tx.status === 'success'),
-      liveStream: combinedLiveFeed.slice(0, 500)
+      allOrders,
+      allDeposits
     };
   } catch (error) {
     console.error('getAdminDashboardData Error:', error);
@@ -190,8 +180,8 @@ export async function getAdminDashboardData() {
       systemStatus: { enabled: true, message: '' },
       activeProvider: 'skplug',
       users: [],
-      recentTransactions: [],
-      liveStream: []
+      allOrders: [],
+      allDeposits: []
     };
   }
 }

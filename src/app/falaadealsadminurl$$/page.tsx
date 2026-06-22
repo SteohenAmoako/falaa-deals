@@ -22,11 +22,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { UserRole } from '@/lib/types';
 
-const PAGE_SIZE = 25;
-
-/**
- * Sub-components moved outside to stabilize rendering and prevent hydration issues
- */
+const PAGE_SIZE = 50;
 
 function StatCard({ icon: Icon, label, value, color = "text-white", highlight }: any) {
   return (
@@ -57,11 +53,10 @@ export default function AdminDashboard() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [registeringWebhook, setRegisteringWebhook] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('activity');
+  const [activeTab, setActiveTab] = useState('orders');
   const [currentPage, setCurrentPage] = useState(1);
-  const [userSortField, setUserSortField] = useState<string>('recent');
-
   const [data, setData] = useState<any>(null);
+  
   const [localSystemEnabled, setLocalSystemEnabled] = useState(true);
   const [localSystemMessage, setLocalSystemMessage] = useState('');
   const [activeProvider, setActiveProvider] = useState<'skplug' | 'dakazina'>('skplug');
@@ -100,6 +95,7 @@ export default function AdminDashboard() {
     if (res.success) {
       setActiveProvider(newProvider);
       toast({ title: "Provider Switched", description: `Active provider is now ${newProvider.toUpperCase()}` });
+      fetchData();
     }
   };
 
@@ -112,30 +108,29 @@ export default function AdminDashboard() {
         (u.full_name || '').toLowerCase().includes(query) ||
         (u.reference_code || '').toLowerCase().includes(query) ||
         (u.phone || '').includes(query)
-      ).sort((a: any, b: any) => {
-        if (userSortField === 'balance') return (b.wallet_balance || 0) - (a.wallet_balance || 0);
-        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-      });
+      );
     }
     
-    if (activeTab === 'activity') {
-      return (data.liveStream || []).filter((i: any) => 
-        (i.phone || '').includes(query) || 
-        (i.user_ref || '').toLowerCase().includes(query) ||
-        (i.plan || '').toLowerCase().includes(query)
+    if (activeTab === 'orders') {
+      return (data.allOrders || []).filter((o: any) => 
+        (o.phone || '').includes(query) || 
+        (o.user_ref || '').toLowerCase().includes(query) ||
+        (o.plan || '').toLowerCase().includes(query) ||
+        (o.provider || '').toLowerCase().includes(query)
       );
     }
     
     if (activeTab === 'deposits') {
-      return (data.recentTransactions || []).filter((t: any) => 
-        (t.profiles?.full_name || '').toLowerCase().includes(query) || 
-        (t.profiles?.reference_code || '').toLowerCase().includes(query) ||
-        (t.reference || '').toLowerCase().includes(query)
+      return (data.allDeposits || []).filter((d: any) => 
+        (d.name || '').toLowerCase().includes(query) || 
+        (d.user_ref || '').toLowerCase().includes(query) ||
+        (d.reference || '').toLowerCase().includes(query) ||
+        (d.phone || '').includes(query)
       );
     }
     
     return [];
-  }, [activeTab, searchQuery, data, userSortField]);
+  }, [activeTab, searchQuery, data]);
 
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
@@ -160,13 +155,6 @@ export default function AdminDashboard() {
       fetchData();
     }
     setUpdatingStatus(false);
-  };
-
-  const handleRegisterWebhook = async () => {
-    setRegisteringWebhook(true);
-    const result = await registerSkPlugWebhook(window.location.origin);
-    if (result.success) toast({ title: "Webhook Registered" });
-    setRegisteringWebhook(false);
   };
 
   const handleAdjustBalance = async () => {
@@ -203,10 +191,6 @@ export default function AdminDashboard() {
           className={cn("h-8 text-[10px] font-black uppercase px-3", activeProvider === 'dakazina' && "bg-violet-600")}
         >DAKAZINA</Button>
       </div>
-      <Button size="sm" variant="ghost" onClick={handleRegisterWebhook} disabled={registeringWebhook} className="text-zinc-400 border border-white/5 justify-start h-10 px-4">
-        {registeringWebhook ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} className="mr-2" />} 
-        Webhook
-      </Button>
       <Button size="sm" variant="ghost" onClick={() => router.push('/falaadealsadminurl$$/pricing')} className="text-zinc-400 border border-white/5 justify-start h-10 px-4"><PackageSearch size={14} className="mr-2" /> Pricing</Button>
       <Button size="sm" variant="ghost" onClick={fetchData} className="text-zinc-400 border border-white/5 justify-start h-10 px-4"><RefreshCw size={14} className={cn(loading && "animate-spin mr-2")} /> Sync</Button>
       <Button size="sm" variant="ghost" onClick={() => router.push('/dashboard')} className="text-zinc-400 border border-white/5 justify-start h-10 px-4"><LayoutDashboard size={14} className="mr-2" /> User Portal</Button>
@@ -221,16 +205,13 @@ export default function AdminDashboard() {
           <div className="w-8 h-8 rounded-lg bg-[#FFD700] flex items-center justify-center font-black text-black text-xs italic">FD</div>
           <h1 className="text-sm font-black uppercase tracking-widest">Audit Console</h1>
         </div>
-        
         <div className="hidden lg:flex items-center gap-2">{NavContent}</div>
-
         <div className="lg:hidden">
           <Sheet>
             <SheetTrigger asChild><Button size="icon" variant="ghost" className="text-zinc-400"><Menu size={20} /></Button></SheetTrigger>
             <SheetContent side="right" className="bg-[#111111] border-white/5 text-white p-6 pt-12">
               <SheetHeader className="text-left mb-6">
                 <SheetTitle className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Menu</SheetTitle>
-                <SheetDescription className="text-xs text-zinc-500">Admin Navigation Control</SheetDescription>
               </SheetHeader>
               {NavContent}
             </SheetContent>
@@ -253,16 +234,16 @@ export default function AdminDashboard() {
 
           <div className="lg:col-span-9 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
             <StatCard icon={Users} label="Total Users" value={data?.stats?.totalUsers} />
-            <StatCard icon={ArrowDownLeft} label="Today's Deposits" value={data?.stats?.todayDeposits ? Number(data.stats.todayDeposits).toFixed(2) : '0.00'} color="text-emerald-400" />
+            <StatCard icon={ArrowDownLeft} label="Today's Deposits" value={Number(data?.stats?.todayDeposits || 0).toFixed(2)} color="text-emerald-400" />
             <StatCard icon={ShoppingCart} label="Today's Orders" value={data?.stats?.todayOrders} color="text-blue-400" />
-            <StatCard icon={TrendingUp} label="Daily Profit" value={data?.stats?.todayProfit ? Number(data.stats.todayProfit).toFixed(2) : '0.00'} color="text-amber-500" />
-            <StatCard icon={Wallet} label="Upstream Bal" value={data?.stats?.rahitaluBalance ? Number(data.stats.rahitaluBalance).toFixed(2) : '0.00'} highlight />
+            <StatCard icon={TrendingUp} label="Daily Profit" value="0.00" color="text-amber-500" />
+            <StatCard icon={Wallet} label="Rahitalu Bal" value={Number(data?.stats?.rahitaluBalance || 0).toFixed(2)} highlight />
           </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="bg-[#111111] border border-white/5 p-1 w-full lg:w-fit overflow-x-auto no-scrollbar h-auto flex gap-1">
-            <TabsTrigger value="activity" className="text-[9px] font-black uppercase px-4 py-2.5">Live Feed</TabsTrigger>
+            <TabsTrigger value="orders" className="text-[9px] font-black uppercase px-4 py-2.5">All Orders</TabsTrigger>
             <TabsTrigger value="deposits" className="text-[9px] font-black uppercase px-4 py-2.5">Deposits</TabsTrigger>
             <TabsTrigger value="users" className="text-[9px] font-black uppercase px-4 py-2.5">Customers Tier</TabsTrigger>
           </TabsList>
@@ -274,9 +255,39 @@ export default function AdminDashboard() {
 
           <div className="rounded-xl border border-white/5 bg-[#111111] overflow-hidden">
             <Table>
+              {activeTab === 'orders' && (
+                <>
+                  <TableHeader><TableRow className="border-white/5 bg-white/5 hover:bg-transparent"><TableHead className="text-[9px] font-black uppercase px-4">Time</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Customer & Ref</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Order Info</TableHead><TableHead className="text-right px-4">Status</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {paginatedData.map((o: any) => (
+                      <TableRow key={o.id} className="border-white/5 hover:bg-white/5">
+                        <TableCell className="px-4 text-[10px] text-zinc-500 whitespace-nowrap">{formatLongDate(o.timestamp)}</TableCell>
+                        <TableCell className="px-4 py-3"><div className="font-bold text-xs">{o.phone}</div><div className="text-[9px] text-[#FFD700] font-black uppercase tracking-tighter">REF: {o.user_ref}</div></TableCell>
+                        <TableCell className="px-4 py-3"><div className="font-black text-[10px] uppercase text-zinc-400">{o.provider}</div><div className="text-xs font-bold text-white">{formatGb(o.plan)}</div></TableCell>
+                        <TableCell className="text-right px-4"><StatusBadge status={o.status} /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </>
+              )}
+              {activeTab === 'deposits' && (
+                <>
+                  <TableHeader><TableRow className="border-white/5 bg-white/5 hover:bg-transparent"><TableHead className="text-[9px] font-black uppercase px-4">Time</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Customer & Ref</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Provider Ref</TableHead><TableHead className="text-right px-4">Amount</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {paginatedData.map((d: any) => (
+                      <TableRow key={d.id} className="border-white/5 hover:bg-white/5">
+                        <TableCell className="px-4 text-[10px] text-zinc-500 whitespace-nowrap">{formatLongDate(d.timestamp)}</TableCell>
+                        <TableCell className="px-4 py-3"><div className="font-bold text-xs">{d.name}</div><div className="text-[9px] text-zinc-500 font-black uppercase tracking-tighter">{d.phone} • {d.user_ref}</div></TableCell>
+                        <TableCell className="px-4 text-[10px] font-mono text-zinc-500 truncate max-w-[120px]">{d.reference}</TableCell>
+                        <TableCell className="text-right px-4 font-black text-emerald-400">GHS {Number(d.amount).toFixed(2)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </>
+              )}
               {activeTab === 'users' && (
                 <>
-                  <TableHeader><TableRow className="border-white/5 bg-white/5"><TableHead className="text-[9px] font-black uppercase px-4">Customer Info</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Balance</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Tier/Role</TableHead><TableHead className="text-right px-4">Actions</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow className="border-white/5 bg-white/5 hover:bg-transparent"><TableHead className="text-[9px] font-black uppercase px-4">Customer Info</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Balance</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Tier/Role</TableHead><TableHead className="text-right px-4">Actions</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {paginatedData.map((u: any) => (
                       <TableRow key={u.id} className="border-white/5 hover:bg-white/5">
@@ -297,42 +308,6 @@ export default function AdminDashboard() {
                             <Plus size={14} />
                           </Button>
                         </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </>
-              )}
-              {activeTab === 'activity' && (
-                <>
-                  <TableHeader><TableRow className="border-white/5 bg-white/5"><TableHead className="text-[9px] font-black uppercase px-4">Time</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Action</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Detail</TableHead><TableHead className="text-right px-4">Status</TableHead></TableRow></TableHeader>
-                  <TableBody>
-                    {paginatedData.map((i: any) => (
-                      <TableRow key={i.id} className="border-white/5 hover:bg-white/5">
-                        <TableCell className="px-4 text-[10px] text-zinc-500 whitespace-nowrap">{formatLongDate(i.timestamp)}</TableCell>
-                        <TableCell className="px-4">
-                          <span className={cn(
-                            "px-1.5 py-0.5 rounded text-[8px] font-black uppercase",
-                            i.type === 'deposit' ? "bg-emerald-500/10 text-emerald-400" : "bg-blue-500/10 text-blue-400"
-                          )}>
-                            {i.type}
-                          </span>
-                        </TableCell>
-                        <TableCell className="px-4 py-3"><div className="font-bold text-xs">{i.phone}</div><div className="text-[9px] text-[#FFD700] font-black uppercase">{formatGb(i.plan)} • REF: {i.user_ref}</div></TableCell>
-                        <TableCell className="text-right px-4"><StatusBadge status={i.status} /></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </>
-              )}
-              {activeTab === 'deposits' && (
-                <>
-                  <TableHeader><TableRow className="border-white/5 bg-white/5"><TableHead className="text-[9px] font-black uppercase px-4">Time</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Customer & Ref</TableHead><TableHead className="text-right px-4">Amount</TableHead></TableRow></TableHeader>
-                  <TableBody>
-                    {paginatedData.map((t: any) => (
-                      <TableRow key={t.id} className="border-white/5 hover:bg-white/5">
-                        <TableCell className="px-4 text-[10px] text-zinc-500 whitespace-nowrap">{formatLongDate(t.created_at)}</TableCell>
-                        <TableCell className="px-4 py-3"><div className="font-bold text-xs">{t.profiles?.full_name} ({t.profiles?.reference_code})</div><div className="text-[9px] text-zinc-500 font-black uppercase">TX: {t.reference}</div></TableCell>
-                        <TableCell className="text-right px-4 font-black text-emerald-400">GHS {parseFloat(t.amount || 0).toFixed(2)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
