@@ -100,7 +100,7 @@ export async function syncBundlesFromSkPlug() {
 }
 
 /**
- * Syncs the provided static Dakazina bundle list into the database with competitive base prices.
+ * Syncs the provided static Dakazina bundle list into the database with fixed API user pricing.
  */
 export async function syncBundlesFromDakazina() {
   try {
@@ -182,6 +182,18 @@ export async function syncBundlesFromDakazina() {
       { network: 'MTN EXPRESS', id: '64', gb: 50, cost: 191, netId: 6 },
     ];
 
+    // API User fixed price mapping (MTN & EXPRESS)
+    const MTN_API_FIXED: Record<number, number> = {
+      1: 3.9, 2: 7.8, 3: 11.7, 4: 15.6, 5: 19.5, 6: 23.5, 7: 26.55, 8: 31, 
+      9: 33.85, 10: 38.0, 12: 45.50, 15: 57, 18: 68.50, 20: 76.5, 22: 84.00, 
+      25: 96, 30: 115, 40: 152, 50: 188, 92: 335.00, 100: 375.00, 200: 580.00
+    };
+
+    const EXPRESS_API_FIXED: Record<number, number> = {
+      1: 4.1, 2: 8.2, 3: 12.3, 4: 16.4, 5: 20.6, 6: 24.7, 8: 32.8, 
+      10: 39.5, 15: 58, 20: 78.6, 25: 97.5, 30: 119, 40: 158.5, 50: 196, 100: 370
+    };
+
     let updatedCount = 0;
 
     for (const pkg of DAKAZINA_CATALOG) {
@@ -211,12 +223,23 @@ export async function syncBundlesFromDakazina() {
       const markups = { api_user: 1.05, falaa: 1.15, base: 1.30 };
 
       for (const role of roles) {
+        let sellPrice = cost * markups[role];
+
+        // Apply fixed prices for API User (MTN / EXPRESS)
+        if (role === 'api_user') {
+          if (pkg.netId === 3 && MTN_API_FIXED[Number(pkg.gb)]) {
+            sellPrice = MTN_API_FIXED[Number(pkg.gb)];
+          } else if (pkg.netId === 6 && EXPRESS_API_FIXED[Number(pkg.gb)]) {
+            sellPrice = EXPRESS_API_FIXED[Number(pkg.gb)];
+          }
+        }
+
         await supabaseAdmin
           .from('bundle_role_prices')
           .upsert({
             bundle_id: bundle.id,
             role,
-            sell_price_ghs: cost * markups[role]
+            sell_price_ghs: sellPrice
           }, { onConflict: 'bundle_id,role' });
       }
     }
