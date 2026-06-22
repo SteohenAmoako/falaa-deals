@@ -105,7 +105,7 @@ export async function getAdminDashboardData() {
     const [rahitaluOrdersRes, skplugOrdersRes, dakazinaOrdersRes, walletTxRes, usersRes] = await Promise.all([
       supabaseAdmin.from('rahitalu_orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(200),
       supabaseAdmin.from('skplug_orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(200),
-      supabaseAdmin.from('orders').select('*, profiles!orders_customer_id_fkey(reference_code)').order('created_at', { ascending: false }).limit(200),
+      supabaseAdmin.from('orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(500),
       supabaseAdmin.from('wallet_transactions').select('*, profiles(full_name, reference_code, phone)').order('created_at', { ascending: false }).limit(500),
       supabaseAdmin.from('profiles').select('*').order('created_at', { ascending: false }).limit(1000)
     ]);
@@ -119,7 +119,7 @@ export async function getAdminDashboardData() {
         plan: o.gig,
         status: o.status,
         timestamp: o.created_at,
-        user_ref: o.profiles?.reference_code || 'N/A',
+        user_ref: (o.profiles as any)?.reference_code || 'N/A',
         provider: 'rahitalu'
       })),
       ...(skplugOrdersRes.data || []).map(o => ({
@@ -128,7 +128,7 @@ export async function getAdminDashboardData() {
         plan: `${o.gb_size}GB`,
         status: o.status,
         timestamp: o.created_at,
-        user_ref: o.profiles?.reference_code || 'N/A',
+        user_ref: (o.profiles as any)?.reference_code || 'N/A',
         provider: 'skplug'
       })),
       ...(dakazinaOrdersRes.data || []).map(o => ({
