@@ -17,21 +17,23 @@
         "created_at": { "type": "string", "format": "date-time" }
       }
     },
-    "DakazinaOrder": {
-      "title": "Dakazina Order",
-      "description": "Orders placed through the Dakazina provider",
+    "Order": {
+      "title": "Order",
+      "description": "Consolidated order record for Dakazina",
       "type": "object",
       "properties": {
         "id": { "type": "string", "format": "uuid" },
-        "user_id": { "type": "string", "format": "uuid" },
-        "recipient": { "type": "string" },
-        "network": { "type": "string" },
-        "gb_size": { "type": "string" },
-        "sell_price_ghs": { "type": "number" },
-        "dakazina_order_id": { "type": "string" },
+        "customer_id": { "type": "string", "format": "uuid" },
+        "store_id": { "type": "string", "format": "uuid" },
+        "package_id": { "type": "integer" },
+        "network_id": { "type": "integer" },
+        "phone_number": { "type": "string" },
+        "amount": { "type": "number" },
         "status": { "type": "string", "enum": ["pending", "processing", "delivered", "failed"] },
-        "created_at": { "type": "string", "format": "date-time" },
-        "updated_at": { "type": "string", "format": "date-time" }
+        "actual_cost": { "type": "number" },
+        "reseller_profit": { "type": "number" },
+        "dakazina_order_id": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
       }
     },
     "SKPlugOrder": {

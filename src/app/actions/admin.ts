@@ -1,3 +1,4 @@
+
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
@@ -92,29 +93,25 @@ export async function getAdminDashboardData() {
       return sum + (isNaN(val) ? 0 : val);
     }, 0);
 
-    // Fetch orders count for today across all tables
     const [rahCount, skCount, dakCount] = await Promise.all([
       supabaseAdmin.from('rahitalu_orders').select('*', { count: 'exact', head: true }).gte('created_at', today),
       supabaseAdmin.from('skplug_orders').select('*', { count: 'exact', head: true }).gte('created_at', today),
-      supabaseAdmin.from('dakazina_orders').select('*', { count: 'exact', head: true }).gte('created_at', today),
+      supabaseAdmin.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', today),
     ]);
     const totalTodayOrders = (rahCount.count || 0) + (skCount.count || 0) + (dakCount.count || 0);
 
     const upstreamDash = await getUpstreamDashboard().catch(() => ({ wallet: { balance: 0 } }));
 
-    // Fetch historical data for auditing
     const [rahitaluOrdersRes, skplugOrdersRes, dakazinaOrdersRes, walletTxRes, usersRes] = await Promise.all([
       supabaseAdmin.from('rahitalu_orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(200),
       supabaseAdmin.from('skplug_orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(200),
-      supabaseAdmin.from('dakazina_orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(200),
+      supabaseAdmin.from('orders').select('*, profiles!orders_customer_id_fkey(reference_code)').order('created_at', { ascending: false }).limit(200),
       supabaseAdmin.from('wallet_transactions').select('*, profiles(full_name, reference_code, phone)').order('created_at', { ascending: false }).limit(500),
       supabaseAdmin.from('profiles').select('*').order('created_at', { ascending: false }).limit(1000)
     ]);
 
-    const systemStatus = await getSystemStatus();
     const activeProvider = await getActiveProvider();
 
-    // Unified Orders Feed (Data Purchases Only)
     const allOrders = [
       ...(rahitaluOrdersRes.data || []).map(o => ({
         id: o.id,
@@ -136,16 +133,15 @@ export async function getAdminDashboardData() {
       })),
       ...(dakazinaOrdersRes.data || []).map(o => ({
         id: o.id,
-        phone: o.recipient,
-        plan: `${o.gb_size}GB`,
+        phone: o.phone_number,
+        plan: `${o.package_id}GB`,
         status: o.status,
         timestamp: o.created_at,
-        user_ref: o.profiles?.reference_code || 'N/A',
+        user_ref: (o.profiles as any)?.reference_code || 'N/A',
         provider: 'dakazina'
       }))
     ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-    // Unified Deposits Feed (Credits Only)
     const allDeposits = (walletTxRes.data || [])
       .filter(tx => tx.type === 'credit' && tx.status === 'success')
       .map(tx => ({
@@ -167,7 +163,7 @@ export async function getAdminDashboardData() {
         rahitaluBalance: upstreamDash?.wallet?.balance || 0,
         todayProfit: 0 
       },
-      systemStatus,
+      systemStatus: await getSystemStatus(),
       activeProvider,
       users: usersRes.data || [],
       allOrders,
@@ -244,16 +240,6 @@ export async function adjustUserBalance(profileId: string, amount: number, type:
 
     revalidatePath('/dashboard');
     return { success: true, newBalance };
-  } catch (error: any) {
-    return { success: false, message: error.message };
-  }
-}
-
-export async function registerSkPlugWebhook(appUrl: string) {
-  try {
-    const callbackUrl = `${appUrl.replace(/\/+$/, '')}/api/webhooks/skplug`;
-    const res = await skPlugClient.registerCallbackUrl(callbackUrl);
-    return { success: true, message: res.message };
   } catch (error: any) {
     return { success: false, message: error.message };
   }

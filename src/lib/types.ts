@@ -26,7 +26,7 @@ export type WalletTransaction = {
 
 export type Bundle = {
   id: string;
-  provider: 'skplug' | 'rahitalu';
+  provider: 'skplug' | 'rahitalu' | 'dakazina';
   provider_bundle_id: string;
   network: string;
   gb_size: number;
@@ -36,34 +36,24 @@ export type Bundle = {
   sell_price_ghs?: number; // Populated based on role
 };
 
-export type RahitaluOrder = {
+export type Order = {
   id: string;
-  user_id: string;
-  phone: string;
-  plan_id: string;
-  gig: string;
-  sell_price_ghs: number;
-  reference: string;
-  status: 'pending' | 'processing' | 'delivered' | 'failed';
-  upstream_status: string;
-  delivered_gb: number;
+  customer_id: string;
+  store_id: string | null;
+  package_id: number;
+  network_id: number;
+  phone_number: string;
+  amount: number;
+  status: 'pending' | 'processing' | 'completed' | 'delivered' | 'failed';
   created_at: string;
+  updated_at: string;
+  actual_cost: number;
+  reseller_profit: number;
+  platform_profit: number | null;
+  profit_margin: number | null;
+  payment_reference: string | null;
+  paystack_transaction_id: string | null;
+  customer_email: string | null;
+  customer_phone: string;
+  dakazina_order_id: string | null;
 };
-
-// Legacy hardcoded plans - keeping for temporary compatibility during transition
-export const PLANS = [
-  {
-    id: '6a282f0167c07f8445745e7b',
-    name: 'Plan A',
-    size: '3.4GB',
-    price: 8,
-    description: 'MTN High-Speed Data'
-  },
-  {
-    id: '6a282eb267c07f8445745dcc',
-    name: 'Plan B',
-    size: '5.1GB',
-    price: 14,
-    description: 'MTN High-Speed Data'
-  }
-];

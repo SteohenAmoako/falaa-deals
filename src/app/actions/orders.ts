@@ -1,3 +1,4 @@
+
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
@@ -15,7 +16,7 @@ const supabaseAdmin = createClient(
 
 /**
  * Common order logic for any bundle from any provider.
- * Price is ALWAYS re-calculated server-side based on user role.
+ * Dakazina orders use the new 'public.orders' schema.
  */
 export async function buyBundle(userId: string, bundleId: string, phone: string) {
   try {
@@ -44,6 +45,7 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
     }
 
     const actualPrice = parseFloat(bundleData.bundle_role_prices[0].sell_price_ghs);
+    const costPrice = parseFloat(bundleData.cost_price_ghs || 0);
     const currentBalance = parseFloat(profile.wallet_balance.toString());
 
     if (currentBalance < actualPrice) {
@@ -67,7 +69,6 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
         upstreamResponse = await dakazinaClient.buyDataPackage(phone, networkId, gbValue, internalRef);
       }
     } catch (apiError: any) {
-      // Record failed attempt for auditing if API fails
       await supabaseAdmin.from('wallet_transactions').insert({
         user_id: userId,
         amount: actualPrice,
@@ -79,7 +80,6 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
       throw apiError;
     }
 
-    const orderRef = internalRef; 
     const providerOrderId = upstreamResponse?.order_code || upstreamResponse?.order_id || upstreamResponse?.reference || null;
 
     // 4. Update Balance & Record Transaction
@@ -91,46 +91,56 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
       amount: actualPrice,
       type: 'debit',
       status: 'success',
-      reference: orderRef,
-      dakazina_order_id: providerToUse === 'dakazina' ? (providerOrderId || orderRef) : null,
+      reference: internalRef,
       description: `Bought ${bundleData.label} for ${phone} (${providerToUse})`,
     });
 
-    // 5. Record Order
-    let orderTable = 'skplug_orders';
-    if (providerToUse === 'rahitalu') orderTable = 'rahitalu_orders';
-    if (providerToUse === 'dakazina') orderTable = 'dakazina_orders';
+    // 5. Record Order using the appropriate table
+    if (providerToUse === 'dakazina') {
+      const [netIdStr, gbStr] = bundleData.provider_bundle_id.split(':');
+      const networkId = parseInt(netIdStr);
+      const gbValue = isNaN(parseInt(gbStr)) ? 0 : parseInt(gbStr);
 
-    const orderData = {
-      user_id: userId,
-      sell_price_ghs: actualPrice,
-      status: 'processing'
-    } as any;
-
-    if (providerToUse === 'rahitalu') {
-      orderData.phone = phone;
-      orderData.plan_id = bundleData.provider_bundle_id;
-      orderData.gig = bundleData.label;
-      orderData.reference = orderRef;
-    } else if (providerToUse === 'dakazina') {
-      orderData.recipient = phone;
-      orderData.network = bundleData.network;
-      orderData.gb_size = bundleData.gb_size.toString();
-      orderData.dakazina_order_id = providerOrderId || orderRef;
+      await supabaseAdmin.from('orders').insert({
+        customer_id: profile.id,
+        package_id: gbValue,
+        network_id: networkId,
+        phone_number: phone,
+        amount: actualPrice,
+        status: 'processing',
+        actual_cost: costPrice,
+        reseller_profit: actualPrice - costPrice,
+        payment_reference: internalRef,
+        customer_phone: phone,
+        dakazina_order_id: providerOrderId || internalRef
+      });
     } else {
-      orderData.recipient = phone;
-      orderData.network = bundleData.network;
-      orderData.gb_size = bundleData.gb_size.toString();
-      orderData.order_id = providerOrderId || orderRef;
-    }
+      let orderTable = providerToUse === 'rahitalu' ? 'rahitalu_orders' : 'skplug_orders';
+      const orderData = {
+        user_id: userId,
+        sell_price_ghs: actualPrice,
+        status: 'processing'
+      } as any;
 
-    await supabaseAdmin.from(orderTable).insert(orderData);
+      if (providerToUse === 'rahitalu') {
+        orderData.phone = phone;
+        orderData.plan_id = bundleData.provider_bundle_id;
+        orderData.gig = bundleData.label;
+        orderData.reference = internalRef;
+      } else {
+        orderData.recipient = phone;
+        orderData.network = bundleData.network;
+        orderData.gb_size = bundleData.gb_size.toString();
+        orderData.order_id = providerOrderId || internalRef;
+      }
+      await supabaseAdmin.from(orderTable).insert(orderData);
+    }
 
     // 6. Notify
     await sendNtfy({
       title: "New Data Order",
       tags: ["order", providerToUse],
-      data: { userId, bundle: bundleData.label, phone, price: actualPrice, role: profile.role, ref: orderRef }
+      data: { userId, bundle: bundleData.label, phone, price: actualPrice, role: profile.role, ref: internalRef }
     });
 
     revalidatePath('/dashboard');

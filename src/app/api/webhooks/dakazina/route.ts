@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -8,7 +9,7 @@ const supabaseAdmin = createClient(
 
 /**
  * Dakazina Webhook Handler
- * Uses priority-based matching to reconcile provider orders.
+ * Updated to support the new 'orders' table schema.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -28,14 +29,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, message: "Missing identifiers" }, { status: 200 });
     }
 
-    // 1. Reconcile Order (Check both provider ID and our reference)
+    // 1. Reconcile Order (New Schema: 'orders' table)
     const { data: order, error: orderErr } = await supabaseAdmin
-      .from('dakazina_orders')
+      .from('orders')
       .update({ 
         status, 
         updated_at: new Date().toISOString() 
       })
-      .or(`dakazina_order_id.eq.${dakazinaOrderCode},dakazina_order_id.eq.${incomingApiRef}`)
+      .or(`dakazina_order_id.eq.${dakazinaOrderCode},payment_reference.eq.${incomingApiRef}`)
       .select()
       .maybeSingle();
 
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
     await supabaseAdmin
       .from('wallet_transactions')
       .update({ status: walletStatus })
-      .or(`dakazina_order_id.eq.${dakazinaOrderCode},reference.eq.${incomingApiRef}`);
+      .or(`reference.eq.${dakazinaOrderCode},reference.eq.${incomingApiRef}`);
 
     console.log(`✅ Dakazina Webhook processed. Code: ${dakazinaOrderCode}, Ref: ${incomingApiRef}, Status: ${status}`);
 
