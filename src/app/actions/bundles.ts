@@ -105,28 +105,28 @@ export async function syncBundlesFromSkPlug() {
 export async function syncBundlesFromDakazina() {
   try {
     const DAKAZINA_CATALOG = [
-      // MTN (network_id: 3)
-      { network: 'MTN', id: '1', gb: 1, cost: 3.65, netId: 3 },
-      { network: 'MTN', id: '2', gb: 2, cost: 7.30, netId: 3 },
-      { network: 'MTN', id: '3', gb: 3, cost: 10.95, netId: 3 },
-      { network: 'MTN', id: '4', gb: 4, cost: 14.60, netId: 3 },
-      { network: 'MTN', id: '5', gb: 5, cost: 18.25, netId: 3 },
-      { network: 'MTN', id: '6', gb: 6, cost: 21.90, netId: 3 },
-      { network: 'MTN', id: '7', gb: 7, cost: 25.55, netId: 3 },
-      { network: 'MTN', id: '8', gb: 8, cost: 29.20, netId: 3 },
-      { network: 'MTN', id: '9', gb: 9, cost: 32.85, netId: 3 },
-      { network: 'MTN', id: '10', gb: 10, cost: 36.50, netId: 3 },
-      { network: 'MTN', id: '11', gb: 12, cost: 43.50, netId: 3 },
-      { network: 'MTN', id: '12', gb: 15, cost: 54.50, netId: 3 },
+      // MTN (network_id: 3) - Costs updated to provided 0% markup table
+      { network: 'MTN', id: '1', gb: 1, cost: 3.55, netId: 3 },
+      { network: 'MTN', id: '2', gb: 2, cost: 7.10, netId: 3 },
+      { network: 'MTN', id: '3', gb: 3, cost: 10.85, netId: 3 },
+      { network: 'MTN', id: '4', gb: 4, cost: 14.20, netId: 3 },
+      { network: 'MTN', id: '5', gb: 5, cost: 17.75, netId: 3 },
+      { network: 'MTN', id: '6', gb: 6, cost: 21.50, netId: 3 },
+      { network: 'MTN', id: '7', gb: 7, cost: 24.85, netId: 3 },
+      { network: 'MTN', id: '8', gb: 8, cost: 28.80, netId: 3 },
+      { network: 'MTN', id: '9', gb: 9, cost: 31.95, netId: 3 },
+      { network: 'MTN', id: '10', gb: 10, cost: 35.50, netId: 3 },
+      { network: 'MTN', id: '11', gb: 12, cost: 42.60, netId: 3 },
+      { network: 'MTN', id: '12', gb: 15, cost: 53.00, netId: 3 },
       { network: 'MTN', id: '13', gb: 18, cost: 65.50, netId: 3 },
-      { network: 'MTN', id: '14', gb: 20, cost: 73.00, netId: 3 },
+      { network: 'MTN', id: '14', gb: 20, cost: 71.50, netId: 3 },
       { network: 'MTN', id: '15', gb: 22, cost: 80.00, netId: 3 },
-      { network: 'MTN', id: '16', gb: 25, cost: 91.00, netId: 3 },
-      { network: 'MTN', id: '17', gb: 30, cost: 109.50, netId: 3 },
-      { network: 'MTN', id: '18', gb: 40, cost: 146.00, netId: 3 },
-      { network: 'MTN', id: '19', gb: 50, cost: 182.00, netId: 3 },
+      { network: 'MTN', id: '16', gb: 25, cost: 88.95, netId: 3 },
+      { network: 'MTN', id: '17', gb: 30, cost: 107.50, netId: 3 },
+      { network: 'MTN', id: '18', gb: 40, cost: 144.00, netId: 3 },
+      { network: 'MTN', id: '19', gb: 50, cost: 177.50, netId: 3 },
       { network: 'MTN', id: '20', gb: 92, cost: 325.00, netId: 3 },
-      { network: 'MTN', id: '21', gb: 100, cost: 355.00, netId: 3 },
+      { network: 'MTN', id: '21', gb: 100, cost: 354.00, netId: 3 },
       { network: 'MTN', id: '22', gb: 200, cost: 580.00, netId: 3 },
       
       // TELECEL (network_id: 2)
@@ -162,7 +162,7 @@ export async function syncBundlesFromDakazina() {
       { network: 'AT - iSHare', id: '48', gb: 10, cost: 37, netId: 1 },
 
       // MTN AFA (network_id: 5)
-      { network: 'MTN AFA', id: '49', gb: 1, label: 'REGISTRATION', cost: 10.5, netId: 5 },
+      { network: 'MTN AFA', id: '49', gb: 1, cost: 10.5, netId: 5 },
 
       // MTN EXPRESS (network_id: 6)
       { network: 'MTN EXPRESS', id: '50', gb: 1, cost: 3.88, netId: 6 },
@@ -182,16 +182,16 @@ export async function syncBundlesFromDakazina() {
       { network: 'MTN EXPRESS', id: '64', gb: 50, cost: 191, netId: 6 },
     ];
 
-    // API User fixed price mapping (MTN & EXPRESS)
+    // API User fixed price mapping (MTN & EXPRESS) - updated to your exact requested fixed prices
     const MTN_API_FIXED: Record<number, number> = {
-      1: 3.9, 2: 7.8, 3: 11.7, 4: 15.6, 5: 19.5, 6: 23.5, 7: 26.55, 8: 31, 
-      9: 33.85, 10: 38.0, 12: 45.50, 15: 57, 18: 68.50, 20: 76.5, 22: 84.00, 
-      25: 96, 30: 115, 40: 152, 50: 188, 92: 335.00, 100: 375.00, 200: 580.00
+      1: 3.90, 2: 7.80, 3: 11.70, 4: 15.60, 5: 19.50, 6: 23.50, 7: 26.55, 8: 31.0, 
+      9: 33.85, 10: 38.0, 12: 45.50, 15: 57.0, 18: 68.50, 20: 76.50, 22: 84.00, 
+      25: 96.00, 30: 115.00, 40: 152.00, 50: 188.00, 92: 335.00, 100: 375.00, 200: 580.00
     };
 
     const EXPRESS_API_FIXED: Record<number, number> = {
-      1: 4.1, 2: 8.2, 3: 12.3, 4: 16.4, 5: 20.6, 6: 24.7, 8: 32.8, 
-      10: 39.5, 15: 58, 20: 78.6, 25: 97.5, 30: 119, 40: 158.5, 50: 196, 100: 370
+      1: 4.10, 2: 8.20, 3: 12.30, 4: 16.40, 5: 20.60, 6: 24.70, 8: 32.80, 
+      10: 39.50, 15: 58.00, 20: 78.60, 25: 97.50, 30: 119.00, 40: 158.50, 50: 196.00, 100: 370.00
     };
 
     let updatedCount = 0;
@@ -202,7 +202,7 @@ export async function syncBundlesFromDakazina() {
         provider_bundle_id: `${pkg.netId}:${pkg.gb}`,
         network: pkg.network,
         gb_size: pkg.gb === 'REGISTRATION' ? 0 : Number(pkg.gb),
-        label: pkg.label || `${pkg.gb}GB`,
+        label: pkg.gb === 'REGISTRATION' ? 'REGISTRATION' : `${pkg.gb}GB`,
         cost_price_ghs: pkg.cost,
         is_active: true,
         updated_at: new Date().toISOString()

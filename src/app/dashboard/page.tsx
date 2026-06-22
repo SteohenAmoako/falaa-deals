@@ -80,6 +80,7 @@ export default function DashboardPage() {
   const groupedBundles = useMemo(() => {
     const groups: Record<string, Bundle[]> = {
       'MTN': [],
+      'MTN Express': [],
       'AirtelTigo': [],
       'Telecel': []
     };
@@ -90,9 +91,11 @@ export default function DashboardPage() {
       const net = (b.network || '').toUpperCase();
       if (net === 'MTN') {
         groups['MTN'].push(b);
+      } else if (net === 'MTN EXPRESS') {
+        groups['MTN Express'].push(b);
       } else if (net === 'TELECEL') {
         groups['Telecel'].push(b);
-      } else if (net.startsWith('AT_')) {
+      } else if (net.startsWith('AT_') || net.includes('AIRTEL')) {
         groups['AirtelTigo'].push(b);
       }
     });
@@ -218,8 +221,9 @@ export default function DashboardPage() {
               </div>
 
               <Tabs defaultValue="MTN" className="space-y-6">
-                <TabsList className="bg-[#111118] border border-white/5 p-1 h-auto w-full grid grid-cols-3 gap-1 sticky top-0 z-10 backdrop-blur-sm bg-opacity-90">
+                <TabsList className="bg-[#111118] border border-white/5 p-1 h-auto w-full grid grid-cols-4 gap-1 sticky top-0 z-10 backdrop-blur-sm bg-opacity-90">
                   <TabsTrigger value="MTN" className="py-2.5 font-black text-[10px] uppercase tracking-widest">MTN</TabsTrigger>
+                  <TabsTrigger value="MTN Express" className="py-2.5 font-black text-[10px] uppercase tracking-widest">Express</TabsTrigger>
                   <TabsTrigger value="AirtelTigo" className="py-2.5 font-black text-[10px] uppercase tracking-widest">AirtelTigo</TabsTrigger>
                   <TabsTrigger value="Telecel" className="py-2.5 font-black text-[10px] uppercase tracking-widest">Telecel</TabsTrigger>
                 </TabsList>
