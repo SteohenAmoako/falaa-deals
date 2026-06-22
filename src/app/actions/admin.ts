@@ -41,7 +41,7 @@ export async function getSystemStatus() {
   }
 }
 
-export async function getActiveProvider() {
+export async function getActiveProvider(): Promise<'skplug' | 'dakazina'> {
   try {
     const { data } = await supabaseAdmin
       .from('system_configs')
@@ -63,6 +63,9 @@ export async function updateActiveProvider(provider: 'skplug' | 'dakazina') {
         value: { provider },
         updated_at: new Date().toISOString()
       }, { onConflict: 'key' });
+    
+    // Force revalidation of all pages that depend on the active provider
+    revalidatePath('/dashboard');
     revalidatePath('/falaadealsadminurl$$');
     return { success: true };
   } catch (error: any) {

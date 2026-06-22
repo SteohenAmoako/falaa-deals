@@ -4,14 +4,22 @@ import { createClient } from '@supabase/supabase-js';
 import { skPlugClient } from '@/lib/skplug/client';
 import { revalidatePath } from 'next/cache';
 import { UserRole, Bundle } from '@/lib/types';
+import { getActiveProvider } from '@/app/actions/admin';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+/**
+ * Fetches active bundles for a specific role, filtered by the CURRENT ACTIVE PROVIDER.
+ */
 export async function getBundlesForRole(role: UserRole): Promise<Bundle[]> {
   try {
+    // 1. Determine which provider is currently active
+    const activeProvider = await getActiveProvider();
+
+    // 2. Fetch bundles ONLY for the active provider
     const { data, error } = await supabaseAdmin
       .from('bundles')
       .select(`
@@ -19,6 +27,7 @@ export async function getBundlesForRole(role: UserRole): Promise<Bundle[]> {
         bundle_role_prices!inner(sell_price_ghs, role)
       `)
       .eq('is_active', true)
+      .eq('provider', activeProvider) // Crucial filter for total provider switch
       .eq('bundle_role_prices.role', role || 'base')
       .order('network')
       .order('gb_size');
@@ -30,6 +39,7 @@ export async function getBundlesForRole(role: UserRole): Promise<Bundle[]> {
 
     if (!data) return [];
 
+    // Map the specific role price to the bundle object
     return data.map(b => ({
       ...b,
       sell_price_ghs: b.bundle_role_prices[0]?.sell_price_ghs || b.cost_price_ghs * 1.3
@@ -105,7 +115,7 @@ export async function syncBundlesFromSkPlug() {
 export async function syncBundlesFromDakazina() {
   try {
     const DAKAZINA_CATALOG = [
-      // MTN (network_id: 3) - Costs updated to provided 0% markup table
+      // MTN (network_id: 3) - Costs updated to 0% markup table provided
       { network: 'MTN', id: '1', gb: 1, cost: 3.55, netId: 3 },
       { network: 'MTN', id: '2', gb: 2, cost: 7.10, netId: 3 },
       { network: 'MTN', id: '3', gb: 3, cost: 10.85, netId: 3 },
@@ -182,7 +192,7 @@ export async function syncBundlesFromDakazina() {
       { network: 'MTN EXPRESS', id: '64', gb: 50, cost: 191, netId: 6 },
     ];
 
-    // API User fixed price mapping (MTN & EXPRESS) - updated to your exact requested fixed prices
+    // API User fixed price mapping (MTN & EXPRESS)
     const MTN_API_FIXED: Record<number, number> = {
       1: 3.90, 2: 7.80, 3: 11.70, 4: 15.60, 5: 19.50, 6: 23.50, 7: 26.55, 8: 31.0, 
       9: 33.85, 10: 38.0, 12: 45.50, 15: 57.0, 18: 68.50, 20: 76.50, 22: 84.00, 
