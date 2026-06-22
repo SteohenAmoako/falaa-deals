@@ -189,7 +189,7 @@ export async function syncBundlesFromDakazina() {
         provider: 'dakazina',
         provider_bundle_id: `${pkg.netId}:${pkg.gb}`,
         network: pkg.network,
-        gb_size: pkg.gb === 'REGISTRATION' ? 0 : pkg.gb,
+        gb_size: pkg.gb === 'REGISTRATION' ? 0 : Number(pkg.gb),
         label: pkg.label || `${pkg.gb}GB`,
         cost_price_ghs: pkg.cost,
         is_active: true,
