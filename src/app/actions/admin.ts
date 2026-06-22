@@ -1,4 +1,3 @@
-
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
@@ -87,7 +86,10 @@ export async function getAdminDashboardData() {
       .eq('status', 'success')
       .gte('created_at', today);
 
-    const todayDepositsAmount = (depositsToday || []).reduce((sum, tx) => sum + parseFloat(tx.amount.toString()), 0);
+    const todayDepositsAmount = (depositsToday || []).reduce((sum, tx) => {
+      const val = parseFloat(tx.amount?.toString() || '0');
+      return sum + (isNaN(val) ? 0 : val);
+    }, 0);
 
     const { count: todayOrdersCount } = await supabaseAdmin
       .from('rahitalu_orders')
@@ -160,7 +162,7 @@ export async function getAdminDashboardData() {
       ...(walletTxRes.data || []).filter(tx => tx.type === 'credit' && tx.status === 'success').map(tx => ({
         id: tx.id,
         phone: tx.profiles?.phone || 'N/A',
-        plan: `GHS ${parseFloat(tx.amount).toFixed(2)} Deposit`,
+        plan: `GHS ${parseFloat(tx.amount || 0).toFixed(2)} Deposit`,
         status: 'completed',
         timestamp: tx.created_at,
         user_ref: tx.profiles?.reference_code || 'N/A',

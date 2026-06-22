@@ -39,7 +39,9 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
       .eq('bundle_role_prices.role', profile.role)
       .single();
 
-    if (bundleErr || !bundleData) throw new Error('Bundle pricing not found for your role');
+    if (bundleErr || !bundleData || !bundleData.bundle_role_prices?.length) {
+      throw new Error('Bundle pricing not found for your role');
+    }
 
     const actualPrice = parseFloat(bundleData.bundle_role_prices[0].sell_price_ghs);
     const currentBalance = parseFloat(profile.wallet_balance.toString());
@@ -52,7 +54,6 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
     const activeProvider = await getActiveProvider();
     
     // For manual routing, we respect the bundle's native provider UNLESS it's a fallback.
-    // However, if the active provider is Dakazina, and the bundle is a Dakazina bundle, we use it.
     const providerToUse = bundleData.provider;
     
     // Generate a reference code early

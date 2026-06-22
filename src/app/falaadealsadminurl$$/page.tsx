@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -24,6 +23,34 @@ import { useToast } from '@/hooks/use-toast';
 import { UserRole } from '@/lib/types';
 
 const PAGE_SIZE = 25;
+
+/**
+ * Sub-components moved outside to stabilize rendering and prevent hydration issues
+ */
+
+function StatCard({ icon: Icon, label, value, color = "text-white", highlight }: any) {
+  return (
+    <Card className={cn("bg-[#111111] border-white/5 p-3 flex flex-col justify-between h-20", highlight && "bg-[#FFD700]")}>
+      <div className="flex items-center justify-between">
+        <Icon className={cn("w-3 h-3", highlight ? "text-black/60" : "text-zinc-600")} />
+        <span className={cn("text-[8px] font-black uppercase tracking-widest", highlight ? "text-black/60" : "text-zinc-600")}>{label}</span>
+      </div>
+      <div className={cn("text-sm font-black truncate", highlight ? "text-black" : color)}>
+        {value !== undefined ? value : '...'}
+      </div>
+    </Card>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    delivered: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    completed: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    processing: 'bg-[#FFD700]/10 text-[#FFD700] border-[#FFD700]/20',
+    failed: 'bg-red-500/10 text-red-400 border-red-500/20',
+  };
+  return <span className={cn("px-2 py-0.5 rounded-full text-[8px] font-black uppercase border", styles[status?.toLowerCase()] || 'bg-zinc-500/10')}>{status}</span>;
+}
 
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -86,8 +113,8 @@ export default function AdminDashboard() {
         (u.reference_code || '').toLowerCase().includes(query) ||
         (u.phone || '').includes(query)
       ).sort((a: any, b: any) => {
-        if (userSortField === 'balance') return b.wallet_balance - a.wallet_balance;
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        if (userSortField === 'balance') return (b.wallet_balance || 0) - (a.wallet_balance || 0);
+        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
       });
     }
     
@@ -160,7 +187,7 @@ export default function AdminDashboard() {
     </div>
   );
 
-  const NavContent = () => (
+  const NavContent = (
     <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
       <div className="flex bg-[#111111] border border-white/5 rounded-lg p-1">
         <Button 
@@ -195,7 +222,7 @@ export default function AdminDashboard() {
           <h1 className="text-sm font-black uppercase tracking-widest">Audit Console</h1>
         </div>
         
-        <div className="hidden lg:flex items-center gap-2"><NavContent /></div>
+        <div className="hidden lg:flex items-center gap-2">{NavContent}</div>
 
         <div className="lg:hidden">
           <Sheet>
@@ -205,7 +232,7 @@ export default function AdminDashboard() {
                 <SheetTitle className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Menu</SheetTitle>
                 <SheetDescription className="text-xs text-zinc-500">Admin Navigation Control</SheetDescription>
               </SheetHeader>
-              <NavContent />
+              {NavContent}
             </SheetContent>
           </Sheet>
         </div>
@@ -226,10 +253,10 @@ export default function AdminDashboard() {
 
           <div className="lg:col-span-9 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
             <StatCard icon={Users} label="Total Users" value={data?.stats?.totalUsers} />
-            <StatCard icon={ArrowDownLeft} label="Today's Deposits" value={data?.stats?.todayDeposits?.toFixed(2)} color="text-emerald-400" />
+            <StatCard icon={ArrowDownLeft} label="Today's Deposits" value={data?.stats?.todayDeposits ? Number(data.stats.todayDeposits).toFixed(2) : '0.00'} color="text-emerald-400" />
             <StatCard icon={ShoppingCart} label="Today's Orders" value={data?.stats?.todayOrders} color="text-blue-400" />
-            <StatCard icon={TrendingUp} label="Daily Profit" value={data?.stats?.todayProfit?.toFixed(2)} color="text-amber-500" />
-            <StatCard icon={Wallet} label="Upstream Bal" value={data?.stats?.rahitaluBalance?.toFixed(2)} highlight />
+            <StatCard icon={TrendingUp} label="Daily Profit" value={data?.stats?.todayProfit ? Number(data.stats.todayProfit).toFixed(2) : '0.00'} color="text-amber-500" />
+            <StatCard icon={Wallet} label="Upstream Bal" value={data?.stats?.rahitaluBalance ? Number(data.stats.rahitaluBalance).toFixed(2) : '0.00'} highlight />
           </div>
         </div>
 
@@ -305,7 +332,7 @@ export default function AdminDashboard() {
                       <TableRow key={t.id} className="border-white/5 hover:bg-white/5">
                         <TableCell className="px-4 text-[10px] text-zinc-500 whitespace-nowrap">{formatLongDate(t.created_at)}</TableCell>
                         <TableCell className="px-4 py-3"><div className="font-bold text-xs">{t.profiles?.full_name} ({t.profiles?.reference_code})</div><div className="text-[9px] text-zinc-500 font-black uppercase">TX: {t.reference}</div></TableCell>
-                        <TableCell className="text-right px-4 font-black text-emerald-400">GHS {parseFloat(t.amount).toFixed(2)}</TableCell>
+                        <TableCell className="text-right px-4 font-black text-emerald-400">GHS {parseFloat(t.amount || 0).toFixed(2)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -341,26 +368,4 @@ export default function AdminDashboard() {
       </Dialog>
     </div>
   );
-}
-
-function StatCard({ icon: Icon, label, value, color = "text-white", highlight }: any) {
-  return (
-    <Card className={cn("bg-[#111111] border-white/5 p-3 flex flex-col justify-between h-20", highlight && "bg-[#FFD700]")}>
-      <div className="flex items-center justify-between">
-        <Icon className={cn("w-3 h-3", highlight ? "text-black/60" : "text-zinc-600")} />
-        <span className={cn("text-[8px] font-black uppercase tracking-widest", highlight ? "text-black/60" : "text-zinc-600")}>{label}</span>
-      </div>
-      <div className={cn("text-sm font-black truncate", highlight ? "text-black" : color)}>{value ?? '...'}</div>
-    </Card>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    delivered: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    completed: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    processing: 'bg-[#FFD700]/10 text-[#FFD700] border-[#FFD700]/20',
-    failed: 'bg-red-500/10 text-red-400 border-red-500/20',
-  };
-  return <span className={cn("px-2 py-0.5 rounded-full text-[8px] font-black uppercase border", styles[status?.toLowerCase()] || 'bg-zinc-500/10')}>{status}</span>;
 }

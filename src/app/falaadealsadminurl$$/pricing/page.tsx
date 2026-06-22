@@ -1,19 +1,54 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
-  PackageSearch, RefreshCw, Save, Loader2, TrendingUp, AlertTriangle, ShieldCheck, Search, ChevronLeft, Zap
+  PackageSearch, RefreshCw, Save, Loader2, AlertTriangle, ShieldCheck, Search, ChevronLeft, Zap
 } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { syncBundlesFromSkPlug, syncBundlesFromDakazina, updateBundleRolePrice, applyBulkMarkup } from '@/app/actions/bundles';
 import { supabase } from '@/lib/supabase';
-import { Bundle, UserRole } from '@/lib/types';
+import { UserRole } from '@/lib/types';
 import { cn } from '@/lib/utils';
+
+function RolePriceInput({ bundleId, role, defaultValue, cost, onSave }: any) {
+  const [val, setVal] = useState(defaultValue ? Number(defaultValue).toFixed(2) : '0.00');
+  const isBelowCost = parseFloat(val) < cost;
+
+  return (
+    <div className="flex items-center gap-1 group">
+      <div className="relative">
+        <Input 
+          type="number" 
+          step="0.01" 
+          value={val} 
+          onChange={e => setVal(e.target.value)} 
+          className={cn(
+            "h-8 w-16 bg-black/40 border-white/5 text-[10px] font-black text-center p-0 px-1",
+            isBelowCost ? "border-red-500/50 text-red-400" : "text-emerald-400"
+          )} 
+        />
+        {isBelowCost && (
+          <div className="absolute -top-1 -right-1">
+            <AlertTriangle size={8} className="text-red-500" />
+          </div>
+        )}
+      </div>
+      <Button 
+        size="icon" 
+        variant="ghost" 
+        className="h-7 w-7 text-zinc-600 hover:text-white hover:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" 
+        onClick={() => onSave(bundleId, role, parseFloat(val))}
+      >
+        <Save size={12} />
+      </Button>
+    </div>
+  );
+}
 
 export default function PricingPage() {
   const [loading, setLoading] = useState(true);
@@ -81,13 +116,12 @@ export default function PricingPage() {
     b.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
     b.provider.toLowerCase().includes(searchQuery.toLowerCase())
   ).sort((a, b) => {
-    // Sort by provider then network then size
     if (a.provider !== b.provider) return a.provider.localeCompare(b.provider);
     if (a.network !== b.network) return a.network.localeCompare(b.network);
     return a.gb_size - b.gb_size;
   });
 
-  const formatGb = (gb: any) => {
+  const formatGbValue = (gb: any) => {
     return parseFloat(gb.toString()).toString() + 'GB';
   };
 
@@ -164,9 +198,9 @@ export default function PricingPage() {
                   </TableHeader>
                   <TableBody>
                     {filteredBundles.map(bundle => {
-                      const apiPrice = bundle.bundle_role_prices.find((p: any) => p.role === 'api_user')?.sell_price_ghs || 0;
-                      const falaaPrice = bundle.bundle_role_prices.find((p: any) => p.role === 'falaa')?.sell_price_ghs || 0;
-                      const basePrice = bundle.bundle_role_prices.find((p: any) => p.role === 'base')?.sell_price_ghs || 0;
+                      const apiPrice = bundle.bundle_role_prices?.find((p: any) => p.role === 'api_user')?.sell_price_ghs || 0;
+                      const falaaPrice = bundle.bundle_role_prices?.find((p: any) => p.role === 'falaa')?.sell_price_ghs || 0;
+                      const basePrice = bundle.bundle_role_prices?.find((p: any) => p.role === 'base')?.sell_price_ghs || 0;
 
                       return (
                         <TableRow key={bundle.id} className="border-white/5 hover:bg-white/5 transition-colors h-14">
@@ -181,8 +215,8 @@ export default function PricingPage() {
                               <span className="text-[10px] font-black text-white uppercase">{bundle.network}</span>
                             </div>
                           </TableCell>
-                          <TableCell className="font-black text-xs px-4">{formatGb(bundle.gb_size)}</TableCell>
-                          <TableCell className="font-black text-zinc-500 text-[10px] px-4">GHS {bundle.cost_price_ghs.toFixed(2)}</TableCell>
+                          <TableCell className="font-black text-xs px-4">{formatGbValue(bundle.gb_size)}</TableCell>
+                          <TableCell className="font-black text-zinc-500 text-[10px] px-4">GHS {bundle.cost_price_ghs ? Number(bundle.cost_price_ghs).toFixed(2) : '0.00'}</TableCell>
                           <TableCell className="px-2">
                             <RolePriceInput bundleId={bundle.id} role="api_user" defaultValue={apiPrice} cost={bundle.cost_price_ghs} onSave={handlePriceUpdate} />
                           </TableCell>
@@ -202,41 +236,6 @@ export default function PricingPage() {
           </Card>
         </div>
       </div>
-    </div>
-  );
-}
-
-function RolePriceInput({ bundleId, role, defaultValue, cost, onSave }: any) {
-  const [val, setVal] = useState(defaultValue.toFixed(2));
-  const isBelowCost = parseFloat(val) < cost;
-
-  return (
-    <div className="flex items-center gap-1 group">
-      <div className="relative">
-        <Input 
-          type="number" 
-          step="0.01" 
-          value={val} 
-          onChange={e => setVal(e.target.value)} 
-          className={cn(
-            "h-8 w-16 bg-black/40 border-white/5 text-[10px] font-black text-center p-0 px-1",
-            isBelowCost ? "border-red-500/50 text-red-400" : "text-emerald-400"
-          )} 
-        />
-        {isBelowCost && (
-          <div className="absolute -top-1 -right-1">
-            <AlertTriangle size={8} className="text-red-500" />
-          </div>
-        )}
-      </div>
-      <Button 
-        size="icon" 
-        variant="ghost" 
-        className="h-7 w-7 text-zinc-600 hover:text-white hover:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" 
-        onClick={() => onSave(bundleId, role, parseFloat(val))}
-      >
-        <Save size={12} />
-      </Button>
     </div>
   );
 }
