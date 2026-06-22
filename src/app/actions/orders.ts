@@ -51,29 +51,34 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
     }
 
     // 3. Dispatch to Upstream Provider
-    const activeProvider = await getActiveProvider();
-    
-    // For manual routing, we respect the bundle's native provider UNLESS it's a fallback.
     const providerToUse = bundleData.provider;
-    
-    // Generate a reference code early
     const internalRef = `FD-${Math.random().toString(36).substring(2, 11).toUpperCase()}`;
     let upstreamResponse: any = null;
 
-    if (providerToUse === 'rahitalu') {
-      upstreamResponse = await placeDataOrder(bundleData.provider_bundle_id, phone, actualPrice);
-    } else if (providerToUse === 'skplug') {
-      upstreamResponse = await skPlugClient.placeOrder(phone, bundleData.network, bundleData.gb_size.toString());
-    } else if (providerToUse === 'dakazina') {
-      // For Dakazina, provider_bundle_id is "netId:gb"
-      const [netIdStr, gbStr] = bundleData.provider_bundle_id.split(':');
-      const networkId = parseInt(netIdStr);
-      const gbValue = parseInt(gbStr);
-      
-      upstreamResponse = await dakazinaClient.buyDataPackage(phone, networkId, gbValue, internalRef);
+    try {
+      if (providerToUse === 'rahitalu') {
+        upstreamResponse = await placeDataOrder(bundleData.provider_bundle_id, phone, actualPrice);
+      } else if (providerToUse === 'skplug') {
+        upstreamResponse = await skPlugClient.placeOrder(phone, bundleData.network, bundleData.gb_size.toString());
+      } else if (providerToUse === 'dakazina') {
+        const [netIdStr, gbStr] = bundleData.provider_bundle_id.split(':');
+        const networkId = parseInt(netIdStr);
+        const gbValue = parseInt(gbStr);
+        upstreamResponse = await dakazinaClient.buyDataPackage(phone, networkId, gbValue, internalRef);
+      }
+    } catch (apiError: any) {
+      // Record failed attempt for auditing if API fails
+      await supabaseAdmin.from('wallet_transactions').insert({
+        user_id: userId,
+        amount: actualPrice,
+        type: 'debit',
+        status: 'failed',
+        reference: internalRef,
+        description: `FAILED: ${bundleData.label} for ${phone} (${providerToUse}) - ${apiError.message}`,
+      });
+      throw apiError;
     }
 
-    // Determine the final reference used by the provider
     const orderRef = internalRef; 
     const providerOrderId = upstreamResponse?.order_code || upstreamResponse?.order_id || upstreamResponse?.reference || null;
 
@@ -129,6 +134,7 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
     });
 
     revalidatePath('/dashboard');
+    revalidatePath('/falaadealsadminurl$$');
     return { success: true, message: `🎉 ${bundleData.label} activated successfully!` };
   } catch (error: any) {
     console.error('Buy Bundle Error:', error);

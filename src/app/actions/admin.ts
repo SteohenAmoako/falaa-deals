@@ -64,7 +64,6 @@ export async function updateActiveProvider(provider: 'skplug' | 'dakazina') {
         updated_at: new Date().toISOString()
       }, { onConflict: 'key' });
     
-    // Force revalidation of all pages that depend on the active provider
     revalidatePath('/dashboard');
     revalidatePath('/falaadealsadminurl$$');
     return { success: true };
@@ -77,7 +76,6 @@ export async function getAdminDashboardData() {
   try {
     const today = new Date().toISOString().split('T')[0];
     
-    // 1. Stats and Counts
     const { count: totalUsers } = await supabaseAdmin
       .from('profiles')
       .select('*', { count: 'exact', head: true });
@@ -101,7 +99,6 @@ export async function getAdminDashboardData() {
 
     const upstreamDash = await getUpstreamDashboard().catch(() => ({ wallet: { balance: 0 } }));
 
-    // 2. Fetch Rich Audit Data
     const [rahitaluOrdersRes, skplugOrdersRes, dakazinaOrdersRes, walletTxRes, usersRes] = await Promise.all([
       supabaseAdmin
         .from('rahitalu_orders')
@@ -133,7 +130,6 @@ export async function getAdminDashboardData() {
     const systemStatus = await getSystemStatus();
     const activeProvider = await getActiveProvider();
 
-    // 3. Process Live Feed (Orders + Deposits)
     const combinedLiveFeed = [
       ...(rahitaluOrdersRes.data || []).map(o => ({
         id: o.id,
@@ -185,7 +181,7 @@ export async function getAdminDashboardData() {
       activeProvider,
       users: usersRes.data || [],
       recentTransactions: (walletTxRes.data || []).filter(tx => tx.type === 'credit' && tx.status === 'success'),
-      liveStream: combinedLiveFeed.slice(0, 300)
+      liveStream: combinedLiveFeed.slice(0, 500)
     };
   } catch (error) {
     console.error('getAdminDashboardData Error:', error);

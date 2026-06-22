@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       .update({ status: walletStatus })
       .or(`dakazina_order_id.eq.${dakazinaOrderCode},reference.eq.${incomingApiRef}`);
 
-    console.log(`✅ Webhook processed. Code: ${dakazinaOrderCode}, Ref: ${incomingApiRef}, Final Status: ${status}`);
+    console.log(`✅ Dakazina Webhook processed. Code: ${dakazinaOrderCode}, Ref: ${incomingApiRef}, Status: ${status}`);
 
     return NextResponse.json({
       ok: true,
