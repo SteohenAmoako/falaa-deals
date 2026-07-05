@@ -10,54 +10,69 @@ const supabaseAdmin = createClient(
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('Authorization');
-    const apiKey = authHeader?.replace('Bearer ', '');
-
-    if (!apiKey) {
-      return NextResponse.json({ success: false, message: 'Authentication Required. Please include your API key.' }, { status: 401 });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Missing or invalid Authorization header' }, { status: 401 });
     }
 
-    // 1. Validate API Key
+    const apiKey = authHeader.split(' ')[1];
+
+    // Verify API Key
     const { data: keyRecord, error: keyErr } = await supabaseAdmin
       .from('api_keys')
       .select('user_id')
       .eq('api_key', apiKey)
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
     if (keyErr || !keyRecord) {
-      return NextResponse.json({ success: false, message: 'Invalid or inactive API key.' }, { status: 403 });
+      return NextResponse.json({ error: 'Unauthorized: Invalid API key' }, { status: 401 });
     }
 
     const body = await req.json();
     const { recipient, network, gb_size } = body;
 
     if (!recipient || !network || !gb_size) {
-      return NextResponse.json({ success: false, message: 'Missing required fields: recipient, network, gb_size' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing required fields: recipient, network, gb_size' }, { status: 400 });
     }
 
-    // 2. Find matching bundle
-    const { data: bundle, error: bundleErr } = await supabaseAdmin
+    // Find the bundle ID based on network and gb_size for this user's role
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('user_id', keyRecord.user_id)
+      .single();
+
+    const role = profile?.role || 'base';
+
+    const { data: bundles } = await supabaseAdmin
       .from('bundles')
       .select('id')
       .eq('network', network.toUpperCase())
       .eq('gb_size', parseFloat(gb_size))
       .eq('is_active', true)
-      .maybeSingle();
+      .limit(1);
 
-    if (bundleErr || !bundle) {
-      return NextResponse.json({ success: false, message: `Package ${gb_size}GB not found for ${network}.` }, { status: 404 });
+    if (!bundles || bundles.length === 0) {
+      return NextResponse.json({ error: `Bundle ${gb_size}GB not found for network ${network}` }, { status: 404 });
     }
 
-    // 3. Process Order
-    const result = await buyBundle(keyRecord.user_id, bundle.id, recipient);
+    // Place Order
+    const result = await buyBundle(keyRecord.user_id, bundles[0].id, recipient);
 
     if (!result.success) {
-      return NextResponse.json(result, { status: 400 });
+      return NextResponse.json({ success: false, message: result.message }, { status: 400 });
     }
 
-    return NextResponse.json(result);
+    return NextResponse.json({ 
+      success: true, 
+      message: result.message,
+      recipient,
+      network,
+      gb_size
+    });
+
   } catch (error: any) {
-    console.error('Public API Order Error:', error);
-    return NextResponse.json({ success: false, message: 'Internal Server Error' }, { status: 500 });
+    console.error('API Public Order Error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

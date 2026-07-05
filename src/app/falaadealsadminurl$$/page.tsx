@@ -9,14 +9,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Users, ShoppingCart, Wallet, Search, Loader2, RefreshCw,
-  ArrowDownLeft, LogOut, LayoutDashboard, TrendingUp, PackageSearch, Menu, Plus, AlertTriangle
+  ArrowDownLeft, LogOut, TrendingUp, PackageSearch, Menu, Plus
 } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { getAdminDashboardData, updateSystemStatus, adjustUserBalance, assignUserRole, updateActiveProvider } from '@/app/actions/admin';
-import { cn, formatGb, formatLongDate } from '@/lib/utils';
+import { cn, formatLongDate } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -148,7 +148,7 @@ export default function AdminDashboard() {
     <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
       <div className="flex bg-[#111111] border border-white/5 rounded-lg p-1 overflow-x-auto">
         {['skplug', 'dakazina', 'bytemedeals', 'diceconsult'].map(p => (
-          <Button key={p} size="sm" variant={activeProvider === p ? 'default' : 'ghost'} onClick={() => handleProviderSwitch(p)} className={cn("h-8 text-[9px] font-black uppercase px-2", activeProvider === p && "bg-violet-600")}>{p}</Button>
+          <Button key={p} size="sm" variant={activeProvider === p ? 'default' : 'ghost'} onClick={() => handleProviderSwitch(p as any)} className={cn("h-8 text-[9px] font-black uppercase px-2", activeProvider === p && "bg-violet-600")}>{p}</Button>
         ))}
       </div>
       <Button size="sm" variant="ghost" onClick={() => router.push('/falaadealsadminurl$$/pricing')} className="text-zinc-400 border border-white/5 h-10 px-4"><PackageSearch size={14} className="mr-2" /> Pricing</Button>
@@ -213,7 +213,7 @@ export default function AdminDashboard() {
           </div>
 
           <div className="rounded-xl border border-white/5 bg-[#111111] overflow-hidden">
-            {activeTab === 'orders' && (
+            <TabsContent value="orders" className="mt-0 outline-none">
               <Table>
                 <TableHeader>
                   <TableRow className="border-white/5 bg-white/5">
@@ -228,14 +228,15 @@ export default function AdminDashboard() {
                     <TableRow key={o.id} className="border-white/5">
                       <TableCell className="px-4 text-[10px] text-zinc-500 whitespace-nowrap">{formatLongDate(o.timestamp)}</TableCell>
                       <TableCell className="px-4 py-3"><div className="font-bold text-xs">{o.phone}</div><div className="text-[9px] text-[#FFD700] font-black uppercase tracking-tighter">REF: {o.user_ref}</div></TableCell>
-                      <TableCell className="px-4 py-3"><div className="text-xs font-bold text-white">{formatGb(o.plan)}</div></TableCell>
+                      <TableCell className="px-4 py-3"><div className="text-xs font-bold text-white">{o.plan}</div></TableCell>
                       <TableCell className="text-right px-4"><StatusBadge status={o.status} /></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-            )}
-            {activeTab === 'deposits' && (
+            </TabsContent>
+
+            <TabsContent value="deposits" className="mt-0 outline-none">
               <Table>
                 <TableHeader>
                   <TableRow className="border-white/5 bg-white/5">
@@ -256,8 +257,9 @@ export default function AdminDashboard() {
                   ))}
                 </TableBody>
               </Table>
-            )}
-            {activeTab === 'users' && (
+            </TabsContent>
+
+            <TabsContent value="users" className="mt-0 outline-none">
               <Table>
                 <TableHeader>
                   <TableRow className="border-white/5 bg-white/5">
@@ -289,7 +291,7 @@ export default function AdminDashboard() {
                   ))}
                 </TableBody>
               </Table>
-            )}
+            </TabsContent>
           </div>
         </Tabs>
       </div>

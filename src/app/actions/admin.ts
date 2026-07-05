@@ -67,7 +67,14 @@ export async function getAdminDashboardData() {
   try {
     const today = new Date().toISOString().split('T')[0];
     const { count: totalUsers } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
-    const { data: depositsToday } = await supabaseAdmin.from('wallet_transactions').select('amount').eq('type', 'credit').eq('status', 'success').gte('created_at', today);
+    
+    // Stats: Deposits Today
+    const { data: depositsToday } = await supabaseAdmin
+      .from('wallet_transactions')
+      .select('amount')
+      .eq('type', 'credit')
+      .eq('status', 'success')
+      .gte('created_at', today);
 
     const todayDepositsAmount = (depositsToday || []).reduce((sum, tx) => sum + parseFloat(tx.amount?.toString() || '0'), 0);
     const activeProvider = await getActiveProvider();
@@ -77,15 +84,38 @@ export async function getAdminDashboardData() {
       if (activeProvider === 'bytemedeals') {
         const res = await byteMeDealsClient.getBalance();
         upstreamBalance = res.balance || 0;
+      } else if (activeProvider === 'diceconsult') {
+        // DiceConsult returns balance in success response of purchases, but no direct balance endpoint usually.
+        // We might want to track this differently or skip if not available.
       }
     } catch (err) { console.warn('Provider balance fetch failed', err); }
 
-    const { count: totalTodayOrders } = await supabaseAdmin.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', today);
+    // Stats: Orders Today
+    const { count: totalTodayOrders } = await supabaseAdmin
+      .from('orders')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', today);
 
+    // Main Tables
     const [ordersRes, walletTxRes, usersRes] = await Promise.all([
-      supabaseAdmin.from('orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(500),
-      supabaseAdmin.from('wallet_transactions').select('*, profiles(full_name, reference_code, phone)').order('created_at', { ascending: false }).limit(500),
-      supabaseAdmin.from('profiles').select('*').order('created_at', { ascending: false }).limit(1000)
+      supabaseAdmin
+        .from('orders')
+        .select(`
+          *,
+          profiles:customer_id(reference_code, full_name)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(500),
+      supabaseAdmin
+        .from('wallet_transactions')
+        .select('*, profiles(full_name, reference_code, phone)')
+        .order('created_at', { ascending: false })
+        .limit(500),
+      supabaseAdmin
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1000)
     ]);
 
     const allOrders = (ordersRes.data || []).map(o => ({
@@ -95,7 +125,8 @@ export async function getAdminDashboardData() {
       status: o.status,
       timestamp: o.created_at,
       user_ref: (o.profiles as any)?.reference_code || 'N/A',
-      provider: 'generic'
+      user_name: (o.profiles as any)?.full_name || 'N/A',
+      amount: o.amount
     }));
 
     const allDeposits = (walletTxRes.data || [])
@@ -112,7 +143,13 @@ export async function getAdminDashboardData() {
       }));
 
     return {
-      stats: { totalUsers: totalUsers || 0, todayDeposits: todayDepositsAmount, todayOrders: totalTodayOrders || 0, rahitaluBalance: upstreamBalance, todayProfit: 0 },
+      stats: { 
+        totalUsers: totalUsers || 0, 
+        todayDeposits: todayDepositsAmount, 
+        todayOrders: totalTodayOrders || 0, 
+        rahitaluBalance: upstreamBalance, 
+        todayProfit: 0 
+      },
       systemStatus: await getSystemStatus(),
       activeProvider,
       users: usersRes.data || [],
@@ -152,7 +189,14 @@ export async function adjustUserBalance(profileId: string, amount: number, type:
     if (newBalance < 0 && type === 'debit') throw new Error('Insufficient funds');
 
     await supabaseAdmin.from('profiles').update({ wallet_balance: newBalance }).eq('id', profileId);
-    await supabaseAdmin.from('wallet_transactions').insert({ user_id: profile.user_id, amount, type, status: 'success', reference: `ADM-${Math.random().toString(36).substring(7).toUpperCase()}`, description: `Admin ${type === 'credit' ? 'Credit' : 'Debit'}: ${reason}` });
+    await supabaseAdmin.from('wallet_transactions').insert({ 
+      user_id: profile.user_id, 
+      amount, 
+      type, 
+      status: 'success', 
+      reference: `ADM-${Math.random().toString(36).substring(7).toUpperCase()}`, 
+      description: `Admin ${type === 'credit' ? 'Credit' : 'Debit'}: ${reason}` 
+    });
 
     revalidatePath('/dashboard');
     return { success: true, newBalance };

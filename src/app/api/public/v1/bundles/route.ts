@@ -9,18 +9,21 @@ const supabaseAdmin = createClient(
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('Authorization');
-    const apiKey = authHeader?.replace('Bearer ', '');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    if (!apiKey) return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-
+    const apiKey = authHeader.split(' ')[1];
     const { data: keyRecord } = await supabaseAdmin
       .from('api_keys')
       .select('user_id')
       .eq('api_key', apiKey)
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
-    if (!keyRecord) return NextResponse.json({ success: false, message: 'Invalid API Key' }, { status: 403 });
+    if (!keyRecord) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const { data: profile } = await supabaseAdmin
       .from('profiles')
@@ -28,26 +31,33 @@ export async function GET(req: NextRequest) {
       .eq('user_id', keyRecord.user_id)
       .single();
 
-    const { data: bundles } = await supabaseAdmin
+    const role = profile?.role || 'base';
+
+    const { data: bundles, error } = await supabaseAdmin
       .from('bundles')
       .select(`
+        id,
         network,
         gb_size,
         label,
+        provider,
         bundle_role_prices!inner(sell_price_ghs)
       `)
       .eq('is_active', true)
-      .eq('bundle_role_prices.role', profile?.role || 'base');
+      .eq('bundle_role_prices.role', role);
 
-    const formatted = bundles?.map(b => ({
+    if (error) throw error;
+
+    const formatted = bundles.map(b => ({
+      id: b.id,
       network: b.network,
-      size: b.gb_size,
+      gb_size: b.gb_size,
       label: b.label,
-      price: b.bundle_role_prices[0]?.sell_price_ghs
+      price: (b.bundle_role_prices as any)[0].sell_price_ghs
     }));
 
-    return NextResponse.json({ success: true, bundles: formatted });
+    return NextResponse.json(formatted);
   } catch (error) {
-    return NextResponse.json({ success: false, message: 'Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

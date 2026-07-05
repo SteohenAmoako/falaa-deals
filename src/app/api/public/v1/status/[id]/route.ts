@@ -6,32 +6,50 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const authHeader = req.headers.get('Authorization');
-    const apiKey = authHeader?.replace('Bearer ', '');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    if (!apiKey) return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-
+    const apiKey = authHeader.split(' ')[1];
     const { data: keyRecord } = await supabaseAdmin
       .from('api_keys')
       .select('user_id')
       .eq('api_key', apiKey)
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
-    if (!keyRecord) return NextResponse.json({ success: false, message: 'Invalid API Key' }, { status: 403 });
+    if (!keyRecord) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    const { data: order } = await supabaseAdmin
+    const { data: order, error } = await supabaseAdmin
       .from('orders')
-      .select('status, phone_number, amount, created_at')
-      .or(`dakazina_order_id.eq.${params.id},payment_reference.eq.${params.id}`)
-      .single();
+      .select('*')
+      .eq('id', params.id)
+      .maybeSingle();
 
-    if (!order) return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
+    if (error || !order) {
+      // Try searching by provider_order_id or payment_reference
+      const { data: orderAlt } = await supabaseAdmin
+        .from('orders')
+        .select('*')
+        .or(`dakazina_order_id.eq.${params.id},payment_reference.eq.${params.id}`)
+        .maybeSingle();
 
-    return NextResponse.json({ success: true, order });
+      if (!orderAlt) {
+        return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+      }
+      return NextResponse.json(orderAlt);
+    }
+
+    return NextResponse.json(order);
   } catch (error) {
-    return NextResponse.json({ success: false, message: 'Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
