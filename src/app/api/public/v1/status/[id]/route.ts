@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -6,10 +7,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -17,39 +15,36 @@ export async function GET(
     }
 
     const apiKey = authHeader.split(' ')[1];
-    const { data: keyRecord } = await supabaseAdmin
+    const { data: keyData } = await supabaseAdmin
       .from('api_keys')
       .select('user_id')
       .eq('api_key', apiKey)
       .eq('is_active', true)
       .maybeSingle();
 
-    if (!keyRecord) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!keyData) return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
 
-    const { data: order, error } = await supabaseAdmin
-      .from('orders')
+    const orderId = params.id;
+
+    const { data: order } = await supabaseAdmin
+      .from('rahitalu_orders')
       .select('*')
-      .eq('id', params.id)
+      .eq('reference', orderId)
+      .eq('user_id', keyData.user_id)
       .maybeSingle();
 
-    if (error || !order) {
-      // Try searching by provider_order_id or payment_reference
-      const { data: orderAlt } = await supabaseAdmin
-        .from('orders')
-        .select('*')
-        .or(`dakazina_order_id.eq.${params.id},payment_reference.eq.${params.id}`)
-        .maybeSingle();
+    if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
 
-      if (!orderAlt) {
-        return NextResponse.json({ error: 'Order not found' }, { status: 404 });
-      }
-      return NextResponse.json(orderAlt);
-    }
-
-    return NextResponse.json(order);
+    return NextResponse.json({
+      success: true,
+      order_id: order.reference,
+      status: order.status,
+      recipient: order.phone,
+      network: order.plan_id.split('_')[0],
+      size: order.gig,
+      created_at: order.created_at
+    });
   } catch (error) {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
