@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -251,7 +251,7 @@ export default function AdminDashboard() {
                     <TableRow key={d.id} className="border-white/5">
                       <TableCell className="px-4 text-[10px] text-zinc-500">{formatLongDate(d.timestamp)}</TableCell>
                       <TableCell className="px-4 py-3"><div className="text-xs font-bold">{d.name}</div><div className="text-[8px] text-[#FFD700] font-black uppercase">{d.user_ref}</div></TableCell>
-                      <TableCell className="px-4 text-xs font-black text-emerald-400">GHS {d.amount.toFixed(2)}</TableCell>
+                      <TableCell className="px-4 text-xs font-black text-emerald-400">GHS {Number(d.amount || 0).toFixed(2)}</TableCell>
                       <TableCell className="text-right px-4 text-[9px] font-mono text-zinc-500">{d.reference}</TableCell>
                     </TableRow>
                   ))}
@@ -273,7 +273,7 @@ export default function AdminDashboard() {
                   {filteredData.map((u: any) => (
                     <TableRow key={u.id} className="border-white/5">
                       <TableCell className="px-4 py-3"><div className="font-bold text-xs">{u.full_name}</div><div className="text-[9px] text-zinc-500 font-mono">{u.phone} • {u.reference_code}</div></TableCell>
-                      <TableCell className="px-4 font-black text-xs">GHS {parseFloat(u.wallet_balance || 0).toFixed(2)}</TableCell>
+                      <TableCell className="px-4 font-black text-xs">GHS {Number(u.wallet_balance || 0).toFixed(2)}</TableCell>
                       <TableCell className="px-4">
                         <Select value={u.role || 'base'} onValueChange={(v: UserRole) => handleUpdateRole(u.user_id, v)}>
                           <SelectTrigger className="h-7 text-[8px] font-black uppercase bg-black/40 border-white/5 w-24 px-2"><SelectValue /></SelectTrigger>

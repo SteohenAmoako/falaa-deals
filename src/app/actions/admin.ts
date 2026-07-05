@@ -86,7 +86,6 @@ export async function getAdminDashboardData() {
         upstreamBalance = res.balance || 0;
       } else if (activeProvider === 'diceconsult') {
         // DiceConsult returns balance in success response of purchases, but no direct balance endpoint usually.
-        // We might want to track this differently or skip if not available.
       }
     } catch (err) { console.warn('Provider balance fetch failed', err); }
 
@@ -126,7 +125,7 @@ export async function getAdminDashboardData() {
       timestamp: o.created_at,
       user_ref: (o.profiles as any)?.reference_code || 'N/A',
       user_name: (o.profiles as any)?.full_name || 'N/A',
-      amount: o.amount
+      amount: Number(o.amount || 0)
     }));
 
     const allDeposits = (walletTxRes.data || [])
@@ -136,7 +135,7 @@ export async function getAdminDashboardData() {
         phone: tx.profiles?.phone || 'N/A',
         name: tx.profiles?.full_name || 'N/A',
         user_ref: tx.profiles?.reference_code || 'N/A',
-        amount: parseFloat(tx.amount || 0),
+        amount: Number(tx.amount || 0),
         reference: tx.reference,
         timestamp: tx.created_at,
         description: tx.description
@@ -145,9 +144,9 @@ export async function getAdminDashboardData() {
     return {
       stats: { 
         totalUsers: totalUsers || 0, 
-        todayDeposits: todayDepositsAmount, 
+        todayDeposits: Number(todayDepositsAmount), 
         todayOrders: totalTodayOrders || 0, 
-        rahitaluBalance: upstreamBalance, 
+        rahitaluBalance: Number(upstreamBalance), 
         todayProfit: 0 
       },
       systemStatus: await getSystemStatus(),
