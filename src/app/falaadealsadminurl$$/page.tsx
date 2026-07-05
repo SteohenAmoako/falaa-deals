@@ -39,6 +39,7 @@ function StatCard({ icon: Icon, label, value, color = "text-white", highlight }:
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     delivered: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    completed: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     processing: 'bg-[#FFD700]/10 text-[#FFD700] border-[#FFD700]/20',
     failed: 'bg-red-500/10 text-red-400 border-red-500/20',
   };
@@ -162,7 +163,10 @@ export default function AdminDashboard() {
           <Sheet>
             <SheetTrigger asChild><Button size="icon" variant="ghost" className="text-zinc-400"><Menu size={20} /></Button></SheetTrigger>
             <SheetContent side="right" className="bg-[#111111] border-white/5 text-white p-6 pt-12">
-              {NavContent}
+              <SheetHeader>
+                <SheetTitle className="text-sm font-black uppercase">Navigation</SheetTitle>
+              </SheetHeader>
+              <div className="mt-4">{NavContent}</div>
             </SheetContent>
           </Sheet>
         </div>
@@ -221,7 +225,7 @@ export default function AdminDashboard() {
               )}
               {activeTab === 'users' && (
                 <>
-                  <TableHeader><TableRow className="border-white/5 bg-white/5"><TableHead className="text-[9px] font-black uppercase px-4">Customer Info</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Balance</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Tier</TableHead><TableHead className="text-right px-4">Actions</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow className="border-white/5 bg-white/5"><TableHead className="text-[9px] font-black uppercase px-4">Customer Info</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Balance</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Tier</TableHead><TableHead className="text-right px-4">Actions</TableHead></TableHeader>
                   <TableBody>
                     {filteredData.map((u: any) => (
                       <TableRow key={u.id} className="border-white/5">
@@ -252,15 +256,18 @@ export default function AdminDashboard() {
 
       <Dialog open={isAdjOpen} onOpenChange={setIsAdjOpen}>
         <DialogContent className="bg-[#111111] border-white/5 text-white max-w-sm rounded-3xl p-6">
-          <DialogHeader><DialogTitle className="text-sm font-black uppercase">Adjustment</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="text-sm font-black uppercase">Balance Adjustment</DialogTitle>
+            <DialogDescription className="text-[11px] text-zinc-500">Modify the wallet balance for {adjUser?.full_name}. Select type and enter amount.</DialogDescription>
+          </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-3">
               <Select value={adjType} onValueChange={(v: any) => setAdjType(v)}><SelectTrigger className="bg-[#0d0d0d] border-white/5 h-12 text-xs font-bold"><SelectValue /></SelectTrigger><SelectContent className="bg-[#111111] text-white border-white/5"><SelectItem value="credit" className="text-xs">CREDIT</SelectItem><SelectItem value="debit" className="text-xs">DEBIT</SelectItem></SelectContent></Select>
               <Input type="number" placeholder="0.00" value={adjAmount} onChange={e => setAdjAmount(e.target.value)} className="bg-[#0d0d0d] border-white/5 h-12 text-center font-black" />
             </div>
-            <Textarea placeholder="Reason..." value={adjReason} onChange={e => setAdjReason(e.target.value)} className="bg-[#0d0d0d] border-white/5 text-xs h-20" />
+            <Textarea placeholder="Reason for adjustment..." value={adjReason} onChange={e => setAdjReason(e.target.value)} className="bg-[#0d0d0d] border-white/5 text-xs h-20" />
           </div>
-          <DialogFooter><Button onClick={handleAdjustBalance} disabled={adjLoading} className="w-full bg-[#FFD700] text-black font-black uppercase h-12 rounded-xl">Execute</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleAdjustBalance} disabled={adjLoading} className="w-full bg-[#FFD700] text-black font-black uppercase h-12 rounded-xl">Execute Adjustment</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

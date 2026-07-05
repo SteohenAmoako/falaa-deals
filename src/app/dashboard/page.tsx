@@ -42,7 +42,7 @@ export default function DashboardPage() {
       if (!session) return router.push('/');
 
       const [profileRes, statusValue] = await Promise.all([
-        supabase.from('profiles').select('*').eq('user_id', session.user.id).single(),
+        supabase.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle(),
         getSystemStatus()
       ]);
 
@@ -57,16 +57,13 @@ export default function DashboardPage() {
         setSystemStatus(statusValue);
       }
 
-      const [rahitaluRes, skRes, txRes] = await Promise.all([
-        supabase.from('rahitalu_orders').select('*').eq('user_id', session.user.id),
-        supabase.from('skplug_orders').select('*').eq('user_id', session.user.id),
+      // Query from the consolidated orders table
+      const [ordersRes, txRes] = await Promise.all([
+        supabase.from('orders').select('*').eq('customer_id', profileRes.data?.id).order('created_at', { ascending: false }),
         supabase.from('wallet_transactions').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false })
       ]);
 
-      const combined = [...(rahitaluRes.data || []), ...(skRes.data || [])]
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      
-      setOrders(combined);
+      setOrders(ordersRes.data || []);
       setTransactions(txRes.data || []);
     } catch (e) {
       console.error('Dashboard Load Error:', e);
@@ -80,7 +77,6 @@ export default function DashboardPage() {
   const groupedBundles = useMemo(() => {
     const groups: Record<string, Bundle[]> = {
       'MTN': [],
-      'MTN Express': [],
       'AirtelTigo': [],
       'Telecel': []
     };
@@ -91,11 +87,9 @@ export default function DashboardPage() {
       const net = (b.network || '').toUpperCase();
       if (net === 'MTN') {
         groups['MTN'].push(b);
-      } else if (net === 'MTN EXPRESS') {
-        groups['MTN Express'].push(b);
       } else if (net === 'TELECEL') {
         groups['Telecel'].push(b);
-      } else if (net.startsWith('AT_') || net.includes('AIRTEL')) {
+      } else if (net.startsWith('AT_') || net.includes('AIRTEL') || net.includes('ISHARE') || net.includes('BIGTIME')) {
         groups['AirtelTigo'].push(b);
       }
     });
@@ -171,7 +165,7 @@ export default function DashboardPage() {
                 <DialogHeader>
                   <DialogTitle className="text-lg font-black italic">MANUAL DEPOSIT</DialogTitle>
                   <DialogDescription className="text-[11px] text-zinc-500 font-medium">
-                    Send funds to the merchant account below using your unique reference.
+                    Send funds to the merchant account below using your unique reference code to credit your wallet.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="p-4 bg-black/40 rounded-2xl space-y-4 border border-white/5">
@@ -221,9 +215,8 @@ export default function DashboardPage() {
               </div>
 
               <Tabs defaultValue="MTN" className="space-y-6">
-                <TabsList className="bg-[#111118] border border-white/5 p-1 h-auto w-full grid grid-cols-4 gap-1 sticky top-0 z-10 backdrop-blur-sm bg-opacity-90">
+                <TabsList className="bg-[#111118] border border-white/5 p-1 h-auto w-full grid grid-cols-3 gap-1 sticky top-0 z-10 backdrop-blur-sm bg-opacity-90">
                   <TabsTrigger value="MTN" className="py-2.5 font-black text-[10px] uppercase tracking-widest">MTN</TabsTrigger>
-                  <TabsTrigger value="MTN Express" className="py-2.5 font-black text-[10px] uppercase tracking-widest">Express</TabsTrigger>
                   <TabsTrigger value="AirtelTigo" className="py-2.5 font-black text-[10px] uppercase tracking-widest">AirtelTigo</TabsTrigger>
                   <TabsTrigger value="Telecel" className="py-2.5 font-black text-[10px] uppercase tracking-widest">Telecel</TabsTrigger>
                 </TabsList>
@@ -279,11 +272,11 @@ export default function DashboardPage() {
                   </TableHeader>
                   <TableBody>
                     {orders
-                      .filter(o => (o.gig || o.gb_size || '').toLowerCase().includes(ordersSearch.toLowerCase()) || (o.phone || o.recipient || '').includes(ordersSearch))
+                      .filter(o => (o.phone_number || '').includes(ordersSearch) || (o.package_id || '').toString().includes(ordersSearch))
                       .map(order => (
                       <TableRow key={order.id} className="border-white/5 hover:bg-white/5 h-12">
-                        <TableCell className="text-xs font-bold">{formatGb(order.gig || order.gb_size)}</TableCell>
-                        <TableCell className="font-mono text-[11px] text-zinc-400">{order.phone || order.recipient}</TableCell>
+                        <TableCell className="text-xs font-bold">{order.package_id}GB</TableCell>
+                        <TableCell className="font-mono text-[11px] text-zinc-400">{order.phone_number}</TableCell>
                         <TableCell className="text-right"><StatusBadge status={order.status} /></TableCell>
                       </TableRow>
                     ))}
@@ -342,6 +335,7 @@ function NavItem({ icon: Icon, label, active, onClick }: { icon: any, label: str
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     delivered: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    completed: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     processing: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
     pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     failed: 'bg-red-500/10 text-red-400 border-red-500/20',
