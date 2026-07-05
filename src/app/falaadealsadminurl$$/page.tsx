@@ -137,6 +137,11 @@ export default function AdminDashboard() {
     setAdjLoading(false);
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/');
+  };
+
   if (loading && !data) return <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center"><Loader2 className="animate-spin text-[#FFD700]" /></div>;
 
   const NavContent = (
@@ -148,6 +153,7 @@ export default function AdminDashboard() {
       </div>
       <Button size="sm" variant="ghost" onClick={() => router.push('/falaadealsadminurl$$/pricing')} className="text-zinc-400 border border-white/5 h-10 px-4"><PackageSearch size={14} className="mr-2" /> Pricing</Button>
       <Button size="sm" variant="ghost" onClick={fetchData} className="text-zinc-400 border border-white/5 h-10 px-4"><RefreshCw size={14} className={cn(loading && "animate-spin mr-2")} /> Sync</Button>
+      <Button size="sm" variant="ghost" onClick={handleLogout} className="text-red-400/60 hover:text-red-400 border border-white/5 h-10 px-4"><LogOut size={14} className="mr-2" /> Logout</Button>
     </div>
   );
 
@@ -207,85 +213,83 @@ export default function AdminDashboard() {
           </div>
 
           <div className="rounded-xl border border-white/5 bg-[#111111] overflow-hidden">
-            <Table>
-              {activeTab === 'orders' && (
-                <>
-                  <TableHeader>
-                    <TableRow className="border-white/5 bg-white/5">
-                      <TableHead className="text-[9px] font-black uppercase px-4">Time</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase px-4">Customer & Ref</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase px-4">Order Info</TableHead>
-                      <TableHead className="text-right px-4">Status</TableHead>
+            {activeTab === 'orders' && (
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-white/5 bg-white/5">
+                    <TableHead className="text-[9px] font-black uppercase px-4">Time</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase px-4">Customer & Ref</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase px-4">Order Info</TableHead>
+                    <TableHead className="text-right px-4">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredData.map((o: any) => (
+                    <TableRow key={o.id} className="border-white/5">
+                      <TableCell className="px-4 text-[10px] text-zinc-500 whitespace-nowrap">{formatLongDate(o.timestamp)}</TableCell>
+                      <TableCell className="px-4 py-3"><div className="font-bold text-xs">{o.phone}</div><div className="text-[9px] text-[#FFD700] font-black uppercase tracking-tighter">REF: {o.user_ref}</div></TableCell>
+                      <TableCell className="px-4 py-3"><div className="text-xs font-bold text-white">{formatGb(o.plan)}</div></TableCell>
+                      <TableCell className="text-right px-4"><StatusBadge status={o.status} /></TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredData.map((o: any) => (
-                      <TableRow key={o.id} className="border-white/5">
-                        <TableCell className="px-4 text-[10px] text-zinc-500 whitespace-nowrap">{formatLongDate(o.timestamp)}</TableCell>
-                        <TableCell className="px-4 py-3"><div className="font-bold text-xs">{o.phone}</div><div className="text-[9px] text-[#FFD700] font-black uppercase tracking-tighter">REF: {o.user_ref}</div></TableCell>
-                        <TableCell className="px-4 py-3"><div className="text-xs font-bold text-white">{formatGb(o.plan)}</div></TableCell>
-                        <TableCell className="text-right px-4"><StatusBadge status={o.status} /></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </>
-              )}
-              {activeTab === 'deposits' && (
-                <>
-                  <TableHeader>
-                    <TableRow className="border-white/5 bg-white/5">
-                      <TableHead className="text-[9px] font-black uppercase px-4">Date</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase px-4">Customer</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase px-4">Amount</TableHead>
-                      <TableHead className="text-right px-4">Reference</TableHead>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+            {activeTab === 'deposits' && (
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-white/5 bg-white/5">
+                    <TableHead className="text-[9px] font-black uppercase px-4">Date</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase px-4">Customer</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase px-4">Amount</TableHead>
+                    <TableHead className="text-right px-4">Reference</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredData.map((d: any) => (
+                    <TableRow key={d.id} className="border-white/5">
+                      <TableCell className="px-4 text-[10px] text-zinc-500">{formatLongDate(d.timestamp)}</TableCell>
+                      <TableCell className="px-4 py-3"><div className="text-xs font-bold">{d.name}</div><div className="text-[8px] text-[#FFD700] font-black uppercase">{d.user_ref}</div></TableCell>
+                      <TableCell className="px-4 text-xs font-black text-emerald-400">GHS {d.amount.toFixed(2)}</TableCell>
+                      <TableCell className="text-right px-4 text-[9px] font-mono text-zinc-500">{d.reference}</TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredData.map((d: any) => (
-                      <TableRow key={d.id} className="border-white/5">
-                        <TableCell className="px-4 text-[10px] text-zinc-500">{formatLongDate(d.timestamp)}</TableCell>
-                        <TableCell className="px-4 py-3"><div className="text-xs font-bold">{d.name}</div><div className="text-[8px] text-[#FFD700] font-black uppercase">{d.user_ref}</div></TableCell>
-                        <TableCell className="px-4 text-xs font-black text-emerald-400">GHS {d.amount.toFixed(2)}</TableCell>
-                        <TableCell className="text-right px-4 text-[9px] font-mono text-zinc-500">{d.reference}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </>
-              )}
-              {activeTab === 'users' && (
-                <>
-                  <TableHeader>
-                    <TableRow className="border-white/5 bg-white/5">
-                      <TableHead className="text-[9px] font-black uppercase px-4">Customer Info</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase px-4">Balance</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase px-4">Tier</TableHead>
-                      <TableHead className="text-right px-4">Actions</TableHead>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+            {activeTab === 'users' && (
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-white/5 bg-white/5">
+                    <TableHead className="text-[9px] font-black uppercase px-4">Customer Info</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase px-4">Balance</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase px-4">Tier</TableHead>
+                    <TableHead className="text-right px-4">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredData.map((u: any) => (
+                    <TableRow key={u.id} className="border-white/5">
+                      <TableCell className="px-4 py-3"><div className="font-bold text-xs">{u.full_name}</div><div className="text-[9px] text-zinc-500 font-mono">{u.phone} • {u.reference_code}</div></TableCell>
+                      <TableCell className="px-4 font-black text-xs">GHS {parseFloat(u.wallet_balance || 0).toFixed(2)}</TableCell>
+                      <TableCell className="px-4">
+                        <Select value={u.role || 'base'} onValueChange={(v: UserRole) => handleUpdateRole(u.user_id, v)}>
+                          <SelectTrigger className="h-7 text-[8px] font-black uppercase bg-black/40 border-white/5 w-24 px-2"><SelectValue /></SelectTrigger>
+                          <SelectContent className="bg-[#111111] border-white/5 text-white">
+                            <SelectItem value="base" className="text-[10px]">BASE</SelectItem>
+                            <SelectItem value="falaa" className="text-[10px]">VIP</SelectItem>
+                            <SelectItem value="api_user" className="text-[10px]">API</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell className="text-right px-4">
+                        <Button size="sm" variant="ghost" onClick={() => { setAdjUser(u); setIsAdjOpen(true); }} className="h-7 w-7 p-0 text-[#FFD700]"><Plus size={14} /></Button>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredData.map((u: any) => (
-                      <TableRow key={u.id} className="border-white/5">
-                        <TableCell className="px-4 py-3"><div className="font-bold text-xs">{u.full_name}</div><div className="text-[9px] text-zinc-500 font-mono">{u.phone} • {u.reference_code}</div></TableCell>
-                        <TableCell className="px-4 font-black text-xs">GHS {parseFloat(u.wallet_balance || 0).toFixed(2)}</TableCell>
-                        <TableCell className="px-4">
-                          <Select value={u.role || 'base'} onValueChange={(v: UserRole) => handleUpdateRole(u.user_id, v)}>
-                            <SelectTrigger className="h-7 text-[8px] font-black uppercase bg-black/40 border-white/5 w-24 px-2"><SelectValue /></SelectTrigger>
-                            <SelectContent className="bg-[#111111] border-white/5 text-white">
-                              <SelectItem value="base" className="text-[10px]">BASE</SelectItem>
-                              <SelectItem value="falaa" className="text-[10px]">VIP</SelectItem>
-                              <SelectItem value="api_user" className="text-[10px]">API</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell className="text-right px-4">
-                          <Button size="sm" variant="ghost" onClick={() => { setAdjUser(u); setIsAdjOpen(true); }} className="h-7 w-7 p-0 text-[#FFD700]"><Plus size={14} /></Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </>
-              )}
-            </Table>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </div>
         </Tabs>
       </div>

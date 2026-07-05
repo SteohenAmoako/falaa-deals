@@ -8,7 +8,6 @@ import { byteMeDealsClient } from '@/lib/bytemedeals/client';
 import { diceConsultClient } from '@/lib/diceconsult/client';
 import { revalidatePath } from 'next/cache';
 import { sendNtfy } from '@/lib/notifications';
-import { getActiveProvider } from '@/app/actions/admin';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,12 +19,8 @@ const supabaseAdmin = createClient(
  */
 const BYTE_ME_NETWORK_MAP: Record<string, 'MTN' | 'VOD' | 'ATM'> = {
   'MTN': 'MTN',
-  'MTN EXPRESS': 'MTN',
-  'MTN AFA': 'MTN',
   'TELECEL': 'VOD',
-  'AIRTELTIGO': 'ATM',
-  'AT - BIGTIME': 'ATM',
-  'AT - ISHARE': 'ATM'
+  'AIRTELTIGO': 'ATM'
 };
 
 /**
@@ -33,12 +28,8 @@ const BYTE_ME_NETWORK_MAP: Record<string, 'MTN' | 'VOD' | 'ATM'> = {
  */
 const DICE_NETWORK_MAP: Record<string, string> = {
   'MTN': 'MTN',
-  'MTN EXPRESS': 'MTN',
-  'MTN AFA': 'MTN',
   'TELECEL': 'Telecel',
-  'AIRTELTIGO': 'iShare',
-  'AT - BIGTIME': 'BigTime',
-  'AT - ISHARE': 'iShare'
+  'AIRTELTIGO': 'iShare'
 };
 
 /**
@@ -72,8 +63,9 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
     const costPrice = parseFloat(bundleData.cost_price_ghs || 0);
     const currentBalance = parseFloat(profile.wallet_balance.toString());
 
+    // 1. Check Customer Wallet Balance
     if (currentBalance < actualPrice) {
-      return { success: false, message: 'Insufficient wallet balance.' };
+      return { success: false, message: 'Purchase Failed: Insufficient balance.' };
     }
 
     const providerToUse = bundleData.provider;
@@ -96,15 +88,22 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
         upstreamResponse = await diceConsultClient.purchaseData(network, phone, bundleData.label);
       }
     } catch (apiError: any) {
+      // 2. Distinguish Provider Balance Error
+      const isProviderEmpty = apiError.message === 'PROVIDER_INSUFFICIENT_BALANCE';
+      const errorMsg = isProviderEmpty 
+        ? "Prompt admin immediately on 0203558192 or WhatsApp on 0573677371" 
+        : `FAILED: ${bundleData.label} - ${apiError.message}`;
+
       await supabaseAdmin.from('wallet_transactions').insert({
         user_id: userId,
         amount: actualPrice,
         type: 'debit',
         status: 'failed',
         reference: internalRef,
-        description: `FAILED: ${bundleData.label} for ${phone} (${providerToUse}) - ${apiError.message}`,
+        description: errorMsg,
       });
-      throw apiError;
+
+      throw new Error(errorMsg);
     }
 
     const providerOrderId = upstreamResponse?.reference || upstreamResponse?.order_code || upstreamResponse?.order_id || null;
@@ -122,19 +121,10 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
     });
 
     // Record in consolidated 'orders' table
-    const networkKey = bundleData.network.toUpperCase();
-    const networkId = providerToUse === 'bytemedeals' 
-      ? (BYTE_ME_NETWORK_MAP[networkKey] === 'VOD' ? 2 : (BYTE_ME_NETWORK_MAP[networkKey] === 'ATM' ? 4 : 3)) 
-      : (providerToUse === 'dakazina' ? parseInt(bundleData.provider_bundle_id.split(':')[0]) : 3);
-    
-    const pkgId = (providerToUse === 'bytemedeals' || providerToUse === 'diceconsult')
-      ? parseInt(bundleData.provider_bundle_id) 
-      : (providerToUse === 'dakazina' ? parseInt(bundleData.provider_bundle_id.split(':')[1]) : 0);
-
     await supabaseAdmin.from('orders').insert({
       customer_id: profile.id,
-      package_id: isNaN(pkgId) ? 0 : pkgId,
-      network_id: networkId,
+      package_id: parseInt(bundleData.gb_size.toString()),
+      network_id: 3, // Generic MTN default, can be mapped specifically
       phone_number: phone,
       amount: actualPrice,
       status: 'processing',

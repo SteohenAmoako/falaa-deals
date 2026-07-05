@@ -48,8 +48,7 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
     }
   };
 
-  const isAirtelTigo = bundle.network.toUpperCase().startsWith('AT_');
-  const isNoExpiry = bundle.network.toUpperCase() === 'AT_NOEXPIRY';
+  const isAirtelTigo = bundle.network.toUpperCase().startsWith('AT_') || bundle.network.toUpperCase().includes('AIRTEL') || bundle.network.toUpperCase().includes('ISHARE') || bundle.network.toUpperCase().includes('BIGTIME');
   
   const formattedGb = parseFloat(bundle.gb_size.toString()).toString() + 'GB';
 
@@ -68,14 +67,6 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
             <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest truncate">
               {bundle.network.replace('AT_', '').replace('_', ' ')}
             </span>
-            {isAirtelTigo && (
-              <span className={cn(
-                "text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full shrink-0",
-                isNoExpiry ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"
-              )}>
-                {isNoExpiry ? 'No Exp' : 'Exp'}
-              </span>
-            )}
           </div>
           
           <div className="pt-2">
@@ -140,13 +131,6 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
                 <span className="text-zinc-500 uppercase">Total Cost</span>
                 <span className="text-[#FFD700]">GHS {bundle.sell_price_ghs?.toFixed(2)}</span>
               </div>
-            </div>
-            
-            <div className="flex items-start gap-2 p-2.5 bg-amber-500/5 border border-amber-500/10 rounded-xl">
-              <Info size={12} className="text-amber-500 shrink-0 mt-0.5" />
-              <p className="text-[9px] text-amber-200/60 leading-tight">
-                Verify recipient number before purchase. Instant delivery is not reversible.
-              </p>
             </div>
           </div>
 

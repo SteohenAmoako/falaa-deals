@@ -23,7 +23,12 @@ async function request(options: RequestInit = {}) {
   const data = await response.json().catch(() => ({}));
   
   if (!response.ok || (data.success === false)) {
-    throw new Error(data.message || `DiceConsult API error: ${response.status}`);
+    // Distinguish between validation errors and balance errors
+    const errorMsg = data.message || `DiceConsult API error: ${response.status}`;
+    if (errorMsg.toLowerCase().includes('insufficient balance') || errorMsg.toLowerCase().includes('top up')) {
+      throw new Error('PROVIDER_INSUFFICIENT_BALANCE');
+    }
+    throw new Error(errorMsg);
   }
 
   return data;

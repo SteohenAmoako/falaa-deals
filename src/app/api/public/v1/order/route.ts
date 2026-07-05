@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { buyBundle } from '@/app/actions/orders';
@@ -11,31 +10,33 @@ const supabaseAdmin = createClient(
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Missing Bearer token' }, { status: 401 });
+    const apiKey = authHeader?.replace('Bearer ', '');
+
+    if (!apiKey) {
+      return NextResponse.json({ success: false, message: 'Authentication Required. Please include your API key.' }, { status: 401 });
     }
 
-    const key = authHeader.split(' ')[1];
-    const { data: keyData } = await supabaseAdmin
+    // 1. Validate API Key
+    const { data: keyRecord, error: keyErr } = await supabaseAdmin
       .from('api_keys')
       .select('user_id')
-      .eq('api_key', key)
+      .eq('api_key', apiKey)
       .eq('is_active', true)
-      .maybeSingle();
+      .single();
 
-    if (!keyData) {
-      return NextResponse.json({ error: 'Invalid API Key' }, { status: 401 });
+    if (keyErr || !keyRecord) {
+      return NextResponse.json({ success: false, message: 'Invalid or inactive API key.' }, { status: 403 });
     }
 
     const body = await req.json();
     const { recipient, network, gb_size } = body;
 
     if (!recipient || !network || !gb_size) {
-      return NextResponse.json({ error: 'Required fields: recipient, network, gb_size' }, { status: 400 });
+      return NextResponse.json({ success: false, message: 'Missing required fields: recipient, network, gb_size' }, { status: 400 });
     }
 
-    // 1. Find the bundle matching the network and size
-    const { data: bundle } = await supabaseAdmin
+    // 2. Find matching bundle
+    const { data: bundle, error: bundleErr } = await supabaseAdmin
       .from('bundles')
       .select('id')
       .eq('network', network.toUpperCase())
@@ -43,24 +44,20 @@ export async function POST(req: NextRequest) {
       .eq('is_active', true)
       .maybeSingle();
 
-    if (!bundle) {
-      return NextResponse.json({ error: 'Bundle not found for this network/size' }, { status: 404 });
+    if (bundleErr || !bundle) {
+      return NextResponse.json({ success: false, message: `Package ${gb_size}GB not found for ${network}.` }, { status: 404 });
     }
 
-    // 2. Execute buy logic (this action already handles balance checks and role-based pricing)
-    const result = await buyBundle(keyData.user_id, bundle.id, recipient);
+    // 3. Process Order
+    const result = await buyBundle(keyRecord.user_id, bundle.id, recipient);
 
     if (!result.success) {
-      return NextResponse.json({ error: result.message }, { status: 400 });
+      return NextResponse.json(result, { status: 400 });
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: result.message,
-      recipient,
-      network
-    });
+    return NextResponse.json(result);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Public API Order Error:', error);
+    return NextResponse.json({ success: false, message: 'Internal Server Error' }, { status: 500 });
   }
 }

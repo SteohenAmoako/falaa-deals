@@ -6,7 +6,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const authHeader = req.headers.get('Authorization');
     const apiKey = authHeader?.replace('Bearer ', '');
@@ -22,31 +22,15 @@ export async function GET(req: NextRequest) {
 
     if (!keyRecord) return NextResponse.json({ success: false, message: 'Invalid API Key' }, { status: 403 });
 
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('role')
-      .eq('user_id', keyRecord.user_id)
+    const { data: order } = await supabaseAdmin
+      .from('orders')
+      .select('status, phone_number, amount, created_at')
+      .or(`dakazina_order_id.eq.${params.id},payment_reference.eq.${params.id}`)
       .single();
 
-    const { data: bundles } = await supabaseAdmin
-      .from('bundles')
-      .select(`
-        network,
-        gb_size,
-        label,
-        bundle_role_prices!inner(sell_price_ghs)
-      `)
-      .eq('is_active', true)
-      .eq('bundle_role_prices.role', profile?.role || 'base');
+    if (!order) return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
 
-    const formatted = bundles?.map(b => ({
-      network: b.network,
-      size: b.gb_size,
-      label: b.label,
-      price: b.bundle_role_prices[0]?.sell_price_ghs
-    }));
-
-    return NextResponse.json({ success: true, bundles: formatted });
+    return NextResponse.json({ success: true, order });
   } catch (error) {
     return NextResponse.json({ success: false, message: 'Server Error' }, { status: 500 });
   }
