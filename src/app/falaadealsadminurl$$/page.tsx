@@ -210,7 +210,14 @@ export default function AdminDashboard() {
             <Table>
               {activeTab === 'orders' && (
                 <>
-                  <TableHeader><TableRow className="border-white/5 bg-white/5"><TableHead className="text-[9px] font-black uppercase px-4">Time</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Customer & Ref</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Order Info</TableHead><TableHead className="text-right px-4">Status</TableHead></TableRow></TableHeader>
+                  <TableHeader>
+                    <TableRow className="border-white/5 bg-white/5">
+                      <TableHead className="text-[9px] font-black uppercase px-4">Time</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase px-4">Customer & Ref</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase px-4">Order Info</TableHead>
+                      <TableHead className="text-right px-4">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
                   <TableBody>
                     {filteredData.map((o: any) => (
                       <TableRow key={o.id} className="border-white/5">
@@ -223,9 +230,38 @@ export default function AdminDashboard() {
                   </TableBody>
                 </>
               )}
+              {activeTab === 'deposits' && (
+                <>
+                  <TableHeader>
+                    <TableRow className="border-white/5 bg-white/5">
+                      <TableHead className="text-[9px] font-black uppercase px-4">Date</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase px-4">Customer</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase px-4">Amount</TableHead>
+                      <TableHead className="text-right px-4">Reference</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredData.map((d: any) => (
+                      <TableRow key={d.id} className="border-white/5">
+                        <TableCell className="px-4 text-[10px] text-zinc-500">{formatLongDate(d.timestamp)}</TableCell>
+                        <TableCell className="px-4 py-3"><div className="text-xs font-bold">{d.name}</div><div className="text-[8px] text-[#FFD700] font-black uppercase">{d.user_ref}</div></TableCell>
+                        <TableCell className="px-4 text-xs font-black text-emerald-400">GHS {d.amount.toFixed(2)}</TableCell>
+                        <TableCell className="text-right px-4 text-[9px] font-mono text-zinc-500">{d.reference}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </>
+              )}
               {activeTab === 'users' && (
                 <>
-                  <TableHeader><TableRow className="border-white/5 bg-white/5"><TableHead className="text-[9px] font-black uppercase px-4">Customer Info</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Balance</TableHead><TableHead className="text-[9px] font-black uppercase px-4">Tier</TableHead><TableHead className="text-right px-4">Actions</TableHead></TableHeader>
+                  <TableHeader>
+                    <TableRow className="border-white/5 bg-white/5">
+                      <TableHead className="text-[9px] font-black uppercase px-4">Customer Info</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase px-4">Balance</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase px-4">Tier</TableHead>
+                      <TableHead className="text-right px-4">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
                   <TableBody>
                     {filteredData.map((u: any) => (
                       <TableRow key={u.id} className="border-white/5">
@@ -258,7 +294,9 @@ export default function AdminDashboard() {
         <DialogContent className="bg-[#111111] border-white/5 text-white max-w-sm rounded-3xl p-6">
           <DialogHeader>
             <DialogTitle className="text-sm font-black uppercase">Balance Adjustment</DialogTitle>
-            <DialogDescription className="text-[11px] text-zinc-500">Modify the wallet balance for {adjUser?.full_name}. Select type and enter amount.</DialogDescription>
+            <DialogDescription className="text-[11px] text-zinc-500">
+              Modify the wallet balance for {adjUser?.full_name}. This will record a new transaction in their history.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-3">

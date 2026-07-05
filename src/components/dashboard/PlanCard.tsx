@@ -51,7 +51,6 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
   const isAirtelTigo = bundle.network.toUpperCase().startsWith('AT_');
   const isNoExpiry = bundle.network.toUpperCase() === 'AT_NOEXPIRY';
   
-  // Format GB size to whole number
   const formattedGb = parseFloat(bundle.gb_size.toString()).toString() + 'GB';
 
   return (
@@ -102,7 +101,7 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
               <Zap className="w-6 h-6 text-[#FFD700]" /> BUY DATA
             </DialogTitle>
             <DialogDescription className="text-zinc-500 font-medium text-xs">
-              Purchasing {formattedGb} for {bundle.network.replace('_', ' ')}.
+              Review your purchase details before confirming. Data delivery usually takes 5-30 seconds.
             </DialogDescription>
           </DialogHeader>
           
@@ -136,7 +135,7 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
             <div className="flex items-start gap-2 p-2.5 bg-amber-500/5 border border-amber-500/10 rounded-xl">
               <Info size={12} className="text-amber-500 shrink-0 mt-0.5" />
               <p className="text-[9px] text-amber-200/60 leading-tight">
-                Verify recipient number before purchase.
+                Verify recipient number before purchase. Instant delivery is not reversible.
               </p>
             </div>
           </div>

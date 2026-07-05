@@ -57,7 +57,6 @@ export default function DashboardPage() {
         setSystemStatus(statusValue);
       }
 
-      // Query from the consolidated orders table
       const [ordersRes, txRes] = await Promise.all([
         supabase.from('orders').select('*').eq('customer_id', profileRes.data?.id).order('created_at', { ascending: false }),
         supabase.from('wallet_transactions').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false })
@@ -85,6 +84,7 @@ export default function DashboardPage() {
 
     bundles.forEach(b => {
       const net = (b.network || '').toUpperCase();
+      // Explicitly exclude MTN EXPRESS from standard MTN
       if (net === 'MTN') {
         groups['MTN'].push(b);
       } else if (net === 'TELECEL') {
@@ -163,21 +163,21 @@ export default function DashboardPage() {
               </DialogTrigger>
               <DialogContent className="bg-[#111118] border-white/5 text-white p-6 max-w-sm rounded-3xl">
                 <DialogHeader>
-                  <DialogTitle className="text-lg font-black italic">MANUAL DEPOSIT</DialogTitle>
+                  <DialogTitle className="text-lg font-black italic">WALLET RECHARGE</DialogTitle>
                   <DialogDescription className="text-[11px] text-zinc-500 font-medium">
-                    Send funds to the merchant account below using your unique reference code to credit your wallet.
+                    Send funds to the merchant account below using your unique reference code.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="p-4 bg-black/40 rounded-2xl space-y-4 border border-white/5">
                   <div>
-                    <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-1">Send MoMo To</p>
+                    <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-1">Merchant Number</p>
                     <p className="text-2xl font-black text-white">0595919802</p>
-                    <p className="text-[10px] text-violet-400 font-bold mt-0.5">Merchant: Falaa Deals</p>
+                    <p className="text-[10px] text-violet-400 font-bold mt-0.5">Falaa Deals Official</p>
                   </div>
                   <div className="pt-4 border-t border-white/5">
-                    <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-1">Use Reference</p>
+                    <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-1">Deposit Reference</p>
                     <p className="text-2xl font-black text-[#FFD700] font-mono tracking-tighter">{profile.reference_code}</p>
-                    <p className="text-[9px] text-zinc-400 mt-2 font-medium">Auto-credited within seconds of payment.</p>
+                    <p className="text-[9px] text-zinc-400 mt-2 font-medium">Automatic credit within 30 seconds.</p>
                   </div>
                 </div>
               </DialogContent>
@@ -209,9 +209,9 @@ export default function DashboardPage() {
               <div className="space-y-1">
                 <h2 className="text-xl font-black tracking-tight flex items-center gap-2">
                   <Zap className="text-[#FFD700] w-5 h-5" />
-                  Buy Data
+                  Select Bundle
                 </h2>
-                <p className="text-zinc-500 text-xs">Choose network to view bundles.</p>
+                <p className="text-zinc-500 text-xs">Choose a network to view current rates.</p>
               </div>
 
               <Tabs defaultValue="MTN" className="space-y-6">
