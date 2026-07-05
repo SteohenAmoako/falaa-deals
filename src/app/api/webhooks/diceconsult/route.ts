@@ -8,6 +8,7 @@ const supabaseAdmin = createClient(
 
 /**
  * DiceConsult Webhook Handler
+ * Processes real-time status updates from diceconsultgh.com
  */
 export async function POST(req: NextRequest) {
   try {
@@ -15,19 +16,24 @@ export async function POST(req: NextRequest) {
     console.log('📋 DiceConsult Webhook Payload:', JSON.stringify(body, null, 2));
 
     const { reference, status: rawStatus, phone, amount } = body;
+    const secret = process.env.DICECONSULT_WEBHOOK_SECRET;
+
+    // Optional: Verify signature if provided in headers
+    // const signature = req.headers.get('X-Dice-Signature');
 
     if (!reference) {
       return NextResponse.json({ ok: false, message: "Missing reference" }, { status: 200 });
     }
 
-    // DiceConsult statuses: "Success", "Failed"
+    // DiceConsult statuses: "Success", "Failed", "Processing"
     let status = 'processing';
-    const normalizedStatus = rawStatus?.toLowerCase();
+    const normalizedStatus = (rawStatus || '').toLowerCase();
     
     if (normalizedStatus === 'success') status = 'delivered';
     if (normalizedStatus === 'failed') status = 'failed';
 
     // 1. Reconcile Order (orders table)
+    // We check both payment_reference and provider_order_id
     const { data: order, error: orderErr } = await supabaseAdmin
       .from('orders')
       .update({ 
@@ -60,6 +66,9 @@ export async function POST(req: NextRequest) {
   }
 }
 
+/**
+ * Diagnostic GET endpoint
+ */
 export async function GET() {
-  return NextResponse.json({ ok: true, message: "DiceConsult Webhook active" });
+  return NextResponse.json({ ok: true, message: "DiceConsult Webhook endpoint is active" });
 }

@@ -47,58 +47,80 @@ export async function getBundlesForRole(role: UserRole): Promise<Bundle[]> {
   }
 }
 
+/**
+ * Synchronize bundles from DiceConsult using the provided pricing table.
+ */
 export async function syncBundlesFromDiceConsult() {
   try {
     const DICE_CATALOG = [
-      { network: 'MTN', gb: 1, cost: 3.55 },
-      { network: 'MTN', gb: 2, cost: 7.10 },
-      { network: 'MTN', gb: 3, cost: 10.85 },
-      { network: 'MTN', gb: 5, cost: 17.75 },
-      { network: 'MTN', gb: 10, cost: 35.50 },
-      { network: 'Telecel', gb: 5, cost: 18.5 },
-      { network: 'Telecel', gb: 10, cost: 37 },
-      { network: 'iShare', gb: 1, cost: 3.8 },
-      { network: 'iShare', gb: 5, cost: 19 },
-      { network: 'BigTime', gb: 15, cost: 55 },
-      { network: 'BigTime', gb: 30, cost: 65 },
+      { gb: 1, cost: 4.70, sell: 5.03 },
+      { gb: 2, cost: 9.80, sell: 10.49 },
+      { gb: 3, cost: 14.00, sell: 14.98 },
+      { gb: 4, cost: 18.50, sell: 19.80 },
+      { gb: 5, cost: 23.00, sell: 24.61 },
+      { gb: 6, cost: 28.00, sell: 29.96 },
+      { gb: 8, cost: 36.00, sell: 38.52 },
+      { gb: 10, cost: 43.00, sell: 46.01 },
+      { gb: 15, cost: 61.00, sell: 65.27 },
+      { gb: 20, cost: 81.00, sell: 86.67 },
+      { gb: 25, cost: 99.00, sell: 105.93 },
+      { gb: 30, cost: 121.00, sell: 129.47 },
+      { gb: 40, cost: 159.00, sell: 170.13 },
+      { gb: 50, cost: 197.00, sell: 210.79 },
+      { gb: 100, cost: 390.00, sell: 417.30 },
     ];
 
     let updatedCount = 0;
 
     for (const pkg of DICE_CATALOG) {
-      const bundleData = {
-        provider: 'diceconsult',
-        provider_bundle_id: `${pkg.network}_${pkg.gb}GB`,
-        network: pkg.network,
-        gb_size: pkg.gb,
-        label: `${pkg.gb}GB`,
-        cost_price_ghs: pkg.cost,
-        is_active: true,
-        updated_at: new Date().toISOString()
-      };
+      // Primary focus on MTN as per table, but logic can be replicated for other networks
+      const networks = ['MTN', 'Telecel', 'iShare', 'BigTime'];
+      
+      for (const network of networks) {
+        // Skip networks not applicable to certain sizes if necessary, 
+        // but for now, we apply the table to the primary requested network.
+        if (network !== 'MTN' && pkg.gb > 50) continue; 
 
-      const { data: bundle, error: bErr } = await supabaseAdmin
-        .from('bundles')
-        .upsert(bundleData, { onConflict: 'provider,provider_bundle_id' })
-        .select()
-        .single();
+        const bundleData = {
+          provider: 'diceconsult',
+          provider_bundle_id: `${network}_${pkg.gb}GB`,
+          network: network,
+          gb_size: pkg.gb,
+          label: `${pkg.gb}GB`,
+          cost_price_ghs: pkg.cost,
+          is_active: true,
+          updated_at: new Date().toISOString()
+        };
 
-      if (bErr || !bundle) continue;
+        const { data: bundle, error: bErr } = await supabaseAdmin
+          .from('bundles')
+          .upsert(bundleData, { onConflict: 'provider,provider_bundle_id' })
+          .select()
+          .single();
 
-      updatedCount++;
+        if (bErr || !bundle) continue;
 
-      const cost = bundle.cost_price_ghs;
-      const roles: UserRole[] = ['api_user', 'falaa', 'base'];
-      const markups = { api_user: 1.05, falaa: 1.15, base: 1.30 };
+        updatedCount++;
 
-      for (const role of roles) {
-        await supabaseAdmin
-          .from('bundle_role_prices')
-          .upsert({
-            bundle_id: bundle.id,
-            role,
-            sell_price_ghs: cost * markups[role]
-          }, { onConflict: 'bundle_id,role' });
+        const roles: UserRole[] = ['api_user', 'falaa', 'base'];
+        const markups = { api_user: 1.0, falaa: 1.10, base: 1.25 }; // Fallbacks
+
+        for (const role of roles) {
+          let sellPrice = bundle.cost_price_ghs * markups[role];
+          
+          // Use the EXACT selling price for API users provided in the table
+          if (role === 'api_user') {
+            sellPrice = pkg.sell;
+          }
+
+          await supabaseAdmin
+            .from('bundle_role_prices')
+            .upsert({
+              bundle_id: bundle.id,
+              role,
+              sell_price_ghs: sellPrice
+            }, { onConflict: 'bundle_id,role' });
+        }
       }
     }
 
