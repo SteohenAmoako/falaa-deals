@@ -1,11 +1,11 @@
-'use client';
+'use server';
 
 import { useState } from 'react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Phone, Zap, Info, ArrowRight } from "lucide-react";
+import { Loader2, Phone, Zap, Info, ArrowRight, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { buyBundle } from '@/app/actions/orders';
 import { useToast } from '@/hooks/use-toast';
@@ -100,12 +100,22 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
             <DialogTitle className="text-2xl font-black italic tracking-tight flex items-center gap-2">
               <Zap className="w-6 h-6 text-[#FFD700]" /> BUY DATA
             </DialogTitle>
-            <DialogDescription className="text-zinc-500 font-medium text-xs">
-              Review your purchase details before confirming. Data delivery usually takes 5-30 seconds.
+            <DialogDescription className="text-zinc-500 font-medium text-[11px] leading-tight">
+              Please review the mandatory usage guidelines below before confirming your purchase.
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl space-y-2">
+              <div className="flex items-center gap-2 text-red-400">
+                <AlertTriangle size={14} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Important Disclaimer</span>
+              </div>
+              <p className="text-[10px] text-zinc-300 font-medium leading-relaxed">
+                This package is strictly for <strong className="text-white">existing customers</strong> who have previously purchased the <strong className="text-[#FFD700]">MTNUP2U</strong> package. If the number has never bought this before, it will not arrive. Note that delivery may be delayed due to network complications. <strong className="text-red-400">Read carefully before you buy.</strong>
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label className="text-[10px] text-zinc-400 uppercase font-black tracking-widest flex items-center gap-1.5">
                 <Phone size={10} className="text-violet-500" /> 

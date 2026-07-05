@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Users, ShoppingCart, Wallet, Search, Loader2, RefreshCw,
-  ArrowDownLeft, LogOut, LayoutDashboard, TrendingUp, PackageSearch, Menu, Plus
+  ArrowDownLeft, LogOut, LayoutDashboard, TrendingUp, PackageSearch, Menu, Plus, AlertTriangle
 } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
