@@ -68,7 +68,6 @@ export async function getAdminDashboardData() {
     const today = new Date().toISOString().split('T')[0];
     const { count: totalUsers } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
     
-    // Stats: Deposits Today
     const { data: depositsToday } = await supabaseAdmin
       .from('wallet_transactions')
       .select('amount')
@@ -84,30 +83,27 @@ export async function getAdminDashboardData() {
       if (activeProvider === 'bytemedeals') {
         const res = await byteMeDealsClient.getBalance();
         upstreamBalance = res.balance || 0;
-      } else if (activeProvider === 'diceconsult') {
-        // DiceConsult returns balance in success response of purchases, but no direct balance endpoint usually.
       }
     } catch (err) { console.warn('Provider balance fetch failed', err); }
 
-    // Stats: Orders Today
     const { count: totalTodayOrders } = await supabaseAdmin
-      .from('orders')
+      .from('rahitalu_orders')
       .select('*', { count: 'exact', head: true })
       .gte('created_at', today);
 
-    // Main Tables
     const [ordersRes, walletTxRes, usersRes] = await Promise.all([
       supabaseAdmin
-        .from('orders')
+        .from('rahitalu_orders')
         .select(`
           *,
-          profiles:customer_id(reference_code, full_name)
+          profiles:user_id(reference_code, full_name)
         `)
         .order('created_at', { ascending: false })
         .limit(500),
       supabaseAdmin
         .from('wallet_transactions')
-        .select('*, profiles(full_name, reference_code, phone)')
+        .select('*, profiles:user_id(full_name, reference_code, phone)')
+        .eq('type', 'credit')
         .order('created_at', { ascending: false })
         .limit(500),
       supabaseAdmin
@@ -119,22 +115,21 @@ export async function getAdminDashboardData() {
 
     const allOrders = (ordersRes.data || []).map(o => ({
       id: o.id,
-      phone: o.phone_number,
-      plan: `${o.package_id}GB`,
+      phone: o.phone,
+      plan: o.gig,
       status: o.status,
       timestamp: o.created_at,
       user_ref: (o.profiles as any)?.reference_code || 'N/A',
       user_name: (o.profiles as any)?.full_name || 'N/A',
-      amount: Number(o.amount || 0)
+      amount: Number(o.sell_price_ghs || 0)
     }));
 
     const allDeposits = (walletTxRes.data || [])
-      .filter(tx => tx.type === 'credit' && tx.status === 'success')
       .map(tx => ({
         id: tx.id,
-        phone: tx.profiles?.phone || 'N/A',
-        name: tx.profiles?.full_name || 'N/A',
-        user_ref: tx.profiles?.reference_code || 'N/A',
+        phone: (tx.profiles as any)?.phone || 'N/A',
+        name: (tx.profiles as any)?.full_name || 'N/A',
+        user_ref: (tx.profiles as any)?.reference_code || 'N/A',
         amount: Number(tx.amount || 0),
         reference: tx.reference,
         timestamp: tx.created_at,

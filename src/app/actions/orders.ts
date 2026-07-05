@@ -14,27 +14,18 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-/**
- * Mapping for ByteMeDeals networks
- */
 const BYTE_ME_NETWORK_MAP: Record<string, 'MTN' | 'VOD' | 'ATM'> = {
   'MTN': 'MTN',
   'TELECEL': 'VOD',
   'AIRTELTIGO': 'ATM'
 };
 
-/**
- * Mapping for DiceConsult networks
- */
 const DICE_NETWORK_MAP: Record<string, string> = {
   'MTN': 'MTN',
   'TELECEL': 'Telecel',
   'AIRTELTIGO': 'iShare'
 };
 
-/**
- * Common order logic for any bundle from any provider.
- */
 export async function buyBundle(userId: string, bundleId: string, phone: string) {
   try {
     const { data: profile, error: profileErr } = await supabaseAdmin
@@ -60,10 +51,8 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
     }
 
     const actualPrice = parseFloat(bundleData.bundle_role_prices[0].sell_price_ghs);
-    const costPrice = parseFloat(bundleData.cost_price_ghs || 0);
     const currentBalance = parseFloat(profile.wallet_balance.toString());
 
-    // 1. Check Customer Wallet Balance
     if (currentBalance < actualPrice) {
       return { success: false, message: 'Purchase Failed: Insufficient balance.' };
     }
@@ -88,7 +77,6 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
         upstreamResponse = await diceConsultClient.purchaseData(network, phone, bundleData.label);
       }
     } catch (apiError: any) {
-      // 2. Distinguish Provider Balance Error
       const isProviderEmpty = apiError.message === 'PROVIDER_INSUFFICIENT_BALANCE';
       const errorMsg = isProviderEmpty 
         ? "Prompt admin immediately on 0203558192 or WhatsApp on 0573677371" 
@@ -106,9 +94,9 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
       throw new Error(errorMsg);
     }
 
-    const providerOrderId = upstreamResponse?.reference || upstreamResponse?.order_code || upstreamResponse?.order_id || null;
-
+    const providerOrderId = upstreamResponse?.reference || upstreamResponse?.order_code || upstreamResponse?.order_id || internalRef;
     const newBalance = currentBalance - actualPrice;
+    
     await supabaseAdmin.from('profiles').update({ wallet_balance: newBalance }).eq('id', profile.id);
 
     await supabaseAdmin.from('wallet_transactions').insert({
@@ -120,19 +108,14 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
       description: `Bought ${bundleData.label} for ${phone} (${providerToUse})`,
     });
 
-    // Record in consolidated 'orders' table
-    await supabaseAdmin.from('orders').insert({
-      customer_id: profile.id,
-      package_id: parseInt(bundleData.gb_size.toString()),
-      network_id: 3, // Generic MTN default, can be mapped specifically
-      phone_number: phone,
-      amount: actualPrice,
-      status: 'processing',
-      actual_cost: costPrice,
-      reseller_profit: actualPrice - costPrice,
-      payment_reference: internalRef,
-      customer_phone: phone,
-      dakazina_order_id: providerOrderId || internalRef
+    await supabaseAdmin.from('rahitalu_orders').insert({
+      user_id: userId,
+      phone: phone,
+      plan_id: bundleData.provider_bundle_id,
+      gig: `${bundleData.gb_size}GB`,
+      sell_price_ghs: actualPrice,
+      reference: providerOrderId,
+      status: 'processing'
     });
 
     await sendNtfy({
@@ -144,7 +127,7 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
         phone, 
         price: actualPrice, 
         provider: providerToUse,
-        ref: internalRef 
+        ref: providerOrderId 
       }
     });
 

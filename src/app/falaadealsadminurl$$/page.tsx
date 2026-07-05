@@ -186,6 +186,7 @@ export default function AdminDashboard() {
               <Switch checked={localSystemEnabled} onCheckedChange={setLocalSystemEnabled} />
             </CardHeader>
             <CardContent className="p-4 space-y-4">
+              <DialogDescription className="hidden">Maintenance mode settings</DialogDescription>
               <Textarea placeholder="Msg..." value={localSystemMessage} onChange={e => setLocalSystemMessage(e.target.value)} className="bg-[#0d0d0d] border-white/5 text-[11px] min-h-[60px]" />
               <Button onClick={handleUpdateStatus} disabled={updatingStatus} className="w-full bg-[#FFD700] text-black font-black uppercase text-[10px] h-9">Save Config</Button>
             </CardContent>

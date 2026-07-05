@@ -7,9 +7,6 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-/**
- * Clean up inputs in case the iPhone Shortcut sends labels instead of just values.
- */
 function sanitizeInput(value: any): string {
   if (typeof value !== 'string') return String(value || '');
   return value
@@ -19,9 +16,6 @@ function sanitizeInput(value: any): string {
     .trim();
 }
 
-/**
- * Enhanced MoMo Message Parser
- */
 function parseMomoMessage(rawText: string) {
   const amountMatch = rawText.match(/received for GHS\s*([\d,]+\.?\d*)/i) || 
                       rawText.match(/GHS\s*([\d,]+\.?\d*)/i);
@@ -91,7 +85,7 @@ export async function POST(req: NextRequest) {
     if (!reference || amount === null || isNaN(amount) || !transactionId) {
       return NextResponse.json({ 
         success: false, 
-        message: 'Data parsing failed. Ensure reference, amount, and transactionId are correctly sent.' 
+        message: 'Data parsing failed.' 
       }, { status: 400 });
     }
 
@@ -132,11 +126,9 @@ export async function POST(req: NextRequest) {
       amount,
       type: 'credit',
       reference: transactionId,
-      description: `MoMo Deposit (Ref: ${reference})`,
-      status: 'success'
+      description: `MoMo Deposit (Ref: ${reference})`
     });
 
-    // Notify ntfy
     await sendNtfy({
       title: `${profile.full_name} (${profile.reference_code}): MoMo Deposit GHS ${amount}`,
       tags: ["momo", "deposit", "wallet"],
@@ -154,16 +146,4 @@ export async function POST(req: NextRequest) {
     console.error('MoMo Webhook Fatal Error:', error);
     return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
   }
-}
-
-export async function GET() {
-  const isSecretSet = !!process.env.MOMO_WEBHOOK_SECRET;
-  return NextResponse.json({ 
-    success: true, 
-    message: 'MoMo Webhook Active',
-    diagnostics: {
-      secretIsConfigured: isSecretSet,
-      supportedFormat: "POST JSON with fields 'reference', 'amount', 'transactionId'"
-    }
-  });
 }

@@ -58,7 +58,7 @@ export default function DashboardPage() {
       }
 
       const [ordersRes, txRes] = await Promise.all([
-        supabase.from('orders').select('*').eq('customer_id', profileRes.data?.id).order('created_at', { ascending: false }),
+        supabase.from('rahitalu_orders').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false }),
         supabase.from('wallet_transactions').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false })
       ]);
 
@@ -84,7 +84,6 @@ export default function DashboardPage() {
 
     bundles.forEach(b => {
       const net = (b.network || '').toUpperCase();
-      // Explicitly exclude MTN EXPRESS from standard MTN
       if (net === 'MTN') {
         groups['MTN'].push(b);
       } else if (net === 'TELECEL') {
@@ -272,11 +271,11 @@ export default function DashboardPage() {
                   </TableHeader>
                   <TableBody>
                     {orders
-                      .filter(o => (o.phone_number || '').includes(ordersSearch) || (o.package_id || '').toString().includes(ordersSearch))
+                      .filter(o => (o.phone || '').includes(ordersSearch) || (o.gig || '').toString().includes(ordersSearch))
                       .map(order => (
                       <TableRow key={order.id} className="border-white/5 hover:bg-white/5 h-12">
-                        <TableCell className="text-xs font-bold">{order.package_id}GB</TableCell>
-                        <TableCell className="font-mono text-[11px] text-zinc-400">{order.phone_number}</TableCell>
+                        <TableCell className="text-xs font-bold">{order.gig}</TableCell>
+                        <TableCell className="font-mono text-[11px] text-zinc-400">{order.phone}</TableCell>
                         <TableCell className="text-right"><StatusBadge status={order.status} /></TableCell>
                       </TableRow>
                     ))}
@@ -304,7 +303,7 @@ export default function DashboardPage() {
                         <TableCell className="text-[10px] text-zinc-500 whitespace-nowrap">{formatLongDate(tx.created_at)}</TableCell>
                         <TableCell className="text-xs max-w-[150px] truncate">{tx.description}</TableCell>
                         <TableCell className={cn("font-black text-right text-xs", tx.type === 'credit' ? 'text-emerald-400' : 'text-white')}>
-                          {tx.type === 'credit' ? '+' : '-'} {tx.amount.toFixed(2)}
+                          {tx.type === 'credit' ? '+' : '-'} {Number(tx.amount || 0).toFixed(2)}
                         </TableCell>
                       </TableRow>
                     ))}

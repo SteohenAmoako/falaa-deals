@@ -37,19 +37,14 @@ export type Bundle = {
 
 export type Order = {
   id: string;
-  customer_id: string;
-  store_id: string | null;
-  package_id: number;
-  network_id: number;
-  phone_number: string;
-  amount: number;
-  status: 'pending' | 'processing' | 'completed' | 'delivered' | 'failed';
+  user_id: string;
+  phone: string;
+  plan_id: string;
+  gig: string;
+  sell_price_ghs: number;
+  reference: string;
+  status: 'pending' | 'processing' | 'delivered' | 'failed';
+  upstream_status: string | null;
+  delivered_gb: number;
   created_at: string;
-  updated_at: string;
-  actual_cost: number;
-  reseller_profit: number;
-  platform_profit: number | null;
-  payment_reference: string | null;
-  customer_phone: string;
-  dakazina_order_id: string | null;
 };
