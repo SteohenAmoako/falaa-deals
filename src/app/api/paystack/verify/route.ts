@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('id, wallet_balance, full_name, reference_code')
+      .select('id, user_id, wallet_balance, full_name, reference_code')
       .eq('user_id', userId)
       .single();
 

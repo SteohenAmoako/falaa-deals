@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -186,7 +186,7 @@ export default function AdminDashboard() {
               <Switch checked={localSystemEnabled} onCheckedChange={setLocalSystemEnabled} />
             </CardHeader>
             <CardContent className="p-4 space-y-4">
-              <DialogDescription className="hidden">Maintenance mode settings</DialogDescription>
+              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Global Announcement</p>
               <Textarea placeholder="Msg..." value={localSystemMessage} onChange={e => setLocalSystemMessage(e.target.value)} className="bg-[#0d0d0d] border-white/5 text-[11px] min-h-[60px]" />
               <Button onClick={handleUpdateStatus} disabled={updatingStatus} className="w-full bg-[#FFD700] text-black font-black uppercase text-[10px] h-9">Save Config</Button>
             </CardContent>

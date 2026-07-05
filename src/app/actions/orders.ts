@@ -8,6 +8,7 @@ import { byteMeDealsClient } from '@/lib/bytemedeals/client';
 import { diceConsultClient } from '@/lib/diceconsult/client';
 import { revalidatePath } from 'next/cache';
 import { sendNtfy } from '@/lib/notifications';
+import { getActiveProvider } from '@/app/actions/admin';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
