@@ -1,4 +1,3 @@
-
 export type UserRole = 'api_user' | 'falaa' | 'base';
 
 export type Profile = {
@@ -26,14 +25,14 @@ export type WalletTransaction = {
 
 export type Bundle = {
   id: string;
-  provider: 'skplug' | 'rahitalu' | 'dakazina';
+  provider: 'skplug' | 'rahitalu' | 'dakazina' | 'bytemedeals' | 'diceconsult';
   provider_bundle_id: string;
   network: string;
   gb_size: number;
   label: string;
   cost_price_ghs: number;
   is_active: boolean;
-  sell_price_ghs?: number; // Populated based on role
+  sell_price_ghs?: number;
 };
 
 export type Order = {
@@ -50,10 +49,7 @@ export type Order = {
   actual_cost: number;
   reseller_profit: number;
   platform_profit: number | null;
-  profit_margin: number | null;
   payment_reference: string | null;
-  paystack_transaction_id: string | null;
-  customer_email: string | null;
   customer_phone: string;
   dakazina_order_id: string | null;
 };

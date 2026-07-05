@@ -1,7 +1,6 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
-import { getUpstreamDashboard } from '@/lib/rahitalu';
 import { byteMeDealsClient } from '@/lib/bytemedeals/client';
 import { revalidatePath } from 'next/cache';
 import { UserRole } from '@/lib/types';
@@ -19,11 +18,8 @@ export async function checkIsAdmin(userId: string) {
       .select('is_admin')
       .eq('user_id', userId)
       .maybeSingle();
-
     return profile?.is_admin === true;
-  } catch (err) {
-    return false;
-  }
+  } catch (err) { return false; }
 }
 
 export async function getSystemStatus() {
@@ -34,14 +30,11 @@ export async function getSystemStatus() {
       .select('value')
       .eq('key', 'maintenance_mode')
       .maybeSingle();
-
     return data?.value || { enabled: true, message: '' };
-  } catch (error) {
-    return { enabled: true, message: '' };
-  }
+  } catch (error) { return { enabled: true, message: '' }; }
 }
 
-export async function getActiveProvider(): Promise<'skplug' | 'dakazina' | 'bytemedeals'> {
+export async function getActiveProvider(): Promise<'skplug' | 'dakazina' | 'bytemedeals' | 'diceconsult'> {
   if (!url || !key) return 'skplug';
   try {
     const { data } = await supabaseAdmin
@@ -50,12 +43,10 @@ export async function getActiveProvider(): Promise<'skplug' | 'dakazina' | 'byte
       .eq('key', 'active_provider')
       .maybeSingle();
     return data?.value?.provider || 'skplug';
-  } catch {
-    return 'skplug';
-  }
+  } catch { return 'skplug'; }
 }
 
-export async function updateActiveProvider(provider: 'skplug' | 'dakazina' | 'bytemedeals') {
+export async function updateActiveProvider(provider: 'skplug' | 'dakazina' | 'bytemedeals' | 'diceconsult') {
   if (!url || !key) return { success: false, message: 'DB not configured' };
   try {
     await supabaseAdmin
@@ -65,96 +56,47 @@ export async function updateActiveProvider(provider: 'skplug' | 'dakazina' | 'by
         value: { provider },
         updated_at: new Date().toISOString()
       }, { onConflict: 'key' });
-    
     revalidatePath('/dashboard');
     revalidatePath('/falaadealsadminurl$$');
     return { success: true };
-  } catch (error: any) {
-    return { success: false, message: error.message };
-  }
+  } catch (error: any) { return { success: false, message: error.message }; }
 }
 
 export async function getAdminDashboardData() {
   if (!url || !key) return null;
   try {
     const today = new Date().toISOString().split('T')[0];
-    
-    const { count: totalUsers } = await supabaseAdmin
-      .from('profiles')
-      .select('*', { count: 'exact', head: true });
+    const { count: totalUsers } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
+    const { data: depositsToday } = await supabaseAdmin.from('wallet_transactions').select('amount').eq('type', 'credit').eq('status', 'success').gte('created_at', today);
 
-    const { data: depositsToday } = await supabaseAdmin
-      .from('wallet_transactions')
-      .select('amount')
-      .eq('type', 'credit')
-      .eq('status', 'success')
-      .gte('created_at', today);
-
-    const todayDepositsAmount = (depositsToday || []).reduce((sum, tx) => {
-      const val = parseFloat(tx.amount?.toString() || '0');
-      return sum + (isNaN(val) ? 0 : val);
-    }, 0);
-
+    const todayDepositsAmount = (depositsToday || []).reduce((sum, tx) => sum + parseFloat(tx.amount?.toString() || '0'), 0);
     const activeProvider = await getActiveProvider();
     
-    // Get Provider Balance
     let upstreamBalance = 0;
     try {
       if (activeProvider === 'bytemedeals') {
         const res = await byteMeDealsClient.getBalance();
         upstreamBalance = res.balance || 0;
-      } else {
-        const upstreamDash = await getUpstreamDashboard().catch(() => ({ wallet: { balance: 0 } }));
-        upstreamBalance = upstreamDash?.wallet?.balance || 0;
       }
-    } catch (err) {
-      console.warn('Provider balance fetch failed', err);
-    }
+    } catch (err) { console.warn('Provider balance fetch failed', err); }
 
-    const [rahCount, skCount, dakCount] = await Promise.all([
-      supabaseAdmin.from('rahitalu_orders').select('*', { count: 'exact', head: true }).gte('created_at', today),
-      supabaseAdmin.from('skplug_orders').select('*', { count: 'exact', head: true }).gte('created_at', today),
-      supabaseAdmin.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', today),
-    ]);
-    const totalTodayOrders = (rahCount.count || 0) + (skCount.count || 0) + (dakCount.count || 0);
+    const { count: totalTodayOrders } = await supabaseAdmin.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', today);
 
-    const [rahitaluOrdersRes, skplugOrdersRes, dakazinaOrdersRes, walletTxRes, usersRes] = await Promise.all([
-      supabaseAdmin.from('rahitalu_orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(200),
-      supabaseAdmin.from('skplug_orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(200),
+    const [ordersRes, walletTxRes, usersRes] = await Promise.all([
       supabaseAdmin.from('orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(500),
       supabaseAdmin.from('wallet_transactions').select('*, profiles(full_name, reference_code, phone)').order('created_at', { ascending: false }).limit(500),
       supabaseAdmin.from('profiles').select('*').order('created_at', { ascending: false }).limit(1000)
     ]);
 
-    const allOrders = [
-      ...(rahitaluOrdersRes.data || []).map(o => ({
-        id: o.id,
-        phone: o.phone,
-        plan: o.gig,
-        status: o.status,
-        timestamp: o.created_at,
-        user_ref: (o.profiles as any)?.reference_code || 'N/A',
-        provider: 'rahitalu'
-      })),
-      ...(skplugOrdersRes.data || []).map(o => ({
-        id: o.id,
-        phone: o.recipient,
-        plan: `${o.gb_size}GB`,
-        status: o.status,
-        timestamp: o.created_at,
-        user_ref: (o.profiles as any)?.reference_code || 'N/A',
-        provider: 'skplug'
-      })),
-      ...(dakazinaOrdersRes.data || []).map(o => ({
-        id: o.id,
-        phone: o.phone_number,
-        plan: `${o.package_id}GB`,
-        status: o.status,
-        timestamp: o.created_at,
-        user_ref: (o.profiles as any)?.reference_code || 'N/A',
-        provider: 'generic' // ByteMeDeals and Dakazina share this table
-      }))
-    ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const allOrders = (ordersRes.data || []).map(o => ({
+      id: o.id,
+      phone: o.phone_number,
+      plan: `${o.package_id}GB`,
+      status: o.status,
+      timestamp: o.created_at,
+      user_ref: (o.profiles as any)?.reference_code || 'N/A',
+      provider: 'generic'
+    }));
 
     const allDeposits = (walletTxRes.data || [])
       .filter(tx => tx.type === 'credit' && tx.status === 'success')
@@ -170,13 +112,7 @@ export async function getAdminDashboardData() {
       }));
 
     return {
-      stats: {
-        totalUsers: totalUsers || 0,
-        todayDeposits: todayDepositsAmount,
-        todayOrders: totalTodayOrders,
-        rahitaluBalance: upstreamBalance,
-        todayProfit: 0 
-      },
+      stats: { totalUsers: totalUsers || 0, todayDeposits: todayDepositsAmount, todayOrders: totalTodayOrders || 0, rahitaluBalance: upstreamBalance, todayProfit: 0 },
       systemStatus: await getSystemStatus(),
       activeProvider,
       users: usersRes.data || [],
@@ -191,11 +127,7 @@ export async function getAdminDashboardData() {
 
 export async function assignUserRole(userId: string, role: UserRole) {
   if (!url || !key) return;
-  const { error } = await supabaseAdmin
-    .from('profiles')
-    .update({ role })
-    .eq('user_id', userId);
-
+  const { error } = await supabaseAdmin.from('profiles').update({ role }).eq('user_id', userId);
   if (error) throw error;
   revalidatePath('/falaadealsadminurl$$');
   return { success: true };
@@ -204,53 +136,25 @@ export async function assignUserRole(userId: string, role: UserRole) {
 export async function updateSystemStatus(enabled: boolean, message: string) {
   if (!url || !key) return { success: false, message: 'DB not configured' };
   try {
-    await supabaseAdmin
-      .from('system_configs')
-      .upsert({ 
-        key: 'maintenance_mode', 
-        value: { enabled, message },
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'key' });
-
+    await supabaseAdmin.from('system_configs').upsert({ key: 'maintenance_mode', value: { enabled, message }, updated_at: new Date().toISOString() }, { onConflict: 'key' });
     return { success: true };
-  } catch (error: any) {
-    return { success: false, message: error.message };
-  }
+  } catch (error: any) { return { success: false, message: error.message }; }
 }
 
 export async function adjustUserBalance(profileId: string, amount: number, type: 'credit' | 'debit', reason: string) {
   if (!url || !key) return { success: false, message: 'DB not configured' };
   try {
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('id, user_id, wallet_balance')
-      .eq('id', profileId)
-      .single();
-
+    const { data: profile } = await supabaseAdmin.from('profiles').select('id, user_id, wallet_balance').eq('id', profileId).single();
     if (!profile) throw new Error('User profile not found');
 
     const currentBalance = parseFloat(profile.wallet_balance.toString());
     const newBalance = type === 'credit' ? currentBalance + amount : currentBalance - amount;
-
     if (newBalance < 0 && type === 'debit') throw new Error('Insufficient funds');
 
-    await supabaseAdmin
-      .from('profiles')
-      .update({ wallet_balance: newBalance })
-      .eq('id', profileId);
-
-    await supabaseAdmin.from('wallet_transactions').insert({
-      user_id: profile.user_id,
-      amount,
-      type,
-      status: 'success',
-      reference: `ADM-${Math.random().toString(36).substring(7).toUpperCase()}`,
-      description: `Admin ${type === 'credit' ? 'Credit' : 'Debit'}: ${reason}`,
-    });
+    await supabaseAdmin.from('profiles').update({ wallet_balance: newBalance }).eq('id', profileId);
+    await supabaseAdmin.from('wallet_transactions').insert({ user_id: profile.user_id, amount, type, status: 'success', reference: `ADM-${Math.random().toString(36).substring(7).toUpperCase()}`, description: `Admin ${type === 'credit' ? 'Credit' : 'Debit'}: ${reason}` });
 
     revalidatePath('/dashboard');
     return { success: true, newBalance };
-  } catch (error: any) {
-    return { success: false, message: error.message };
-  }
+  } catch (error: any) { return { success: false, message: error.message }; }
 }
