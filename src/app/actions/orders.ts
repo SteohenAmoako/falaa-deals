@@ -1,10 +1,10 @@
-
-'use server';
+'use client';
 
 import { createClient } from '@supabase/supabase-js';
 import { placeDataOrder } from '@/lib/rahitalu';
 import { skPlugClient } from '@/lib/skplug/client';
 import { dakazinaClient } from '@/lib/dakazina/client';
+import { byteMeDealsClient } from '@/lib/bytemedeals/client';
 import { revalidatePath } from 'next/cache';
 import { sendNtfy } from '@/lib/notifications';
 import { getActiveProvider } from '@/app/actions/admin';
@@ -15,8 +15,20 @@ const supabaseAdmin = createClient(
 );
 
 /**
+ * Mapping for ByteMeDeals networks
+ */
+const BYTE_ME_NETWORK_MAP: Record<string, 'MTN' | 'VOD' | 'ATM'> = {
+  'MTN': 'MTN',
+  'MTN EXPRESS': 'MTN',
+  'MTN AFA': 'MTN',
+  'TELECEL': 'VOD',
+  'AIRTELTIGO': 'ATM',
+  'AT - BIGTIME': 'ATM',
+  'AT - ISHARE': 'ATM'
+};
+
+/**
  * Common order logic for any bundle from any provider.
- * Dakazina orders use the new 'public.orders' schema.
  */
 export async function buyBundle(userId: string, bundleId: string, phone: string) {
   try {
@@ -54,7 +66,7 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
 
     // 3. Dispatch to Upstream Provider
     const providerToUse = bundleData.provider;
-    const internalRef = `FD-${Math.random().toString(36).substring(2, 11).toUpperCase()}`;
+    const internalRef = `BYT-${Math.random().toString(36).substring(2, 11).toUpperCase()}`;
     let upstreamResponse: any = null;
 
     try {
@@ -67,6 +79,11 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
         const networkId = parseInt(netIdStr);
         const gbValue = parseInt(gbStr);
         upstreamResponse = await dakazinaClient.buyDataPackage(phone, networkId, gbValue, internalRef);
+      } else if (providerToUse === 'bytemedeals') {
+        const networkKey = bundleData.network.toUpperCase();
+        const network = BYTE_ME_NETWORK_MAP[networkKey] || 'MTN';
+        const planId = parseInt(bundleData.provider_bundle_id);
+        upstreamResponse = await byteMeDealsClient.purchaseData(network, planId, phone, internalRef);
       }
     } catch (apiError: any) {
       await supabaseAdmin.from('wallet_transactions').insert({
@@ -80,7 +97,7 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
       throw apiError;
     }
 
-    const providerOrderId = upstreamResponse?.order_code || upstreamResponse?.order_id || upstreamResponse?.reference || null;
+    const providerOrderId = upstreamResponse?.reference || upstreamResponse?.order_code || upstreamResponse?.order_id || null;
 
     // 4. Update Balance & Record Transaction
     const newBalance = currentBalance - actualPrice;
@@ -96,14 +113,13 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
     });
 
     // 5. Record Order using the appropriate table
-    if (providerToUse === 'dakazina') {
-      const [netIdStr, gbStr] = bundleData.provider_bundle_id.split(':');
-      const networkId = parseInt(netIdStr);
-      const gbValue = isNaN(parseInt(gbStr)) ? 0 : parseInt(gbStr);
-
+    if (providerToUse === 'dakazina' || providerToUse === 'bytemedeals') {
+      const networkKey = bundleData.network.toUpperCase();
+      const networkId = providerToUse === 'bytemedeals' ? (BYTE_ME_NETWORK_MAP[networkKey] === 'VOD' ? 2 : (BYTE_ME_NETWORK_MAP[networkKey] === 'ATM' ? 4 : 3)) : parseInt(bundleData.provider_bundle_id.split(':')[0]);
+      
       await supabaseAdmin.from('orders').insert({
         customer_id: profile.id,
-        package_id: gbValue,
+        package_id: providerToUse === 'bytemedeals' ? parseInt(bundleData.provider_bundle_id) : parseInt(bundleData.provider_bundle_id.split(':')[1]),
         network_id: networkId,
         phone_number: phone,
         amount: actualPrice,

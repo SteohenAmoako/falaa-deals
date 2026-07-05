@@ -2,28 +2,24 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { getUpstreamDashboard } from '@/lib/rahitalu';
-import { skPlugClient } from '@/lib/skplug/client';
+import { byteMeDealsClient } from '@/lib/bytemedeals/client';
 import { revalidatePath } from 'next/cache';
 import { UserRole } from '@/lib/types';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-const supabaseAdmin = createClient(
-  url || 'https://placeholder.supabase.co',
-  key || 'placeholder'
-);
+const supabaseAdmin = createClient(url, key);
 
 export async function checkIsAdmin(userId: string) {
   if (!url || !key) return false;
   try {
-    const { data: profile, error } = await supabaseAdmin
+    const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('is_admin')
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (error) return false;
     return profile?.is_admin === true;
   } catch (err) {
     return false;
@@ -33,20 +29,19 @@ export async function checkIsAdmin(userId: string) {
 export async function getSystemStatus() {
   if (!url || !key) return { enabled: true, message: '' };
   try {
-    const { data, error } = await supabaseAdmin
+    const { data } = await supabaseAdmin
       .from('system_configs')
       .select('value')
       .eq('key', 'maintenance_mode')
       .maybeSingle();
 
-    if (error) return { enabled: true, message: '' };
     return data?.value || { enabled: true, message: '' };
   } catch (error) {
     return { enabled: true, message: '' };
   }
 }
 
-export async function getActiveProvider(): Promise<'skplug' | 'dakazina'> {
+export async function getActiveProvider(): Promise<'skplug' | 'dakazina' | 'bytemedeals'> {
   if (!url || !key) return 'skplug';
   try {
     const { data } = await supabaseAdmin
@@ -60,7 +55,7 @@ export async function getActiveProvider(): Promise<'skplug' | 'dakazina'> {
   }
 }
 
-export async function updateActiveProvider(provider: 'skplug' | 'dakazina') {
+export async function updateActiveProvider(provider: 'skplug' | 'dakazina' | 'bytemedeals') {
   if (!url || !key) return { success: false, message: 'DB not configured' };
   try {
     await supabaseAdmin
@@ -100,14 +95,28 @@ export async function getAdminDashboardData() {
       return sum + (isNaN(val) ? 0 : val);
     }, 0);
 
+    const activeProvider = await getActiveProvider();
+    
+    // Get Provider Balance
+    let upstreamBalance = 0;
+    try {
+      if (activeProvider === 'bytemedeals') {
+        const res = await byteMeDealsClient.getBalance();
+        upstreamBalance = res.balance || 0;
+      } else {
+        const upstreamDash = await getUpstreamDashboard().catch(() => ({ wallet: { balance: 0 } }));
+        upstreamBalance = upstreamDash?.wallet?.balance || 0;
+      }
+    } catch (err) {
+      console.warn('Provider balance fetch failed', err);
+    }
+
     const [rahCount, skCount, dakCount] = await Promise.all([
       supabaseAdmin.from('rahitalu_orders').select('*', { count: 'exact', head: true }).gte('created_at', today),
       supabaseAdmin.from('skplug_orders').select('*', { count: 'exact', head: true }).gte('created_at', today),
       supabaseAdmin.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', today),
     ]);
     const totalTodayOrders = (rahCount.count || 0) + (skCount.count || 0) + (dakCount.count || 0);
-
-    const upstreamDash = await getUpstreamDashboard().catch(() => ({ wallet: { balance: 0 } }));
 
     const [rahitaluOrdersRes, skplugOrdersRes, dakazinaOrdersRes, walletTxRes, usersRes] = await Promise.all([
       supabaseAdmin.from('rahitalu_orders').select('*, profiles(reference_code)').order('created_at', { ascending: false }).limit(200),
@@ -116,8 +125,6 @@ export async function getAdminDashboardData() {
       supabaseAdmin.from('wallet_transactions').select('*, profiles(full_name, reference_code, phone)').order('created_at', { ascending: false }).limit(500),
       supabaseAdmin.from('profiles').select('*').order('created_at', { ascending: false }).limit(1000)
     ]);
-
-    const activeProvider = await getActiveProvider();
 
     const allOrders = [
       ...(rahitaluOrdersRes.data || []).map(o => ({
@@ -145,7 +152,7 @@ export async function getAdminDashboardData() {
         status: o.status,
         timestamp: o.created_at,
         user_ref: (o.profiles as any)?.reference_code || 'N/A',
-        provider: 'dakazina'
+        provider: 'generic' // ByteMeDeals and Dakazina share this table
       }))
     ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
@@ -167,7 +174,7 @@ export async function getAdminDashboardData() {
         totalUsers: totalUsers || 0,
         todayDeposits: todayDepositsAmount,
         todayOrders: totalTodayOrders,
-        rahitaluBalance: upstreamDash?.wallet?.balance || 0,
+        rahitaluBalance: upstreamBalance,
         todayProfit: 0 
       },
       systemStatus: await getSystemStatus(),

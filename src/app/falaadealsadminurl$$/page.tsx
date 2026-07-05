@@ -9,13 +9,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Users, ShoppingCart, Wallet, Search, Loader2, RefreshCw,
-  ArrowDownLeft, LogOut, LayoutDashboard, TrendingUp, PackageSearch, Bell, Menu, Plus, Zap, Globe
+  ArrowDownLeft, LogOut, LayoutDashboard, TrendingUp, PackageSearch, Menu, Plus
 } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
-import { getAdminDashboardData, updateSystemStatus, adjustUserBalance, assignUserRole, registerSkPlugWebhook, updateActiveProvider } from '@/app/actions/admin';
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { getAdminDashboardData, updateSystemStatus, adjustUserBalance, assignUserRole, updateActiveProvider } from '@/app/actions/admin';
 import { cn, formatGb, formatLongDate } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
@@ -51,7 +51,6 @@ function StatusBadge({ status }: { status: string }) {
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [registeringWebhook, setRegisteringWebhook] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('orders');
   const [currentPage, setCurrentPage] = useState(1);
@@ -59,7 +58,7 @@ export default function AdminDashboard() {
   
   const [localSystemEnabled, setLocalSystemEnabled] = useState(true);
   const [localSystemMessage, setLocalSystemMessage] = useState('');
-  const [activeProvider, setActiveProvider] = useState<'skplug' | 'dakazina'>('skplug');
+  const [activeProvider, setActiveProvider] = useState<'skplug' | 'dakazina' | 'bytemedeals'>('skplug');
 
   const [isAdjOpen, setIsAdjOpen] = useState(false);
   const [adjUser, setAdjUser] = useState<any>(null);
@@ -90,7 +89,7 @@ export default function AdminDashboard() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleProviderSwitch = async (newProvider: 'skplug' | 'dakazina') => {
+  const handleProviderSwitch = async (newProvider: 'skplug' | 'dakazina' | 'bytemedeals') => {
     const res = await updateActiveProvider(newProvider);
     if (res.success) {
       setActiveProvider(newProvider);
@@ -190,6 +189,12 @@ export default function AdminDashboard() {
           onClick={() => handleProviderSwitch('dakazina')}
           className={cn("h-8 text-[10px] font-black uppercase px-3", activeProvider === 'dakazina' && "bg-violet-600")}
         >DAKAZINA</Button>
+        <Button 
+          size="sm" 
+          variant={activeProvider === 'bytemedeals' ? 'default' : 'ghost'} 
+          onClick={() => handleProviderSwitch('bytemedeals')}
+          className={cn("h-8 text-[10px] font-black uppercase px-3", activeProvider === 'bytemedeals' && "bg-violet-600")}
+        >BYTEMEDEALS</Button>
       </div>
       <Button size="sm" variant="ghost" onClick={() => router.push('/falaadealsadminurl$$/pricing')} className="text-zinc-400 border border-white/5 justify-start h-10 px-4"><PackageSearch size={14} className="mr-2" /> Pricing</Button>
       <Button size="sm" variant="ghost" onClick={fetchData} className="text-zinc-400 border border-white/5 justify-start h-10 px-4"><RefreshCw size={14} className={cn(loading && "animate-spin mr-2")} /> Sync</Button>
@@ -237,7 +242,7 @@ export default function AdminDashboard() {
             <StatCard icon={ArrowDownLeft} label="Today's Deposits" value={Number(data?.stats?.todayDeposits || 0).toFixed(2)} color="text-emerald-400" />
             <StatCard icon={ShoppingCart} label="Today's Orders" value={data?.stats?.todayOrders} color="text-blue-400" />
             <StatCard icon={TrendingUp} label="Daily Profit" value="0.00" color="text-amber-500" />
-            <StatCard icon={Wallet} label="Rahitalu Bal" value={Number(data?.stats?.rahitaluBalance || 0).toFixed(2)} highlight />
+            <StatCard icon={Wallet} label="Provider Balance" value={Number(data?.stats?.rahitaluBalance || 0).toFixed(2)} highlight />
           </div>
         </div>
 
