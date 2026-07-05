@@ -77,19 +77,10 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
         upstreamResponse = await diceConsultClient.purchaseData(network, phone, bundleData.label);
       }
     } catch (apiError: any) {
-      const isProviderEmpty = apiError.message === 'PROVIDER_INSUFFICIENT_BALANCE';
+      const isProviderEmpty = apiError.message === 'PROVIDER_INSUFFICIENT_BALANCE' || apiError.message?.toLowerCase().includes('insufficient');
       const errorMsg = isProviderEmpty 
         ? "Prompt admin immediately on 0203558192 or WhatsApp on 0573677371" 
         : `FAILED: ${bundleData.label} - ${apiError.message}`;
-
-      await supabaseAdmin.from('wallet_transactions').insert({
-        user_id: userId,
-        amount: actualPrice,
-        type: 'debit',
-        status: 'failed',
-        reference: internalRef,
-        description: errorMsg,
-      });
 
       throw new Error(errorMsg);
     }
@@ -103,7 +94,6 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
       user_id: userId,
       amount: actualPrice,
       type: 'debit',
-      status: 'success',
       reference: internalRef,
       description: `Bought ${bundleData.label} for ${phone} (${providerToUse})`,
     });

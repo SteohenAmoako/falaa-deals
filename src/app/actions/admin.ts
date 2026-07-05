@@ -72,7 +72,6 @@ export async function getAdminDashboardData() {
       .from('wallet_transactions')
       .select('amount')
       .eq('type', 'credit')
-      .eq('status', 'success')
       .gte('created_at', today);
 
     const todayDepositsAmount = (depositsToday || []).reduce((sum, tx) => sum + parseFloat(tx.amount?.toString() || '0'), 0);
@@ -175,7 +174,7 @@ export async function updateSystemStatus(enabled: boolean, message: string) {
 export async function adjustUserBalance(profileId: string, amount: number, type: 'credit' | 'debit', reason: string) {
   if (!url || !key) return { success: false, message: 'DB not configured' };
   try {
-    const { data: profile } = await supabaseAdmin.from('profiles').select('id, user_id, wallet_balance').eq('id', profileId).single();
+    const { data: profile } = await supabaseAdmin.from('profiles').select('id, user_id, wallet_balance, full_name, reference_code').eq('id', profileId).single();
     if (!profile) throw new Error('User profile not found');
 
     const currentBalance = parseFloat(profile.wallet_balance.toString());
@@ -187,7 +186,6 @@ export async function adjustUserBalance(profileId: string, amount: number, type:
       user_id: profile.user_id, 
       amount, 
       type, 
-      status: 'success', 
       reference: `ADM-${Math.random().toString(36).substring(7).toUpperCase()}`, 
       description: `Admin ${type === 'credit' ? 'Credit' : 'Debit'}: ${reason}` 
     });
