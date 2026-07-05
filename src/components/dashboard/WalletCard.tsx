@@ -2,8 +2,9 @@
 
 import { Wallet, Copy, Smartphone, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
 
 interface WalletCardProps {
   balance: number;
@@ -12,16 +13,24 @@ interface WalletCardProps {
 }
 
 export default function WalletCard({ balance, referenceCode, disabled }: WalletCardProps) {
+  const { toast } = useToast();
+
   const copyRef = async () => {
     try {
-      await navigator.clipboard.writeText(referenceCode);
-      toast({ title: "Copied!", description: "Reference code copied to clipboard." });
+      // Check if navigator.clipboard is available and the context allows writing
+      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(referenceCode);
+        toast({ title: "Copied!", description: "Reference code copied to clipboard." });
+      } else {
+        throw new Error('Clipboard API not available');
+      }
     } catch (err) {
-      console.warn('Clipboard access blocked:', err);
+      console.warn('Clipboard access failed:', err);
+      // Fallback for environments with restricted permissions
       toast({ 
         variant: "destructive", 
         title: "Copy Failed", 
-        description: "Clipboard access is restricted in this browser environment." 
+        description: "Clipboard access is restricted. Please copy the code manually." 
       });
     }
   };
@@ -72,5 +81,3 @@ export default function WalletCard({ balance, referenceCode, disabled }: WalletC
     </Card>
   );
 }
-
-import { Card, CardHeader, CardContent } from "@/components/ui/card";

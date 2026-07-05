@@ -1,4 +1,4 @@
-'use client';
+'use server';
 
 import { createClient } from '@supabase/supabase-js';
 import { placeDataOrder } from '@/lib/rahitalu';
@@ -29,6 +29,7 @@ const BYTE_ME_NETWORK_MAP: Record<string, 'MTN' | 'VOD' | 'ATM'> = {
 
 /**
  * Common order logic for any bundle from any provider.
+ * Converted to Server Action to support revalidatePath and secure API calls.
  */
 export async function buyBundle(userId: string, bundleId: string, phone: string) {
   try {
@@ -86,6 +87,7 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
         upstreamResponse = await byteMeDealsClient.purchaseData(network, planId, phone, internalRef);
       }
     } catch (apiError: any) {
+      // Record failed transaction attempt
       await supabaseAdmin.from('wallet_transactions').insert({
         user_id: userId,
         amount: actualPrice,
@@ -112,14 +114,20 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
       description: `Bought ${bundleData.label} for ${phone} (${providerToUse})`,
     });
 
-    // 5. Record Order using the appropriate table
+    // 5. Record Order using the consolidated 'orders' schema for Dakazina
     if (providerToUse === 'dakazina' || providerToUse === 'bytemedeals') {
       const networkKey = bundleData.network.toUpperCase();
-      const networkId = providerToUse === 'bytemedeals' ? (BYTE_ME_NETWORK_MAP[networkKey] === 'VOD' ? 2 : (BYTE_ME_NETWORK_MAP[networkKey] === 'ATM' ? 4 : 3)) : parseInt(bundleData.provider_bundle_id.split(':')[0]);
+      const networkId = providerToUse === 'bytemedeals' 
+        ? (BYTE_ME_NETWORK_MAP[networkKey] === 'VOD' ? 2 : (BYTE_ME_NETWORK_MAP[networkKey] === 'ATM' ? 4 : 3)) 
+        : parseInt(bundleData.provider_bundle_id.split(':')[0]);
       
+      const pkgId = providerToUse === 'bytemedeals' 
+        ? parseInt(bundleData.provider_bundle_id) 
+        : parseInt(bundleData.provider_bundle_id.split(':')[1]);
+
       await supabaseAdmin.from('orders').insert({
         customer_id: profile.id,
-        package_id: providerToUse === 'bytemedeals' ? parseInt(bundleData.provider_bundle_id) : parseInt(bundleData.provider_bundle_id.split(':')[1]),
+        package_id: isNaN(pkgId) ? 0 : pkgId,
         network_id: networkId,
         phone_number: phone,
         amount: actualPrice,
@@ -159,8 +167,10 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
       data: { userId, bundle: bundleData.label, phone, price: actualPrice, role: profile.role, ref: internalRef }
     });
 
+    // Revalidate paths to refresh dashboard and admin views
     revalidatePath('/dashboard');
     revalidatePath('/falaadealsadminurl$$');
+    
     return { success: true, message: `🎉 ${bundleData.label} activated successfully!` };
   } catch (error: any) {
     console.error('Buy Bundle Error:', error);
