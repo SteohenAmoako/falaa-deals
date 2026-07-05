@@ -1,4 +1,4 @@
-'use server';
+'use client';
 
 import { useState } from 'react';
 import { Card } from "@/components/ui/card";
@@ -112,7 +112,7 @@ export default function PlanCard({ bundle, userId, walletBalance, disabled }: Pl
                 <span className="text-[10px] font-black uppercase tracking-widest">Important Disclaimer</span>
               </div>
               <p className="text-[10px] text-zinc-300 font-medium leading-relaxed">
-                This package is strictly for <strong className="text-white">existing customers</strong> who have previously purchased the <strong className="text-[#FFD700]">MTNUP2U</strong> package. If the number has never bought this before, it will not arrive. Note that delivery may be delayed due to network complications. <strong className="text-red-400">Read carefully before you buy.</strong>
+                This package is strictly for <strong className="text-white">existing customers</strong> who have previously purchased the <strong className="text-[#FFD700]">MTNUP2U</strong> package. If the number has never bought this before, it will not arrive. Note that delivery may be delayed as MTN has made everything complicated. <strong className="text-red-400">Read carefully before you buy.</strong>
               </p>
             </div>
 
