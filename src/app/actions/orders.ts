@@ -136,9 +136,16 @@ export async function buyBundle(userId: string, bundleId: string, phone: string)
     });
 
     await sendNtfy({
-      title: "New Data Order",
+      title: `${profile.full_name} (${profile.reference_code}): ${bundleData.label} Order`,
       tags: ["order", providerToUse],
-      data: { userId, bundle: bundleData.label, phone, price: actualPrice, role: profile.role, ref: internalRef }
+      data: { 
+        user: `${profile.full_name} (${profile.reference_code})`,
+        bundle: bundleData.label, 
+        phone, 
+        price: actualPrice, 
+        provider: providerToUse,
+        ref: internalRef 
+      }
     });
 
     revalidatePath('/dashboard');

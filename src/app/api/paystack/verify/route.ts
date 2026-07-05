@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { sendNtfy } from '@/lib/notifications';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
     // 3. Get current profile balance
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('id, wallet_balance')
+      .select('id, wallet_balance, full_name, reference_code')
       .eq('user_id', userId)
       .single();
 
@@ -82,6 +83,19 @@ export async function POST(req: NextRequest) {
         description: `Wallet funding via Paystack (Confirmed)`
       })
       .eq('reference', reference);
+
+    // 6. Notify ntfy
+    await sendNtfy({
+      title: `${profile.full_name} (${profile.reference_code}): Paystack Deposit GHS ${actualAmount}`,
+      tags: ["paystack", "deposit", "wallet"],
+      data: {
+        user: `${profile.full_name} (${profile.reference_code})`,
+        amount: actualAmount,
+        reference,
+        status: "success",
+        timestamp: new Date().toISOString()
+      }
+    });
 
     return NextResponse.json({ success: true, amount: actualAmount });
   } catch (error: any) {

@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { skPlugClient } from '@/lib/skplug/client';
@@ -16,7 +15,7 @@ export async function POST(req: NextRequest) {
     // 1. Check Wallet Balance
     const { data: profile, error: profileErr } = await supabaseAdmin
       .from('profiles')
-      .select('id, wallet_balance')
+      .select('id, wallet_balance, full_name, reference_code')
       .eq('user_id', userId)
       .single();
 
@@ -64,10 +63,10 @@ export async function POST(req: NextRequest) {
 
     // 5. Notify
     await sendNtfy({
-      title: "SK Plug Purchase Completed",
+      title: `${profile.full_name} (${profile.reference_code}): SK Plug ${gbSize}GB Order`,
       tags: ["skplug", "purchase", "data"],
       data: {
-        userId,
+        user: `${profile.full_name} (${profile.reference_code})`,
         bundleSize: gbSize,
         recipient,
         orderId,

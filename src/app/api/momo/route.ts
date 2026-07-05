@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
 
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('id, user_id, wallet_balance, phone')
+      .select('id, user_id, wallet_balance, phone, full_name, reference_code')
       .eq('reference_code', reference)
       .maybeSingle();
 
@@ -138,10 +138,10 @@ export async function POST(req: NextRequest) {
 
     // Notify ntfy
     await sendNtfy({
-      title: "Wallet Deposit Successful",
+      title: `${profile.full_name} (${profile.reference_code}): MoMo Deposit GHS ${amount}`,
       tags: ["momo", "deposit", "wallet"],
       data: {
-        userId: profile.user_id,
+        user: `${profile.full_name} (${profile.reference_code})`,
         amount,
         reference,
         transactionId,

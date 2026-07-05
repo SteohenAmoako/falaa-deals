@@ -32,14 +32,17 @@ export async function signUp(formData: { email: string; password: string; fullNa
     if (!authData.user) throw new Error('Signup failed. Check your Supabase configuration.');
 
     // 2. Create the profile record using the Admin client
-    // We omit reference_code so the DB default ('F' || nextval('seq')) triggers
-    const { error: profileError } = await supabaseAdmin.from('profiles').insert({
-      user_id: authData.user.id,
-      full_name: formData.fullName,
-      phone: formData.phone,
-      wallet_balance: 0.00,
-      is_admin: false
-    });
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .insert({
+        user_id: authData.user.id,
+        full_name: formData.fullName,
+        phone: formData.phone,
+        wallet_balance: 0.00,
+        is_admin: false
+      })
+      .select('reference_code')
+      .single();
 
     if (profileError) {
       console.error('Profile Creation Error:', profileError);
@@ -48,12 +51,13 @@ export async function signUp(formData: { email: string; password: string; fullNa
 
     // 3. Send Notification
     await sendNtfy({
-      title: "New User Registration",
+      title: `New User: ${formData.fullName} (${profile?.reference_code || 'NEW'})`,
       tags: ["user", "signup"],
       data: {
         userId: authData.user.id,
         email: formData.email,
         phone: formData.phone,
+        ref: profile?.reference_code,
         timestamp: new Date().toISOString()
       }
     });
