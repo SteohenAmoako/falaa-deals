@@ -7,10 +7,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const authHeader = req.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -18,14 +15,14 @@ export async function GET(
     }
 
     const apiKey = authHeader.split(' ')[1];
-    const { data: keyData } = await supabaseAdmin
+    const { data: keyRecord } = await supabaseAdmin
       .from('api_keys')
       .select('user_id')
       .eq('api_key', apiKey)
       .eq('is_active', true)
       .maybeSingle();
 
-    if (!keyData) {
+    if (!keyRecord) {
       return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
     }
 
@@ -33,7 +30,7 @@ export async function GET(
       .from('rahitalu_orders')
       .select('*')
       .eq('reference', params.id)
-      .eq('user_id', keyData.user_id)
+      .eq('user_id', keyRecord.user_id)
       .maybeSingle();
 
     if (error || !order) {
@@ -44,7 +41,8 @@ export async function GET(
       success: true,
       order: {
         id: order.id,
-        phone: order.phone,
+        reference: order.reference,
+        recipient: order.phone,
         plan: order.gig,
         status: order.status,
         created_at: order.created_at

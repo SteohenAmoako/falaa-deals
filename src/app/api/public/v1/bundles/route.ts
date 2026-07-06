@@ -16,21 +16,21 @@ export async function GET(req: NextRequest) {
     }
 
     const apiKey = authHeader.split(' ')[1];
-    const { data: keyData, error: keyError } = await supabaseAdmin
+    const { data: keyRecord, error: keyErr } = await supabaseAdmin
       .from('api_keys')
       .select('user_id')
       .eq('api_key', apiKey)
       .eq('is_active', true)
       .maybeSingle();
 
-    if (keyError || !keyData) {
+    if (keyErr || !keyRecord) {
       return NextResponse.json({ error: 'Invalid or inactive API key' }, { status: 401 });
     }
 
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('role')
-      .eq('user_id', keyData.user_id)
+      .eq('user_id', keyRecord.user_id)
       .single();
 
     const bundles = await getBundlesForRole(profile?.role || 'base');

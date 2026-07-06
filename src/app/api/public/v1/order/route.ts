@@ -16,14 +16,14 @@ export async function POST(req: NextRequest) {
     }
 
     const apiKey = authHeader.split(' ')[1];
-    const { data: keyData } = await supabaseAdmin
+    const { data: keyRecord } = await supabaseAdmin
       .from('api_keys')
       .select('user_id')
       .eq('api_key', apiKey)
       .eq('is_active', true)
       .maybeSingle();
 
-    if (!keyData) {
+    if (!keyRecord) {
       return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
     }
 
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields: recipient, network, gb_size' }, { status: 400 });
     }
 
-    // Find the bundle ID for this network and size
+    // 1. Fetch matching bundle
     const { data: bundle } = await supabaseAdmin
       .from('bundles')
       .select('id')
@@ -45,17 +45,19 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (!bundle) {
-      return NextResponse.json({ error: `Bundle not found for ${network} ${gb_size}GB` }, { status: 404 });
+      return NextResponse.json({ error: 'Bundle not found for provided network and size' }, { status: 404 });
     }
 
-    const result = await buyBundle(keyData.user_id, bundle.id, recipient);
-
-    if (result.success) {
-      return NextResponse.json({ success: true, message: result.message });
-    } else {
-      return NextResponse.json({ success: false, message: result.message }, { status: 400 });
+    // 2. Execute purchase logic
+    const result = await buyBundle(keyRecord.user_id, bundle.id, recipient);
+    
+    if (!result.success) {
+      return NextResponse.json({ error: result.message }, { status: 400 });
     }
+
+    return NextResponse.json(result);
   } catch (error: any) {
+    console.error('API Order Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
