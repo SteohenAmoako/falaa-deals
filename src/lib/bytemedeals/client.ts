@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview ByteMeDeals API Client
  * Handles orders, balance checks, and authentication for the ByteMeDeals provider.

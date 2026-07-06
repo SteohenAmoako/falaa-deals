@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview DiceConsult API Client
  * Handles orders and balance checks using the unified API router.

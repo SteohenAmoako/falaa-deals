@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -7,14 +6,17 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const authHeader = req.headers.get('authorization');
+    const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized. Use "Bearer YOUR_API_KEY"' }, { status: 401 });
     }
 
-    const apiKey = authHeader.split(' ')[1];
+    const apiKey = authHeader.substring(7);
     const { data: keyRecord } = await supabaseAdmin
       .from('api_keys')
       .select('user_id')
@@ -23,23 +25,31 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       .maybeSingle();
 
     if (!keyRecord) {
-      return NextResponse.json({ error: 'Invalid or inactive API key' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
     }
 
     const orderId = params.id;
-
-    const { data: order } = await supabaseAdmin
+    const { data: order, error } = await supabaseAdmin
       .from('rahitalu_orders')
       .select('*')
-      .or(`id.eq.${orderId},reference.eq.${orderId}`)
+      .eq('reference', orderId)
       .eq('user_id', keyRecord.user_id)
       .maybeSingle();
 
-    if (!order) {
+    if (error || !order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, order });
+    return NextResponse.json({
+      success: true,
+      order: {
+        id: order.reference,
+        recipient: order.phone,
+        plan: order.gig,
+        status: order.status,
+        created_at: order.created_at
+      }
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
