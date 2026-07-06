@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview ByteMeDeals API Client
  * Handles orders, balance checks, and authentication for the ByteMeDeals provider.
@@ -13,6 +14,8 @@ async function request(path: string, options: RequestInit = {}) {
 
   const response = await fetch(`${BASE_URL.replace(/\/+$/, '')}${path}`, {
     ...options,
+    // Add 15 second timeout to prevent infinite loading
+    signal: AbortSignal.timeout(15000),
     headers: {
       'Authorization': `Bearer ${API_KEY}`,
       'Content-Type': 'application/json',
@@ -24,7 +27,11 @@ async function request(path: string, options: RequestInit = {}) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.message || `ByteMeDeals API error: ${response.status}`);
+    const errorMsg = data.message || `ByteMeDeals API error: ${response.status}`;
+    if (errorMsg.toLowerCase().includes('balance') || errorMsg.toLowerCase().includes('insufficient')) {
+      throw new Error('PROVIDER_INSUFFICIENT_BALANCE');
+    }
+    throw new Error(errorMsg);
   }
 
   return data;

@@ -11,7 +11,7 @@ const supabaseAdmin = createClient(
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized. Use "Bearer YOUR_API_KEY"' }, { status: 401 });
     }
 
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (!keyRecord) {
-      return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid or inactive API key' }, { status: 401 });
     }
 
     const body = await req.json();
@@ -34,30 +34,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields: recipient, network, gb_size' }, { status: 400 });
     }
 
-    // 1. Fetch matching bundle
-    const { data: bundle } = await supabaseAdmin
+    // Find the bundle ID for this request
+    const { data: bundles } = await supabaseAdmin
       .from('bundles')
       .select('id')
       .eq('network', network)
       .eq('gb_size', parseFloat(gb_size))
       .eq('is_active', true)
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
 
-    if (!bundle) {
-      return NextResponse.json({ error: 'Bundle not found for provided network and size' }, { status: 404 });
+    if (!bundles || bundles.length === 0) {
+      return NextResponse.json({ error: 'Bundle not found for specified network and size' }, { status: 404 });
     }
 
-    // 2. Execute purchase logic
-    const result = await buyBundle(keyRecord.user_id, bundle.id, recipient);
+    const result = await buyBundle(keyRecord.user_id, bundles[0].id, recipient);
     
-    if (!result.success) {
-      return NextResponse.json({ error: result.message }, { status: 400 });
+    if (result.success) {
+      return NextResponse.json(result);
+    } else {
+      return NextResponse.json(result, { status: 400 });
     }
-
-    return NextResponse.json(result);
   } catch (error: any) {
-    console.error('API Order Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

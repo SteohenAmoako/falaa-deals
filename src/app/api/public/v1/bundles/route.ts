@@ -11,19 +11,19 @@ const supabaseAdmin = createClient(
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized. Use "Bearer YOUR_API_KEY"' }, { status: 401 });
     }
 
     const apiKey = authHeader.split(' ')[1];
-    const { data: keyRecord, error: keyErr } = await supabaseAdmin
+    const { data: keyRecord } = await supabaseAdmin
       .from('api_keys')
       .select('user_id')
       .eq('api_key', apiKey)
       .eq('is_active', true)
       .maybeSingle();
 
-    if (keyErr || !keyRecord) {
+    if (!keyRecord) {
       return NextResponse.json({ error: 'Invalid or inactive API key' }, { status: 401 });
     }
 
@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
       .single();
 
     const bundles = await getBundlesForRole(profile?.role || 'base');
+    
     return NextResponse.json({ success: true, bundles });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
