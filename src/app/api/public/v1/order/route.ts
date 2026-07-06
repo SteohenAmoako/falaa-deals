@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { buyBundle } from '@/app/actions/orders';
@@ -11,21 +10,19 @@ const supabaseAdmin = createClient(
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized. Use "Bearer YOUR_API_KEY"' }, { status: 401 });
     }
 
     const apiKey = authHeader.split(' ')[1];
-
-    // 1. Verify API Key
-    const { data: keyData, error: keyErr } = await supabaseAdmin
+    const { data: keyData } = await supabaseAdmin
       .from('api_keys')
       .select('user_id')
       .eq('api_key', apiKey)
       .eq('is_active', true)
       .maybeSingle();
 
-    if (keyErr || !keyData) {
+    if (!keyData) {
       return NextResponse.json({ error: 'Invalid or inactive API key' }, { status: 401 });
     }
 
@@ -36,15 +33,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields: recipient, network, gb_size' }, { status: 400 });
     }
 
-    // 2. Fetch Bundle for Reseller Role
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('role')
-      .eq('user_id', keyData.user_id)
-      .single();
-
-    const role = profile?.role || 'api_user';
-
+    // Find the bundle ID based on network and size
     const { data: bundle } = await supabaseAdmin
       .from('bundles')
       .select('id')
@@ -55,26 +44,22 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (!bundle) {
-      return NextResponse.json({ error: `No active bundle found for ${network} ${gb_size}GB` }, { status: 404 });
+      return NextResponse.json({ error: `Bundle for ${network} ${gb_size}GB not found or inactive` }, { status: 404 });
     }
 
-    // 3. Process Order
     const result = await buyBundle(keyData.user_id, bundle.id, recipient);
 
     if (!result.success) {
-      return NextResponse.json({ error: result.message }, { status: 400 });
+      return NextResponse.json({ success: false, message: result.message }, { status: 400 });
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: result.message,
-      recipient,
-      network,
-      gb_size
+      recipient
     });
 
   } catch (error: any) {
-    console.error('API Order Error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

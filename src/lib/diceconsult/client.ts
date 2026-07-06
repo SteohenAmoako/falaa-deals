@@ -13,6 +13,7 @@ async function request(options: RequestInit = {}) {
 
   const response = await fetch(BASE_URL, {
     ...options,
+    signal: AbortSignal.timeout(15000), // 15s timeout to prevent infinite loading
     headers: {
       'X-API-KEY': API_KEY,
       'Content-Type': 'application/json',
@@ -23,7 +24,6 @@ async function request(options: RequestInit = {}) {
   const data = await response.json().catch(() => ({}));
   
   if (!response.ok || (data.success === false)) {
-    // Distinguish between validation errors and balance errors
     const errorMsg = data.message || `DiceConsult API error: ${response.status}`;
     if (errorMsg.toLowerCase().includes('insufficient balance') || errorMsg.toLowerCase().includes('top up')) {
       throw new Error('PROVIDER_INSUFFICIENT_BALANCE');
@@ -35,12 +35,6 @@ async function request(options: RequestInit = {}) {
 }
 
 export const diceConsultClient = {
-  /**
-   * Purchase a data bundle.
-   * @param network MTN, Telecel, iShare, BigTime
-   * @param phone Recipient phone number
-   * @param bundle Bundle size (e.g., "1GB", "2GB")
-   */
   async purchaseData(network: string, phone: string, bundle: string) {
     return request({
       method: 'POST',
