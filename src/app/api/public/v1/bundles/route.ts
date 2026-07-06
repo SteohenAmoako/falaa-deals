@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getBundlesForRole } from '@/app/actions/bundles';
@@ -9,20 +10,20 @@ const supabaseAdmin = createClient(
 
 export async function GET(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized. Use "Bearer YOUR_API_KEY"' }, { status: 401 });
     }
 
     const apiKey = authHeader.split(' ')[1];
-    const { data: keyData } = await supabaseAdmin
+    const { data: keyData, error: keyError } = await supabaseAdmin
       .from('api_keys')
       .select('user_id')
       .eq('api_key', apiKey)
       .eq('is_active', true)
       .maybeSingle();
 
-    if (!keyData) {
+    if (keyError || !keyData) {
       return NextResponse.json({ error: 'Invalid or inactive API key' }, { status: 401 });
     }
 
@@ -33,17 +34,7 @@ export async function GET(req: NextRequest) {
       .single();
 
     const bundles = await getBundlesForRole(profile?.role || 'base');
-    
-    return NextResponse.json({
-      success: true,
-      bundles: bundles.map(b => ({
-        id: b.id,
-        network: b.network,
-        gb_size: b.gb_size,
-        label: b.label,
-        price_ghs: b.sell_price_ghs
-      }))
-    });
+    return NextResponse.json({ success: true, bundles });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

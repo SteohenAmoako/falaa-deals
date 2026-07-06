@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview DiceConsult API Client
  * Handles orders and balance checks using the unified API router.
@@ -13,7 +14,8 @@ async function request(options: RequestInit = {}) {
 
   const response = await fetch(BASE_URL, {
     ...options,
-    signal: AbortSignal.timeout(15000), // 15s timeout to prevent infinite loading
+    // Add 15 second timeout to prevent infinite loading
+    signal: AbortSignal.timeout(15000),
     headers: {
       'X-API-KEY': API_KEY,
       'Content-Type': 'application/json',
@@ -25,6 +27,7 @@ async function request(options: RequestInit = {}) {
   
   if (!response.ok || (data.success === false)) {
     const errorMsg = data.message || `DiceConsult API error: ${response.status}`;
+    // Smart balance error detection
     if (errorMsg.toLowerCase().includes('insufficient balance') || errorMsg.toLowerCase().includes('top up')) {
       throw new Error('PROVIDER_INSUFFICIENT_BALANCE');
     }

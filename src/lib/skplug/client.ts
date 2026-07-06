@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview SK Plug API Client
  * Handles orders, status checks, bundle fetching, and webhook registration.
@@ -13,6 +14,8 @@ async function request(path: string, options: RequestInit = {}) {
 
   const response = await fetch(`${BASE_URL}${path}`, {
     ...options,
+    // Add 15 second timeout to prevent infinite loading
+    signal: AbortSignal.timeout(15000),
     headers: {
       'Authorization': `Bearer ${API_TOKEN}`,
       'Content-Type': 'application/json',
@@ -22,7 +25,11 @@ async function request(path: string, options: RequestInit = {}) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `SK Plug API error: ${response.status}`);
+    const errorMsg = errorData.message || `SK Plug API error: ${response.status}`;
+    if (errorMsg.toLowerCase().includes('balance') || errorMsg.toLowerCase().includes('fund')) {
+      throw new Error('PROVIDER_INSUFFICIENT_BALANCE');
+    }
+    throw new Error(errorMsg);
   }
 
   return response.json();

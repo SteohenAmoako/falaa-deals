@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { buyBundle } from '@/app/actions/orders';
@@ -9,8 +10,8 @@ const supabaseAdmin = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized. Use "Bearer YOUR_API_KEY"' }, { status: 401 });
     }
 
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (!keyData) {
-      return NextResponse.json({ error: 'Invalid or inactive API key' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
     }
 
     const body = await req.json();
@@ -33,32 +34,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields: recipient, network, gb_size' }, { status: 400 });
     }
 
-    // Find the bundle ID based on network and size
+    // Find the bundle ID for this network and size
     const { data: bundle } = await supabaseAdmin
       .from('bundles')
       .select('id')
-      .eq('network', network.toUpperCase())
+      .eq('network', network)
       .eq('gb_size', parseFloat(gb_size))
       .eq('is_active', true)
       .limit(1)
       .maybeSingle();
 
     if (!bundle) {
-      return NextResponse.json({ error: `Bundle for ${network} ${gb_size}GB not found or inactive` }, { status: 404 });
+      return NextResponse.json({ error: `Bundle not found for ${network} ${gb_size}GB` }, { status: 404 });
     }
 
     const result = await buyBundle(keyData.user_id, bundle.id, recipient);
 
-    if (!result.success) {
+    if (result.success) {
+      return NextResponse.json({ success: true, message: result.message });
+    } else {
       return NextResponse.json({ success: false, message: result.message }, { status: 400 });
     }
-
-    return NextResponse.json({
-      success: true,
-      message: result.message,
-      recipient
-    });
-
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -6,11 +7,14 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized. Use "Bearer YOUR_API_KEY"' }, { status: 401 });
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const apiKey = authHeader.split(' ')[1];
@@ -22,18 +26,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       .maybeSingle();
 
     if (!keyData) {
-      return NextResponse.json({ error: 'Invalid or inactive API key' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
     }
 
-    const orderId = params.id;
-    const { data: order } = await supabaseAdmin
+    const { data: order, error } = await supabaseAdmin
       .from('rahitalu_orders')
       .select('*')
-      .or(`reference.eq.${orderId},id.eq.${orderId}`)
+      .eq('reference', params.id)
       .eq('user_id', keyData.user_id)
       .maybeSingle();
 
-    if (!order) {
+    if (error || !order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
@@ -41,14 +44,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       success: true,
       order: {
         id: order.id,
-        reference: order.reference,
-        status: order.status,
-        recipient: order.phone,
+        phone: order.phone,
         plan: order.gig,
+        status: order.status,
         created_at: order.created_at
       }
     });
-
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
