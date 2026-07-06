@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -6,23 +7,20 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const authHeader = req.headers.get('Authorization');
+    const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized. Use "Bearer YOUR_API_KEY"' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const apiKey = authHeader.substring(7);
+    const apiKey = authHeader.split(' ')[1];
     const { data: keyRecord } = await supabaseAdmin
       .from('api_keys')
       .select('user_id')
       .eq('api_key', apiKey)
       .eq('is_active', true)
-      .maybeSingle();
+      .single();
 
     if (!keyRecord) {
       return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
@@ -34,7 +32,7 @@ export async function GET(
       .select('*')
       .eq('reference', orderId)
       .eq('user_id', keyRecord.user_id)
-      .maybeSingle();
+      .single();
 
     if (error || !order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
@@ -44,9 +42,9 @@ export async function GET(
       success: true,
       order: {
         id: order.reference,
+        status: order.status,
         recipient: order.phone,
         plan: order.gig,
-        status: order.status,
         created_at: order.created_at
       }
     });

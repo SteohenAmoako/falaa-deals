@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -43,12 +44,25 @@ export default function ApiDocsPage() {
     setRegenLoading(false);
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({ title: "Copied to clipboard" });
+  const copyToClipboard = async (text: string) => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        toast({ title: "Copied to clipboard" });
+      } else {
+        throw new Error('Clipboard API not available');
+      }
+    } catch (err) {
+      console.warn('Clipboard failed:', err);
+      toast({ 
+        variant: "destructive", 
+        title: "Copy Restricted", 
+        description: "Clipboard access is blocked by your browser. Please copy manually." 
+      });
+    }
   };
 
-  const baseUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/public/v1` : 'https://falaadeals.vercel.app/api/public/v1';
+  const baseUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/public/v1` : 'https://falaa-deals.vercel.app/api/public/v1';
 
   if (loading) return (
     <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
