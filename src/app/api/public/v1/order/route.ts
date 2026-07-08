@@ -12,48 +12,48 @@ export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized. Use "Bearer YOUR_API_KEY"' }, { status: 401 });
     }
 
     const apiKey = authHeader.split(' ')[1];
-    const { data: keyRecord, error: keyErr } = await supabaseAdmin
+    const { data: keyRecord } = await supabaseAdmin
       .from('api_keys')
       .select('user_id')
       .eq('api_key', apiKey)
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
-    if (keyErr || !keyRecord) {
-      return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
+    if (!keyRecord) {
+      return NextResponse.json({ error: 'Invalid or inactive API key' }, { status: 401 });
     }
 
-    const { recipient, network, gb_size } = await req.json();
+    const body = await req.json();
+    const { recipient, network, gb_size } = body;
 
     if (!recipient || !network || !gb_size) {
       return NextResponse.json({ error: 'Missing required fields: recipient, network, gb_size' }, { status: 400 });
     }
 
-    // Find the bundle ID matching the criteria
-    const { data: bundle } = await supabaseAdmin
+    // Find the bundle ID for this request
+    const { data: bundles } = await supabaseAdmin
       .from('bundles')
       .select('id')
       .eq('network', network)
       .eq('gb_size', parseFloat(gb_size))
       .eq('is_active', true)
-      .limit(1)
-      .single();
+      .limit(1);
 
-    if (!bundle) {
+    if (!bundles || bundles.length === 0) {
       return NextResponse.json({ error: 'Bundle not found for specified network and size' }, { status: 404 });
     }
 
-    const result = await buyBundle(keyRecord.user_id, bundle.id, recipient);
-
-    if (!result.success) {
-      return NextResponse.json({ error: result.message }, { status: 400 });
+    const result = await buyBundle(keyRecord.user_id, bundles[0].id, recipient);
+    
+    if (result.success) {
+      return NextResponse.json(result);
+    } else {
+      return NextResponse.json(result, { status: 400 });
     }
-
-    return NextResponse.json({ success: true, message: result.message });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

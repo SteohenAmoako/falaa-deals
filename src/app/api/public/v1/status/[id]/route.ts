@@ -11,7 +11,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   try {
     const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized. Use "Bearer YOUR_API_KEY"' }, { status: 401 });
     }
 
     const apiKey = authHeader.split(' ')[1];
@@ -20,34 +20,26 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       .select('user_id')
       .eq('api_key', apiKey)
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
     if (!keyRecord) {
-      return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid or inactive API key' }, { status: 401 });
     }
 
     const orderId = params.id;
-    const { data: order, error } = await supabaseAdmin
+
+    const { data: order } = await supabaseAdmin
       .from('rahitalu_orders')
       .select('*')
-      .eq('reference', orderId)
+      .or(`id.eq.${orderId},reference.eq.${orderId}`)
       .eq('user_id', keyRecord.user_id)
-      .single();
+      .maybeSingle();
 
-    if (error || !order) {
+    if (!order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
-    return NextResponse.json({
-      success: true,
-      order: {
-        id: order.reference,
-        status: order.status,
-        recipient: order.phone,
-        plan: order.gig,
-        created_at: order.created_at
-      }
-    });
+    return NextResponse.json({ success: true, order });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
